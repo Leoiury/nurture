@@ -11,6 +11,7 @@ import {
   type Faixa,
   type Segmento,
 } from "@/lib/agenda/layout";
+import { corDoTexto } from "@/lib/agenda/cores";
 import { diaDoMes, formatarHora, nomeCurtoDoDia } from "@/lib/agenda/tempo";
 import { PainelAtendimento } from "./painel-atendimento";
 
@@ -334,7 +335,7 @@ function Card({ atendimento: a, modo, top, altura, profissional, aoAbrir }: Card
       onClick={aoAbrir}
       title={descricao}
       aria-label={descricao}
-      className={`absolute overflow-hidden rounded-[5px] text-left text-[#1f2421] shadow-[0_1px_1px_rgba(0,0,0,0.06)] transition hover:z-10 hover:brightness-95 focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-[var(--accent)] ${
+      className={`absolute overflow-hidden rounded-[5px] text-left shadow-[0_1px_1px_rgba(0,0,0,0.06)] transition hover:z-10 hover:brightness-95 focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-[var(--accent)] ${
         desmarcado ? "opacity-45" : ""
       } ${a.status === "faltou" ? "ring-2 ring-[var(--danger)] ring-inset" : ""}`}
       style={{
@@ -343,6 +344,7 @@ function Card({ atendimento: a, modo, top, altura, profissional, aoAbrir }: Card
         left: `calc(${(a.faixa / a.faixas) * 100}% + 1px)`,
         width: `calc(${100 / a.faixas}% - 2px)`,
         background: cor,
+        color: corDoTexto(cor),
         borderLeft: `3px solid color-mix(in srgb, ${cor} 55%, #000)`,
       }}
     >

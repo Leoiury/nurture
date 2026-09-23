@@ -287,6 +287,7 @@ export type Database = {
           especialidade: string | null
           id: string
           nome: string
+          nome_legado: string | null
         }
         Insert: {
           ativo?: boolean
@@ -296,6 +297,7 @@ export type Database = {
           especialidade?: string | null
           id?: string
           nome: string
+          nome_legado?: string | null
         }
         Update: {
           ativo?: boolean
@@ -305,6 +307,7 @@ export type Database = {
           especialidade?: string | null
           id?: string
           nome?: string
+          nome_legado?: string | null
         }
         Relationships: []
       }

@@ -4,7 +4,9 @@
 //       npm run importar:legado -- --dry   (só mostra o que seria importado)
 //
 // Pode ser executado mais de uma vez: pacientes e atendimentos são atualizados
-// pelo id_legado; profissionais, planos e tipos pelo nome.
+// pelo id_legado. Profissionais (pelo nome_legado), planos e tipos (pelo nome)
+// só são inseridos se ainda não existirem: nomes, cores e status editados no
+// sistema não são sobrescritos.
 //
 // Os arquivos em dados/ contêm dados reais de pacientes e nunca vão para o git.
 // Este script imprime apenas contagens, nunca dados pessoais.
@@ -18,18 +20,19 @@ const DRY = process.argv.includes("--dry");
 const DIR = new URL("../dados/", import.meta.url);
 const FUSO = "-03:00"; // America/Sao_Paulo (sem horário de verão desde 2019)
 
-// Planos: cor do card e padrões. Valores seguem a regra informada pela clínica;
-// planos sem valor fixo (particular, APAE, AMA...) ficam em branco.
+// Planos: cor do card (da PALETA_PLANOS em src/lib/agenda/cores.ts) e padrões.
+// Valores seguem a regra informada pela clínica; planos sem valor fixo
+// (particular, APAE, AMA...) ficam em branco.
 const PLANOS: Record<string, { nome: string; cor: string; duracao: number; valor: number | null }> = {
-  "AMA": { nome: "AMA", cor: "#A7C7E7", duracao: 30, valor: null },
-  "APAE": { nome: "APAE", cor: "#B5E3C4", duracao: 30, valor: null },
-  "PARTICULAR": { nome: "Particular", cor: "#F9D98C", duracao: 45, valor: null },
-  "PARTICULAR - TABELA B": { nome: "Particular - Tabela B", cor: "#F5B97F", duracao: 45, valor: 150 },
-  "UNIMED": { nome: "Unimed", cor: "#7FC8A9", duracao: 45, valor: 120 },
-  "UNIMED - REEMBOLSO": { nome: "Unimed - Reembolso", cor: "#C3B1E1", duracao: 45, valor: 200 },
-  "PETROBRAS - REEMBOLSO": { nome: "Petrobrás - Reembolso", cor: "#F4A6A6", duracao: 45, valor: 200 },
-  "PROJETO NURE COMUNICACAO": { nome: "Projeto Nure Comunicação", cor: "#9AD0EC", duracao: 45, valor: 115 },
-  "REUNIOES E VISITAS": { nome: "Reuniões e Visitas", cor: "#D9D9D9", duracao: 45, valor: null },
+  "AMA": { nome: "AMA", cor: "#F6D365", duracao: 30, valor: null },
+  "APAE": { nome: "APAE", cor: "#A8DDB5", duracao: 30, valor: null },
+  "PARTICULAR": { nome: "Particular", cor: "#D9534F", duracao: 45, valor: null },
+  "PARTICULAR - TABELA B": { nome: "Particular - Tabela B", cor: "#F2A19D", duracao: 45, valor: 150 },
+  "UNIMED": { nome: "Unimed", cor: "#2E7D5B", duracao: 45, valor: 120 },
+  "UNIMED - REEMBOLSO": { nome: "Unimed - Reembolso", cor: "#4A90D9", duracao: 45, valor: 200 },
+  "PETROBRAS - REEMBOLSO": { nome: "Petrobrás - Reembolso", cor: "#4A90D9", duracao: 45, valor: 200 },
+  "PROJETO NURE COMUNICACAO": { nome: "Projeto Nure Comunicação", cor: "#B39DDB", duracao: 45, valor: 115 },
+  "REUNIOES E VISITAS": { nome: "Reuniões e Visitas", cor: "#D0D3D4", duracao: 45, valor: null },
 };
 
 const STATUS: Record<string, Database["public"]["Enums"]["status_atendimento"]> = {
@@ -183,39 +186,39 @@ function ok<T>(r: { data: T | null; error: { message: string } | null }, etapa: 
   return r.data;
 }
 
-// Tabelas de apoio, com mapa chave -> id.
-const planoId = new Map<string, string>();
-for (const p of ok(
-  await db
-    .from("planos")
-    .upsert(
-      Object.values(PLANOS).map((p) => ({ nome: p.nome, cor: p.cor, duracao_padrao_min: p.duracao, valor_padrao: p.valor })),
-      { onConflict: "nome" },
-    )
-    .select("id, nome"),
+/** Para gravações sem retorno de dados. */
+function semErro(r: { error: { message: string } | null }, etapa: string) {
+  if (r.error) throw new Error(`${etapa}: ${r.error.message}`);
+}
+
+// Tabelas de apoio: insere só o que falta e monta o mapa chave -> id.
+semErro(
+  await db.from("planos").upsert(
+    Object.values(PLANOS).map((p) => ({ nome: p.nome, cor: p.cor, duracao_padrao_min: p.duracao, valor_padrao: p.valor })),
+    { onConflict: "nome", ignoreDuplicates: true },
+  ),
   "planos",
-))
-  planoId.set(chave(p.nome), p.id);
+);
+const planoId = new Map(ok(await db.from("planos").select("id, nome"), "planos").map((p) => [chave(p.nome), p.id]));
 
-const profId = new Map<string, string>();
-for (const p of ok(
-  await db
-    .from("profissionais")
-    .upsert([...profissionais.values()], { onConflict: "nome", ignoreDuplicates: false })
-    .select("id, nome"),
+semErro(
+  await db.from("profissionais").upsert(
+    [...profissionais.values()].map((p) => ({ ...p, nome_legado: p.nome })),
+    { onConflict: "nome_legado", ignoreDuplicates: true },
+  ),
   "profissionais",
-))
-  profId.set(chave(p.nome), p.id);
+);
+const profId = new Map(
+  ok(await db.from("profissionais").select("id, nome_legado"), "profissionais")
+    .filter((p) => p.nome_legado)
+    .map((p) => [chave(p.nome_legado!), p.id]),
+);
 
-const tipoId = new Map<string, string>();
-for (const t of ok(
-  await db
-    .from("tipos_atendimento")
-    .upsert([...tipos.values()].map((nome) => ({ nome })), { onConflict: "nome" })
-    .select("id, nome"),
+semErro(
+  await db.from("tipos_atendimento").upsert([...tipos.values()].map((nome) => ({ nome })), { onConflict: "nome", ignoreDuplicates: true }),
   "tipos",
-))
-  tipoId.set(chave(t.nome), t.id);
+);
+const tipoId = new Map(ok(await db.from("tipos_atendimento").select("id, nome"), "tipos").map((t) => [chave(t.nome), t.id]));
 
 const planoDoConvenio = (convenio: string) => planoId.get(chave(PLANOS[chave(convenio)]?.nome ?? "")) ?? null;
 
