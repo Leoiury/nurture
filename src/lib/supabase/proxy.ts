@@ -27,7 +27,23 @@ export async function updateSession(request: NextRequest) {
   );
 
   // Não coloque código entre createServerClient e getClaims().
-  await supabase.auth.getClaims();
+  const { data } = await supabase.auth.getClaims();
+  const logado = Boolean(data?.claims);
+  const naLogin = request.nextUrl.pathname.startsWith("/login");
+
+  // Verificação otimista; as páginas protegidas conferem a sessão de novo no servidor.
+  if (!logado && !naLogin) return redirecionar(request, response, "/login");
+  if (logado && naLogin) return redirecionar(request, response, "/agenda");
 
   return response;
+}
+
+// Redireciona preservando os cookies de sessão que o Supabase possa ter renovado.
+function redirecionar(request: NextRequest, response: NextResponse, caminho: string) {
+  const url = request.nextUrl.clone();
+  url.pathname = caminho;
+  url.search = "";
+  const redirect = NextResponse.redirect(url);
+  response.cookies.getAll().forEach((cookie) => redirect.cookies.set(cookie));
+  return redirect;
 }
