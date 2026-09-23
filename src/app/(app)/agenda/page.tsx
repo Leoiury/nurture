@@ -21,8 +21,7 @@ export default async function AgendaPage({ searchParams }: PageProps<"/agenda">)
   const dias = dia ? [dia] : semana.filter((d, i) => i < 5 || atendimentos.some((a) => a.data === d));
 
   return (
-    <div className="flex flex-1 flex-col gap-3 px-3 py-4 sm:px-6">
-      <Navegacao referencia={referencia} dia={dia} hoje={dataHoje} />
+    <div className="flex flex-1 flex-col px-3 py-4 sm:px-6 sm:py-5">
       <AgendaGrade
         key={dias.join()}
         modo={dia ? "dia" : "semana"}
@@ -30,6 +29,7 @@ export default async function AgendaPage({ searchParams }: PageProps<"/agenda">)
         hoje={dataHoje}
         profissionais={profissionais}
         atendimentos={dia ? atendimentos.filter((a) => a.data === dia) : atendimentos}
+        navegacao={<Navegacao referencia={referencia} dia={dia} hoje={dataHoje} />}
       />
     </div>
   );

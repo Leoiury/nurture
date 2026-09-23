@@ -4,7 +4,6 @@ import {
   inicioDaSemana,
   inicioDoMes,
   nomeDoMes,
-  nomeLongoDoDia,
   semanasDoMes,
   somarDias,
   somarMeses,
@@ -14,7 +13,7 @@ import {
 type Props = { referencia: string; dia: string | null; hoje: string };
 
 const botao =
-  "inline-flex h-8 items-center justify-center rounded-md border border-border bg-surface px-2.5 text-sm hover:bg-background";
+  "inline-flex h-9 min-w-9 items-center justify-center rounded-full bg-surface px-3 text-sm shadow-sm ring-1 ring-black/5 transition hover:shadow";
 
 function rotuloSemana(segunda: string): string {
   const sexta = somarDias(segunda, 4);
@@ -40,43 +39,19 @@ export function Navegacao({ referencia, dia, hoje }: Props) {
   const semanaHoje = inicioDaSemana(hoje);
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <div className="flex items-center gap-1">
-          <Link href={linkMes(referencia, -1)} className={botao} aria-label="Mês anterior">
-            ‹
-          </Link>
-          <h1 className="min-w-44 text-center text-lg font-semibold tracking-tight">{nomeDoMes(referencia)}</h1>
-          <Link href={linkMes(referencia, 1)} className={botao} aria-label="Próximo mês">
-            ›
-          </Link>
-        </div>
-
-        <nav aria-label="Semanas do mês" className="flex flex-wrap gap-1">
-          {semanas.map((s) => {
-            const atual = !dia && s === segunda;
-            return (
-              <Link
-                key={s}
-                href={linkSemana(s, referencia)}
-                aria-current={atual ? "page" : undefined}
-                className={`rounded-md px-2.5 py-1 text-sm tabular-nums ${
-                  atual ? "bg-accent text-white" : s === semanaHoje ? "bg-accent-soft text-accent" : "hover:bg-surface"
-                }`}
-              >
-                {rotuloSemana(s)}
-              </Link>
-            );
-          })}
-        </nav>
-
-        <Link href="/agenda" className={`${botao} ml-auto`}>
-          Hoje
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
+      <div className="flex items-center gap-1.5">
+        <Link href={linkMes(referencia, -1)} className={botao} aria-label="Mês anterior">
+          ‹
+        </Link>
+        <h1 className="min-w-40 text-center text-lg font-semibold tracking-tight">{nomeDoMes(referencia)}</h1>
+        <Link href={linkMes(referencia, 1)} className={botao} aria-label="Próximo mês">
+          ›
         </Link>
       </div>
 
-      {dia && (
-        <div className="flex flex-wrap items-center gap-2">
+      {dia ? (
+        <div className="flex items-center gap-1.5">
           <Link href={linkSemana(segunda, referencia)} className={botao}>
             ← Semana
           </Link>
@@ -86,9 +61,30 @@ export function Navegacao({ referencia, dia, hoje }: Props) {
           <Link href={`/agenda?dia=${somarDias(dia, 1)}`} className={botao} aria-label="Próximo dia">
             ›
           </Link>
-          <h2 className="text-base font-medium first-letter:uppercase">{nomeLongoDoDia(dia)}</h2>
         </div>
+      ) : (
+        <nav aria-label="Semanas do mês" className="flex max-w-full gap-0.5 overflow-x-auto rounded-full bg-black/[0.04] p-1">
+          {semanas.map((s) => {
+            const atual = s === segunda;
+            return (
+              <Link
+                key={s}
+                href={linkSemana(s, referencia)}
+                aria-current={atual ? "page" : undefined}
+                className={`shrink-0 rounded-full px-3 py-1 text-sm tabular-nums transition ${
+                  atual ? "bg-surface font-medium shadow-sm" : s === semanaHoje ? "text-accent hover:bg-surface/60" : "text-muted hover:bg-surface/60 hover:text-foreground"
+                }`}
+              >
+                {rotuloSemana(s)}
+              </Link>
+            );
+          })}
+        </nav>
       )}
+
+      <Link href="/agenda" className={`${botao} ml-auto`}>
+        Hoje
+      </Link>
     </div>
   );
 }
