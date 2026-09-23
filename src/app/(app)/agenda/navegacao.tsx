@@ -8,9 +8,13 @@ import {
   somarDias,
   somarMeses,
 } from "@/lib/agenda/tempo";
+import type { Visao } from "./comum";
 
-/** referencia: data que define o mês exibido (e a semana, via inicioDaSemana). */
-type Props = { referencia: string; dia: string | null; hoje: string };
+/**
+ * referencia: data que define o mês exibido (e a semana, via inicioDaSemana).
+ * visao: preservada em todos os links.
+ */
+type Props = { referencia: string; dia: string | null; hoje: string; visao: Visao };
 
 const botao =
   "inline-flex h-9 min-w-9 items-center justify-center rounded-full bg-surface px-3 text-sm shadow-sm ring-1 ring-black/5 transition hover:shadow";
@@ -23,17 +27,18 @@ function rotuloSemana(segunda: string): string {
 }
 
 /** Link para uma semana mantendo o mês: aponta para o primeiro dia dela dentro do mês. */
-function linkSemana(segunda: string, mes: string): string {
+function linkSemana(segunda: string, mes: string, sufixo: string): string {
   const primeiro = inicioDoMes(mes);
-  return `/agenda?semana=${segunda < primeiro ? primeiro : segunda}`;
+  return `/agenda?semana=${segunda < primeiro ? primeiro : segunda}${sufixo}`;
 }
 
-function linkMes(referencia: string, meses: number): string {
+function linkMes(referencia: string, meses: number, sufixo: string): string {
   const mes = somarMeses(referencia, meses);
-  return linkSemana(semanasDoMes(mes)[0], mes);
+  return linkSemana(semanasDoMes(mes)[0], mes, sufixo);
 }
 
-export function Navegacao({ referencia, dia, hoje }: Props) {
+export function Navegacao({ referencia, dia, hoje, visao }: Props) {
+  const sufixo = visao === "lado" ? "&visao=lado" : "";
   const segunda = inicioDaSemana(referencia);
   const semanas = semanasDoMes(referencia);
   const semanaHoje = inicioDaSemana(hoje);
@@ -41,24 +46,24 @@ export function Navegacao({ referencia, dia, hoje }: Props) {
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
       <div className="flex items-center gap-1.5">
-        <Link href={linkMes(referencia, -1)} className={botao} aria-label="Mês anterior">
+        <Link href={linkMes(referencia, -1, sufixo)} className={botao} aria-label="Mês anterior">
           ‹
         </Link>
         <h1 className="min-w-40 text-center text-lg font-semibold tracking-tight">{nomeDoMes(referencia)}</h1>
-        <Link href={linkMes(referencia, 1)} className={botao} aria-label="Próximo mês">
+        <Link href={linkMes(referencia, 1, sufixo)} className={botao} aria-label="Próximo mês">
           ›
         </Link>
       </div>
 
       {dia ? (
         <div className="flex items-center gap-1.5">
-          <Link href={linkSemana(segunda, referencia)} className={botao}>
+          <Link href={linkSemana(segunda, referencia, sufixo)} className={botao}>
             ← Semana
           </Link>
-          <Link href={`/agenda?dia=${somarDias(dia, -1)}`} className={botao} aria-label="Dia anterior">
+          <Link href={`/agenda?dia=${somarDias(dia, -1)}${sufixo}`} className={botao} aria-label="Dia anterior">
             ‹
           </Link>
-          <Link href={`/agenda?dia=${somarDias(dia, 1)}`} className={botao} aria-label="Próximo dia">
+          <Link href={`/agenda?dia=${somarDias(dia, 1)}${sufixo}`} className={botao} aria-label="Próximo dia">
             ›
           </Link>
         </div>
@@ -69,7 +74,7 @@ export function Navegacao({ referencia, dia, hoje }: Props) {
             return (
               <Link
                 key={s}
-                href={linkSemana(s, referencia)}
+                href={linkSemana(s, referencia, sufixo)}
                 aria-current={atual ? "page" : undefined}
                 className={`shrink-0 rounded-full px-3 py-1 text-sm tabular-nums transition ${
                   atual ? "bg-surface font-medium shadow-sm" : s === semanaHoje ? "text-accent hover:bg-surface/60" : "text-muted hover:bg-surface/60 hover:text-foreground"
@@ -82,7 +87,7 @@ export function Navegacao({ referencia, dia, hoje }: Props) {
         </nav>
       )}
 
-      <Link href="/agenda" className={`${botao} ml-auto`}>
+      <Link href={visao === "lado" ? "/agenda?visao=lado" : "/agenda"} className={`${botao} ml-auto`}>
         Hoje
       </Link>
     </div>

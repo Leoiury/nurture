@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { carregarAgenda } from "@/lib/agenda/dados";
 import { ehDataValida, hoje, inicioDaSemana, somarDias } from "@/lib/agenda/tempo";
 import { AgendaGrade } from "./agenda-grade";
+import type { Visao } from "./comum";
 import { Navegacao } from "./navegacao";
 
 export const metadata: Metadata = { title: "Agenda · Nurture" };
@@ -11,6 +12,7 @@ export default async function AgendaPage({ searchParams }: PageProps<"/agenda">)
   const dataHoje = hoje();
   const dia = typeof params.dia === "string" && ehDataValida(params.dia) ? params.dia : null;
   const semanaParam = typeof params.semana === "string" && ehDataValida(params.semana) ? params.semana : null;
+  const visao: Visao = params.visao === "lado" ? "lado" : "empilhada";
   const referencia = dia ?? semanaParam ?? dataHoje;
   const segunda = inicioDaSemana(referencia);
 
@@ -20,16 +22,25 @@ export default async function AgendaPage({ searchParams }: PageProps<"/agenda">)
   // Segunda a sexta sempre; fim de semana só se tiver atendimento.
   const dias = dia ? [dia] : semana.filter((d, i) => i < 5 || atendimentos.some((a) => a.data === d));
 
+  // A página atual em cada visão, para o seletor de visualização.
+  const base = dia ? `dia=${dia}` : semanaParam ? `semana=${semanaParam}` : "";
+  const urlDaVisao: Record<Visao, string> = {
+    empilhada: `/agenda${base ? `?${base}` : ""}`,
+    lado: `/agenda?${base ? `${base}&` : ""}visao=lado`,
+  };
+
   return (
     <div className="flex flex-1 flex-col px-3 py-4 sm:px-6 sm:py-5">
       <AgendaGrade
         key={dias.join()}
         modo={dia ? "dia" : "semana"}
+        visao={visao}
+        urlDaVisao={urlDaVisao}
         dias={dias}
         hoje={dataHoje}
         profissionais={profissionais}
         atendimentos={dia ? atendimentos.filter((a) => a.data === dia) : atendimentos}
-        navegacao={<Navegacao referencia={referencia} dia={dia} hoje={dataHoje} />}
+        navegacao={<Navegacao referencia={referencia} dia={dia} hoje={dataHoje} visao={visao} />}
       />
     </div>
   );
