@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useMemo, useRef, useState, type ReactNode } from "react";
 import type { AtendimentoAgenda, ProfissionalAgenda } from "@/lib/agenda/dados";
 import type { Segmento } from "@/lib/agenda/layout";
-import { agruparPorColuna, useAlturaDoElemento, useModoFoco, type Visao } from "./comum";
+import { sufixoDaVisao, type Visao } from "@/lib/agenda/visao";
+import { agruparPorColuna, useAlturaDoElemento, useModoFoco } from "./comum";
 import { MenuLateral } from "./menu-lateral";
 import { PainelAtendimento } from "./painel-atendimento";
 import { VisaoEmpilhada } from "./visao-empilhada";
@@ -71,9 +72,10 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
     });
   }
 
-  // A visão lado a lado só faz sentido para a semana; um dia é sempre empilhado.
-  const ladoALado = modo === "semana" && visao === "lado";
-  const sufixoUrl = visao === "lado" ? "&visao=lado" : "";
+  // A visão lado a lado só faz sentido para a semana; um dia usa a empilhada.
+  const visaoEfetiva: Visao = modo === "dia" && visao === "lado" ? "empilhada" : visao;
+  const ladoALado = visaoEfetiva === "lado";
+  const sufixoUrl = sufixoDaVisao(visao);
   const propsVisao = { dias, hoje, colunas, visiveis, porColuna, compactar, expandidos, aoExpandir: expandirSegmento, aoAbrir: setSelecionado, sufixoUrl, alturaVisivel };
 
   return (
@@ -115,10 +117,15 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
       <div
         ref={quadro}
         className={`relative min-h-[320px] flex-1 overflow-auto rounded-3xl bg-surface shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_-12px_rgba(0,0,0,0.08)] ring-1 ring-black/[0.04] ${
-          ladoALado ? "" : "snap-y snap-proximity"
+          // Encaixe por dia só quando cada dia cabe na tela (na ampliada ele atrapalharia a rolagem).
+          visaoEfetiva === "empilhada" ? "snap-y snap-proximity" : ""
         }`}
       >
-        {ladoALado ? <VisaoLadoALado {...propsVisao} /> : <VisaoEmpilhada modo={modo} {...propsVisao} />}
+        {ladoALado ? (
+          <VisaoLadoALado {...propsVisao} />
+        ) : (
+          <VisaoEmpilhada modo={modo} ampliada={visaoEfetiva === "ampliada"} {...propsVisao} />
+        )}
       </div>
 
       {/* Modo foco: único controle visível, abre o menu (com período e filtros). */}
@@ -158,12 +165,34 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
         mostrarDesmarcados={mostrarDesmarcados}
         aoMostrarDesmarcados={setMostrarDesmarcados}
         opcoesDeVisao={
-          modo === "semana" && (
-            <>
-              <OpcaoVisao aoEscolher={() => setMenuAberto(false)} href={urlDaVisao.empilhada} ativa={!ladoALado} rotulo="Empilhado" descricao="Um dia abaixo do outro" icone={<IconeEmpilhado />} />
-              <OpcaoVisao aoEscolher={() => setMenuAberto(false)} href={urlDaVisao.lado} ativa={ladoALado} rotulo="Lado a lado" descricao="A semana inteira numa tela" icone={<IconeLadoALado />} />
-            </>
-          )
+          <>
+            <OpcaoVisao
+              aoEscolher={() => setMenuAberto(false)}
+              href={urlDaVisao.empilhada}
+              ativa={visaoEfetiva === "empilhada"}
+              rotulo="Empilhado"
+              descricao={modo === "semana" ? "Um dia abaixo do outro" : "Das 08h às 18h na tela"}
+              icone={<IconeEmpilhado />}
+            />
+            <OpcaoVisao
+              aoEscolher={() => setMenuAberto(false)}
+              href={urlDaVisao.ampliada}
+              ativa={visaoEfetiva === "ampliada"}
+              rotulo="Ampliado"
+              descricao="Linhas altas, horários livres mais claros"
+              icone={<IconeAmpliado />}
+            />
+            {modo === "semana" && (
+              <OpcaoVisao
+                aoEscolher={() => setMenuAberto(false)}
+                href={urlDaVisao.lado}
+                ativa={ladoALado}
+                rotulo="Lado a lado"
+                descricao="A semana inteira numa tela"
+                icone={<IconeLadoALado />}
+              />
+            )}
+          </>
         }
       />
 
@@ -205,6 +234,16 @@ function IconeEmpilhado() {
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
       <rect x="2" y="2.5" width="12" height="4.5" rx="1.5" stroke="currentColor" strokeWidth="1.4" />
       <rect x="2" y="9" width="12" height="4.5" rx="1.5" stroke="currentColor" strokeWidth="1.4" />
+    </svg>
+  );
+}
+
+function IconeAmpliado() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
+      <rect x="2" y="1.5" width="12" height="13" rx="1.5" stroke="currentColor" strokeWidth="1.4" />
+      <path d="M2 8h12" stroke="currentColor" strokeWidth="1.4" />
+      <path d="M5 4.5h4M5 11h4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
     </svg>
   );
 }

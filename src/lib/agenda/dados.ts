@@ -23,18 +23,32 @@ export type AtendimentoAgenda = {
   tipo: string | null;
 };
 
+/**
+ * Logo após o login, o banco às vezes recusa o token recém-emitido como "emitido no
+ * futuro" (PGRST303): os relógios do serviço de login e do banco diferem em ~1 s.
+ * Uma única nova tentativa, um instante depois, resolve.
+ */
+async function comNovaTentativa<T extends { error: { code?: string } | null }>(consulta: () => PromiseLike<T>): Promise<T> {
+  const resultado = await consulta();
+  if (resultado.error?.code !== "PGRST303") return resultado;
+  await new Promise((resolver) => setTimeout(resolver, 1000));
+  return consulta();
+}
+
 /** Profissionais ativos e atendimentos entre as datas (inclusive). */
 export async function carregarAgenda(primeiroDia: string, ultimoDia: string) {
   const supabase = await createClient();
 
   const [profissionais, atendimentos] = await Promise.all([
-    supabase.from("profissionais").select("id, nome, especialidade").eq("ativo", true).order("nome"),
-    supabase
-      .from("atendimentos")
-      .select("id, inicio, fim, status, profissional_id, paciente:pacientes(nome), plano:planos(nome, cor), tipo:tipos_atendimento(nome)")
-      .gte("inicio", inicioDoDiaISO(primeiroDia))
-      .lt("inicio", inicioDoDiaISO(somarDias(ultimoDia, 1)))
-      .order("inicio"),
+    comNovaTentativa(() => supabase.from("profissionais").select("id, nome, especialidade").eq("ativo", true).order("nome")),
+    comNovaTentativa(() =>
+      supabase
+        .from("atendimentos")
+        .select("id, inicio, fim, status, profissional_id, paciente:pacientes(nome), plano:planos(nome, cor), tipo:tipos_atendimento(nome)")
+        .gte("inicio", inicioDoDiaISO(primeiroDia))
+        .lt("inicio", inicioDoDiaISO(somarDias(ultimoDia, 1)))
+        .order("inicio"),
+    ),
   ]);
   if (profissionais.error) throw profissionais.error;
   if (atendimentos.error) throw atendimentos.error;

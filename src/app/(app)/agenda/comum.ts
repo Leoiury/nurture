@@ -6,8 +6,6 @@ import { distribuirEmFaixas, type Faixa } from "@/lib/agenda/layout";
 import { CHAVE_FOCO } from "@/lib/agenda/preferencias";
 import { formatarHora } from "@/lib/agenda/tempo";
 
-export type Visao = "empilhada" | "lado";
-
 export type Posicionado = AtendimentoAgenda & Faixa;
 
 /** Faixa de horário sempre considerada no dia, mesmo sem atendimentos. */
@@ -93,6 +91,13 @@ export function useAlturaDoElemento(ref: RefObject<HTMLElement | null>): number 
 /** Fundo de um segmento de 1 hora: linha fina na meia hora (a linha da hora é a borda superior). */
 export const FUNDO_DA_HORA =
   "linear-gradient(to bottom, transparent calc(50% - 0.5px), var(--grid-half-hour) calc(50% - 0.5px), var(--grid-half-hour) calc(50% + 0.5px), transparent calc(50% + 0.5px))";
+
+/** Visão ampliada: além da meia hora, linhas bem suaves a cada 15 min para medir o tempo livre. */
+export const FUNDO_DA_HORA_AMPLIADA = [
+  "linear-gradient(to bottom, transparent calc(25% - 0.5px), var(--grid-quarter-hour) calc(25% - 0.5px), var(--grid-quarter-hour) calc(25% + 0.5px), transparent calc(25% + 0.5px))",
+  FUNDO_DA_HORA,
+  "linear-gradient(to bottom, transparent calc(75% - 0.5px), var(--grid-quarter-hour) calc(75% - 0.5px), var(--grid-quarter-hour) calc(75% + 0.5px), transparent calc(75% + 0.5px))",
+].join(", ");
 
 /**
  * Posição horizontal de um card na coluna, com largura mínima e máxima.

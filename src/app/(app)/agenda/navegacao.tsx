@@ -8,7 +8,7 @@ import {
   somarDias,
   somarMeses,
 } from "@/lib/agenda/tempo";
-import type { Visao } from "./comum";
+import { sufixoDaVisao, type Visao } from "@/lib/agenda/visao";
 
 /**
  * referencia: data que define o mês exibido (e a semana, via inicioDaSemana).
@@ -40,7 +40,7 @@ function linkMes(referencia: string, meses: number, sufixo: string): string {
 
 export function Navegacao({ referencia, dia, hoje, visao, variante = "barra" }: Props) {
   const noMenu = variante === "menu";
-  const sufixo = visao === "lado" ? "&visao=lado" : "";
+  const sufixo = sufixoDaVisao(visao);
   const segunda = inicioDaSemana(referencia);
   const semanas = semanasDoMes(referencia);
   const semanaHoje = inicioDaSemana(hoje);
@@ -92,7 +92,7 @@ export function Navegacao({ referencia, dia, hoje, visao, variante = "barra" }: 
         </nav>
       )}
 
-      <Link href={visao === "lado" ? "/agenda?visao=lado" : "/agenda"} className={noMenu ? botao : `${botao} ml-auto`}>
+      <Link href={`/agenda${sufixo.replace("&", "?")}`} className={noMenu ? botao : `${botao} ml-auto`}>
         Hoje
       </Link>
     </div>

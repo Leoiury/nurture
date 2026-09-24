@@ -10,6 +10,7 @@ import { alturaDoSegmento, montarSegmentos, posicaoY, type Segmento } from "@/li
 import { formatarHora, nomeLongoDoDia } from "@/lib/agenda/tempo";
 import {
   FUNDO_DA_HORA,
+  FUNDO_DA_HORA_AMPLIADA,
   HORARIO_PADRAO,
   corDoPlano,
   descricaoDoAtendimento,
@@ -26,6 +27,8 @@ type Modo = "semana" | "dia";
 
 // A escala vertical se ajusta para o expediente de um dia caber na altura visível.
 const ESCALA = { padrao: 14, min: 9, max: 30 };
+// Visão ampliada: escala fixa e alta (112 px por hora), sem ajuste à tela.
+const PX_AMPLIADA = 28;
 // Com zoom, as colunas encolhem até este mínimo antes de a grade rolar na horizontal.
 const LARGURA_MIN_COLUNA = 132;
 const CARD = { min: 72, max: 280 };
@@ -48,10 +51,14 @@ type Props = {
   sufixoUrl: string;
   /** Altura visível do quadro da agenda, em px. */
   alturaVisivel: number | null;
+  /** Linhas e cards maiores, com escala fixa (ignora o ajuste para 08–18 caber na tela). */
+  ampliada: boolean;
 };
 
-export function VisaoEmpilhada({ modo, dias, hoje, colunas, visiveis, porColuna, compactar, expandidos, aoExpandir, aoAbrir, sufixoUrl, alturaVisivel }: Props) {
-  const px = escalaParaCaber(alturaVisivel && alturaVisivel - ALTURA_CABECALHO_PROF - ALTURA_CABECALHO_DIA - 8, ESCALA);
+export function VisaoEmpilhada({ modo, dias, hoje, colunas, visiveis, porColuna, compactar, expandidos, aoExpandir, aoAbrir, sufixoUrl, alturaVisivel, ampliada }: Props) {
+  const px = ampliada
+    ? PX_AMPLIADA
+    : escalaParaCaber(alturaVisivel && alturaVisivel - ALTURA_CABECALHO_PROF - ALTURA_CABECALHO_DIA - 8, ESCALA);
 
   // Cada dia tem seus próprios segmentos: as horas vazias de um dia não dependem dos outros.
   const segmentosPorDia = useMemo(() => {
@@ -98,6 +105,7 @@ export function VisaoEmpilhada({ modo, dias, hoje, colunas, visiveis, porColuna,
           aoExpandir={(s) => aoExpandir(dia, s)}
           aoAbrir={aoAbrir}
           sufixoUrl={sufixoUrl}
+          ampliada={ampliada}
         />
       ))}
     </div>
@@ -116,9 +124,10 @@ type DiaProps = {
   aoExpandir: (s: Segmento) => void;
   aoAbrir: (id: string) => void;
   sufixoUrl: string;
+  ampliada: boolean;
 };
 
-function Dia({ dia, ehHoje, modo, px, segmentos, colunas, porColuna, total, aoExpandir, aoAbrir, sufixoUrl }: DiaProps) {
+function Dia({ dia, ehHoje, modo, px, segmentos, colunas, porColuna, total, aoExpandir, aoAbrir, sufixoUrl, ampliada }: DiaProps) {
   const altura = segmentos.reduce((soma, s) => soma + alturaDoSegmento(s, px), 0);
   const titulo = nomeLongoDoDia(dia);
 
@@ -164,6 +173,10 @@ function Dia({ dia, ehHoje, modo, px, segmentos, colunas, porColuna, total, aoEx
                 <span className={`absolute right-2 text-[11px] tabular-nums text-muted ${i === 0 || segmentos[i - 1].compacto ? "top-1" : "-top-2"}`}>
                   {formatarHora(s.inicio)}
                 </span>
+                {/* Na ampliada há altura para marcar também a meia hora. */}
+                {ampliada && (
+                  <span className="absolute top-1/2 right-2 -translate-y-1/2 text-[10px] tabular-nums text-muted/60">{formatarHora(s.inicio + 30)}</span>
+                )}
               </div>
             ),
           )}
@@ -171,7 +184,7 @@ function Dia({ dia, ehHoje, modo, px, segmentos, colunas, porColuna, total, aoEx
 
         {/* Colunas dos profissionais */}
         <div className="relative flex-1">
-          <LinhasDeFundo segmentos={segmentos} px={px} aoExpandir={aoExpandir} />
+          <LinhasDeFundo segmentos={segmentos} px={px} aoExpandir={aoExpandir} ampliada={ampliada} />
           <div className="pointer-events-none absolute inset-0 flex">
             {colunas.map((p) => (
               <div key={p.id} className="relative min-w-0 flex-1 px-1">
@@ -184,6 +197,7 @@ function Dia({ dia, ehHoje, modo, px, segmentos, colunas, porColuna, total, aoEx
                       top={posicaoY(a.inicio, segmentos, px)}
                       altura={posicaoY(a.fim, segmentos, px) - posicaoY(a.inicio, segmentos, px)}
                       profissional={p.nome}
+                      ampliada={ampliada}
                       aoAbrir={() => aoAbrir(a.id)}
                     />
                   ))}
@@ -198,7 +212,9 @@ function Dia({ dia, ehHoje, modo, px, segmentos, colunas, porColuna, total, aoEx
 }
 
 /** Linha suave em cada hora e pontilhada a cada 15 min; faixas vazias viram um separador clicável. */
-function LinhasDeFundo({ segmentos, px, aoExpandir }: { segmentos: Segmento[]; px: number; aoExpandir: (s: Segmento) => void }) {
+type LinhasProps = { segmentos: Segmento[]; px: number; aoExpandir: (s: Segmento) => void; ampliada: boolean };
+
+function LinhasDeFundo({ segmentos, px, aoExpandir, ampliada }: LinhasProps) {
   return (
     <div className="absolute inset-0">
       {segmentos.map((s, i) =>
@@ -218,7 +234,7 @@ function LinhasDeFundo({ segmentos, px, aoExpandir }: { segmentos: Segmento[]; p
           <div
             key={s.inicio}
             className={i > 0 ? "border-t border-[var(--grid-hour)]" : ""}
-            style={{ height: alturaDoSegmento(s, px), backgroundImage: FUNDO_DA_HORA }}
+            style={{ height: alturaDoSegmento(s, px), backgroundImage: ampliada ? FUNDO_DA_HORA_AMPLIADA : FUNDO_DA_HORA }}
           />
         ),
       )}
@@ -232,10 +248,11 @@ type CardProps = {
   top: number;
   altura: number;
   profissional: string;
+  ampliada: boolean;
   aoAbrir: () => void;
 };
 
-function Card({ atendimento: a, modo, top, altura, profissional, aoAbrir }: CardProps) {
+function Card({ atendimento: a, modo, top, altura, profissional, ampliada, aoAbrir }: CardProps) {
   const cor = corDoPlano(a);
   const desmarcado = a.status === "desmarcado";
   const descricao = descricaoDoAtendimento(a, profissional);
@@ -261,16 +278,18 @@ function Card({ atendimento: a, modo, top, altura, profissional, aoAbrir }: Card
     >
       <span className="absolute inset-y-1 left-1 w-1 rounded-full" style={{ background: cor }} aria-hidden />
       <span className={`flex h-full flex-col justify-center gap-px pl-3.5 pr-2 leading-tight ${linhas === 1 ? "flex-row items-center justify-start gap-1.5" : ""}`}>
-        <span className={`truncate font-semibold ${modo === "dia" ? "text-sm" : "text-[13px]"} ${desmarcado ? "line-through" : ""}`}>
+        <span className={`truncate font-semibold ${ampliada ? "text-[15px]" : modo === "dia" ? "text-sm" : "text-[13px]"} ${desmarcado ? "line-through" : ""}`}>
           {a.paciente ?? "Sem paciente"}
         </span>
         {linhas >= 2 && (
-          <span className="truncate text-[11px] tabular-nums text-muted">
+          <span className={`truncate tabular-nums text-muted ${ampliada ? "text-xs" : "text-[11px]"}`}>
             {horarioDoAtendimento(a)}
             {a.status === "atendido" && <span className="text-accent"> · ✓ atendido</span>}
           </span>
         )}
-        {linhas >= 3 && <span className="truncate text-[11px] text-muted">{[a.plano?.nome, a.tipo].filter(Boolean).join(" · ")}</span>}
+        {linhas >= 3 && (
+          <span className={`truncate text-muted ${ampliada ? "text-xs" : "text-[11px]"}`}>{[a.plano?.nome, a.tipo].filter(Boolean).join(" · ")}</span>
+        )}
       </span>
     </button>
   );

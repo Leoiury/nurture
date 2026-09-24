@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { carregarAgenda } from "@/lib/agenda/dados";
 import { diaDoMes, ehDataValida, hoje, inicioDaSemana, nomeCurtoDoDia, nomeCurtoDoMes, rotuloDaSemana, somarDias } from "@/lib/agenda/tempo";
 import { AgendaGrade } from "./agenda-grade";
-import type { Visao } from "./comum";
+import { lerVisao, type Visao } from "@/lib/agenda/visao";
 import { Navegacao } from "./navegacao";
 
 export const metadata: Metadata = { title: "Agenda · Nurture" };
@@ -12,7 +12,7 @@ export default async function AgendaPage({ searchParams }: PageProps<"/agenda">)
   const dataHoje = hoje();
   const dia = typeof params.dia === "string" && ehDataValida(params.dia) ? params.dia : null;
   const semanaParam = typeof params.semana === "string" && ehDataValida(params.semana) ? params.semana : null;
-  const visao: Visao = params.visao === "lado" ? "lado" : "empilhada";
+  const visao = lerVisao(params.visao);
   const referencia = dia ?? semanaParam ?? dataHoje;
   const segunda = inicioDaSemana(referencia);
 
@@ -37,6 +37,7 @@ export default async function AgendaPage({ searchParams }: PageProps<"/agenda">)
   const base = dia ? `dia=${dia}` : semanaParam ? `semana=${semanaParam}` : "";
   const urlDaVisao: Record<Visao, string> = {
     empilhada: `/agenda${base ? `?${base}` : ""}`,
+    ampliada: `/agenda?${base ? `${base}&` : ""}visao=ampliada`,
     lado: `/agenda?${base ? `${base}&` : ""}visao=lado`,
   };
 
