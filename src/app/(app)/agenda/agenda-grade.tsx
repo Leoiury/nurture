@@ -128,7 +128,19 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
         )}
       </div>
 
-      {/* Modo foco: único controle visível, abre o menu (com período e filtros). */}
+      {/* Modo foco: botão no topo para sair dele (visível só no foco, via CSS). */}
+      <button
+        data-botao-flutuante
+        type="button"
+        onClick={() => setFoco(false)}
+        title="Sair do modo foco"
+        aria-label="Sair do modo foco"
+        className="fixed top-3 right-3 z-30 inline-flex size-9 items-center justify-center rounded-full bg-surface/90 text-muted shadow-md ring-1 ring-black/5 backdrop-blur transition hover:text-foreground hover:shadow-lg"
+      >
+        <IconeRecolher />
+      </button>
+
+      {/* Modo foco: controle principal, abre o menu (com período e filtros). */}
       <button
         data-botao-flutuante
         type="button"
