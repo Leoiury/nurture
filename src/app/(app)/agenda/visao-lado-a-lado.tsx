@@ -9,19 +9,25 @@ import type { AtendimentoAgenda, ProfissionalAgenda } from "@/lib/agenda/dados";
 import { alturaDoSegmento, montarSegmentos, posicaoY, type Segmento } from "@/lib/agenda/layout";
 import { diaDoMes, formatarHora, nomeCurtoDoDia } from "@/lib/agenda/tempo";
 import {
+  FUNDO_DA_HORA,
   HORARIO_PADRAO,
   corDoPlano,
   descricaoDoAtendimento,
+  escalaParaCaber,
   fundoDoCard,
+  geometriaDoCard,
   horasExpandidas,
   iniciais,
   type Posicionado,
 } from "./comum";
 
-const PX_POR_QUARTO = 12;
-const LARGURA_MIN_SUBCOLUNA = 36;
-const LARGURA_EIXO = 52;
-const ALTURA_CABECALHO = 84;
+// A escala vertical se ajusta para o expediente (08–18) caber na altura visível.
+const ESCALA = { padrao: 12, min: 8, max: 26 };
+// Com zoom, as subcolunas encolhem até este mínimo antes de a grade rolar na horizontal.
+const LARGURA_MIN_SUBCOLUNA = 30;
+const CARD = { min: 26, max: 140 };
+const LARGURA_EIXO = 48;
+const ALTURA_CABECALHO = 60;
 const ESPACO_ENTRE_DIAS = 10;
 const ESCOPO = "*"; // horas expandidas valem para a semana toda
 
@@ -36,10 +42,12 @@ type Props = {
   aoExpandir: (escopo: string, s: Segmento) => void;
   aoAbrir: (id: string) => void;
   sufixoUrl: string;
+  /** Altura visível do quadro da agenda, em px. */
+  alturaVisivel: number | null;
 };
 
-export function VisaoLadoALado({ dias, hoje, colunas, visiveis, porColuna, compactar, expandidos, aoExpandir, aoAbrir, sufixoUrl }: Props) {
-  const px = PX_POR_QUARTO;
+export function VisaoLadoALado({ dias, hoje, colunas, visiveis, porColuna, compactar, expandidos, aoExpandir, aoAbrir, sufixoUrl, alturaVisivel }: Props) {
+  const px = escalaParaCaber(alturaVisivel && alturaVisivel - ALTURA_CABECALHO - 8, ESCALA);
   const segmentos = useMemo(
     () =>
       montarSegmentos(visiveis, {
@@ -94,10 +102,10 @@ export function VisaoLadoALado({ dias, hoje, colunas, visiveis, porColuna, compa
           >
             {/* Cabeçalho do dia */}
             <div className={`sticky top-0 z-10 flex flex-col rounded-t-2xl ${ehHoje ? "bg-[color-mix(in_srgb,var(--accent-soft)_40%,white)]" : "bg-surface"}`} style={{ height: ALTURA_CABECALHO }}>
-              <Link href={`/agenda?dia=${dia}${sufixoUrl}`} title="Abrir o dia" className="group flex flex-1 items-center justify-center gap-2 pt-1">
+              <Link href={`/agenda?dia=${dia}${sufixoUrl}`} title="Abrir o dia" className="group flex flex-1 items-center justify-center gap-1.5">
                 <span className="text-xs font-medium uppercase tracking-wide text-muted">{nomeCurtoDoDia(dia)}</span>
                 <span
-                  className={`flex size-8 items-center justify-center rounded-full text-base font-semibold tabular-nums transition ${
+                  className={`flex size-7 items-center justify-center rounded-full text-sm font-semibold tabular-nums transition ${
                     ehHoje ? "bg-accent text-white" : "group-hover:bg-black/5"
                   }`}
                 >
@@ -105,10 +113,10 @@ export function VisaoLadoALado({ dias, hoje, colunas, visiveis, porColuna, compa
                 </span>
                 <span className="text-xs text-muted">{total}</span>
               </Link>
-              <div className="flex px-0.5 pb-2">
+              <div className="flex px-0.5 pb-1.5">
                 {colunas.map((p) => (
                   <div key={p.id} className="flex min-w-0 flex-1 justify-center" title={p.nome}>
-                    <span className="flex size-6 items-center justify-center rounded-full bg-black/[0.04] text-[10px] font-semibold text-muted">
+                    <span className="flex size-5 items-center justify-center rounded-full bg-black/[0.04] text-[9px] font-semibold text-muted">
                       {iniciais(p.nome)}
                     </span>
                   </div>
@@ -122,19 +130,8 @@ export function VisaoLadoALado({ dias, hoje, colunas, visiveis, porColuna, compa
                 {segmentos.map((s, i) => (
                   <div
                     key={s.inicio}
-                    className={
-                      s.compacto
-                        ? "flex items-center"
-                        : i > 0 && !segmentos[i - 1].compacto
-                          ? "border-t border-black/[0.06]"
-                          : ""
-                    }
-                    style={{
-                      height: alturaDoSegmento(s, px),
-                      backgroundImage: s.compacto
-                        ? undefined
-                        : `repeating-linear-gradient(to bottom, transparent 0 ${px - 1}px, rgba(0,0,0,0.022) ${px - 1}px ${px}px)`,
-                    }}
+                    className={s.compacto ? "flex items-center" : i > 0 ? "border-t border-[var(--grid-hour)]" : ""}
+                    style={{ height: alturaDoSegmento(s, px), backgroundImage: s.compacto ? undefined : FUNDO_DA_HORA }}
                   >
                     {s.compacto && <span className="mx-2 h-px flex-1 border-t border-dashed border-black/10" />}
                   </div>
@@ -189,15 +186,16 @@ function CardCompacto({ atendimento: a, top, altura, profissional, aoAbrir }: Ca
       style={{
         top: top + 1,
         height: Math.max(altura - 2, 12),
-        left: `calc(${(a.faixa / a.faixas) * 100}% + ${a.faixa > 0 ? 1 : 0}px)`,
-        width: `calc(${100 / a.faixas}% - ${a.faixas > 1 ? 1 : 0}px)`,
+        ...geometriaDoCard(a.faixa, a.faixas, CARD.min, CARD.max),
         background: fundoDoCard(cor),
         boxShadow: `inset 3px 0 0 ${cor}`,
       }}
     >
-      <span className={`block truncate pt-0.5 pr-0.5 pl-[6px] text-[10.5px] leading-tight font-medium ${desmarcado ? "line-through" : ""}`}>
+      <span className={`block truncate pt-0.5 pr-0.5 pl-[6px] text-[11px] leading-tight font-medium ${desmarcado ? "line-through" : ""}`}>
         {a.paciente?.split(" ")[0] ?? "—"}
       </span>
+      {/* Horário de início, quando o card tem altura para uma segunda linha. */}
+      {altura >= 30 && <span className="block truncate pr-0.5 pl-[6px] text-[10px] leading-tight tabular-nums text-muted">{formatarHora(a.inicio)}</span>}
     </button>
   );
 }

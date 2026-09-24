@@ -1,7 +1,9 @@
 // Peças compartilhadas pelas visões da agenda.
 
+import { useEffect, useState, useSyncExternalStore, type RefObject } from "react";
 import type { AtendimentoAgenda } from "@/lib/agenda/dados";
 import { distribuirEmFaixas, type Faixa } from "@/lib/agenda/layout";
+import { CHAVE_FOCO } from "@/lib/agenda/preferencias";
 import { formatarHora } from "@/lib/agenda/tempo";
 
 export type Visao = "empilhada" | "lado";
@@ -56,4 +58,94 @@ export function agruparPorColuna(atendimentos: AtendimentoAgenda[]): Map<string,
 /** Expande segmentos compactos: guarda "escopo|minutoDaHora" (escopo = dia, ou "*" para todos). */
 export function horasExpandidas(expandidos: Set<string>, escopo: string): Set<number> {
   return new Set([...expandidos].filter((k) => k.startsWith(`${escopo}|`)).map((k) => Number(k.split("|")[1])));
+}
+
+// Escala vertical -------------------------------------------------------------------
+
+const QUARTOS_NO_EXPEDIENTE = (HORARIO_PADRAO.fim - HORARIO_PADRAO.inicio) / 15;
+
+/**
+ * Pixels por 15 min para que o expediente (08–18) caiba na altura disponível.
+ * Com zoom no navegador a altura em px diminui e a escala acompanha, até o mínimo
+ * legível; abaixo dele a grade passa a rolar.
+ */
+export function escalaParaCaber(alturaDisponivel: number | null, limites: { padrao: number; min: number; max: number }): number {
+  if (!alturaDisponivel) return limites.padrao;
+  const ideal = Math.floor((alturaDisponivel / QUARTOS_NO_EXPEDIENTE) * 2) / 2;
+  return Math.min(limites.max, Math.max(limites.min, ideal));
+}
+
+/** Altura interna de um elemento, atualizada quando ele muda de tamanho (janela, zoom). */
+export function useAlturaDoElemento(ref: RefObject<HTMLElement | null>): number | null {
+  const [altura, setAltura] = useState<number | null>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const observador = new ResizeObserver(([entrada]) => setAltura(entrada.contentRect.height));
+    observador.observe(el);
+    return () => observador.disconnect();
+  }, [ref]);
+  return altura;
+}
+
+// Grade e cards --------------------------------------------------------------------
+
+/** Fundo de um segmento de 1 hora: linha fina na meia hora (a linha da hora é a borda superior). */
+export const FUNDO_DA_HORA =
+  "linear-gradient(to bottom, transparent calc(50% - 0.5px), var(--grid-half-hour) calc(50% - 0.5px), var(--grid-half-hour) calc(50% + 0.5px), transparent calc(50% + 0.5px))";
+
+/**
+ * Posição horizontal de um card na coluna, com largura mínima e máxima.
+ * Paralelos dividem a coluna; se não couberem na largura mínima, ficam em
+ * cascata (sobrepostos) em vez de virarem tiras ilegíveis.
+ */
+export function geometriaDoCard(faixa: number, faixas: number, min: number, max: number): { left: string; width: string } {
+  if (faixas === 1) return { left: "0px", width: `min(100%, ${max}px)` };
+  const largura = `clamp(${min}px, calc(100% / ${faixas} - 2px), ${max}px)`;
+  return { width: largura, left: `min(calc(${faixa} * (${largura} + 2px)), calc(100% - ${largura}))` };
+}
+
+// Modo foco --------------------------------------------------------------------------
+// Esconde o cabeçalho do app (via atributo no <html>) e fica lembrado neste navegador.
+
+const EVENTO_FOCO = "nurture:foco";
+let focoEmMemoria = false; // se o armazenamento do navegador estiver bloqueado
+
+function lerFoco(): boolean {
+  try {
+    return localStorage.getItem(CHAVE_FOCO) === "1";
+  } catch {
+    return focoEmMemoria;
+  }
+}
+
+function assinarFoco(aoMudar: () => void) {
+  window.addEventListener(EVENTO_FOCO, aoMudar);
+  return () => window.removeEventListener(EVENTO_FOCO, aoMudar);
+}
+
+export function useModoFoco(): [boolean, (ativo: boolean) => void] {
+  const foco = useSyncExternalStore(assinarFoco, lerFoco, () => false);
+
+  // Só aplica: na hidratação o valor começa em false (o do servidor) e não pode
+  // desfazer o que o script do <head> já marcou. Desligar é feito em definir().
+  useEffect(() => {
+    if (foco) document.documentElement.setAttribute("data-foco", "");
+  }, [foco]);
+
+  // Fora da agenda o cabeçalho volta a aparecer.
+  useEffect(() => () => document.documentElement.removeAttribute("data-foco"), []);
+
+  function definir(ativo: boolean) {
+    focoEmMemoria = ativo;
+    document.documentElement.toggleAttribute("data-foco", ativo);
+    try {
+      localStorage.setItem(CHAVE_FOCO, ativo ? "1" : "0");
+    } catch {
+      // armazenamento indisponível: vale só enquanto a página estiver aberta
+    }
+    window.dispatchEvent(new Event(EVENTO_FOCO));
+  }
+
+  return [foco, definir];
 }

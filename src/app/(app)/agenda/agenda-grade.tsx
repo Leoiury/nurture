@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
 import type { AtendimentoAgenda, ProfissionalAgenda } from "@/lib/agenda/dados";
 import type { Segmento } from "@/lib/agenda/layout";
-import { agruparPorColuna, type Visao } from "./comum";
+import { agruparPorColuna, useAlturaDoElemento, useModoFoco, type Visao } from "./comum";
 import { MenuLateral } from "./menu-lateral";
 import { PainelAtendimento } from "./painel-atendimento";
 import { VisaoEmpilhada } from "./visao-empilhada";
@@ -33,6 +33,9 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
   const [expandidos, setExpandidos] = useState<Set<string>>(new Set());
   const [menuAberto, setMenuAberto] = useState(false);
   const [selecionado, setSelecionado] = useState<string | null>(null);
+  const [foco, setFoco] = useModoFoco();
+  const quadro = useRef<HTMLDivElement>(null);
+  const alturaVisivel = useAlturaDoElemento(quadro);
 
   const colunas = profissionais.filter((p) => !ocultos.has(p.id));
   const visiveis = useMemo(
@@ -67,11 +70,11 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
   // A visão lado a lado só faz sentido para a semana; um dia é sempre empilhado.
   const ladoALado = modo === "semana" && visao === "lado";
   const sufixoUrl = visao === "lado" ? "&visao=lado" : "";
-  const propsVisao = { dias, hoje, colunas, visiveis, porColuna, compactar, expandidos, aoExpandir: expandirSegmento, aoAbrir: setSelecionado, sufixoUrl };
+  const propsVisao = { dias, hoje, colunas, visiveis, porColuna, compactar, expandidos, aoExpandir: expandirSegmento, aoAbrir: setSelecionado, sufixoUrl, alturaVisivel };
 
   return (
-    <div className="flex flex-1 flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-3">
+    <div className="flex min-h-0 flex-1 flex-col gap-3">
+      <div className="flex shrink-0 flex-wrap items-center gap-3">
         <button
           type="button"
           onClick={() => setMenuAberto(true)}
@@ -88,18 +91,28 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
           )}
         </button>
 
-        {modo === "semana" && (
-          <nav aria-label="Tipo de visualização" className="flex gap-0.5 rounded-full bg-black/[0.04] p-1">
-            <OpcaoVisao href={urlDaVisao.empilhada} ativa={!ladoALado} rotulo="Empilhado" icone={<IconeEmpilhado />} />
-            <OpcaoVisao href={urlDaVisao.lado} ativa={ladoALado} rotulo="Lado a lado" icone={<IconeLadoALado />} />
-          </nav>
-        )}
-
         {/* Largura mínima: sem espaço, a navegação desce para a linha de baixo em vez de transbordar. */}
         <div className="min-w-[18rem] flex-1">{navegacao}</div>
+
+        <button
+          type="button"
+          onClick={() => setFoco(!foco)}
+          aria-pressed={foco}
+          title={foco ? "Mostrar o cabeçalho" : "Esconder o cabeçalho e ampliar a agenda"}
+          aria-label={foco ? "Mostrar o cabeçalho" : "Ampliar a agenda"}
+          className="inline-flex size-9 items-center justify-center rounded-full bg-surface shadow-sm ring-1 ring-black/5 transition hover:shadow"
+        >
+          {foco ? <IconeRecolher /> : <IconeAmpliar />}
+        </button>
       </div>
 
-      <div className="relative max-h-[calc(100vh-150px)] min-h-[440px] flex-1 overflow-auto rounded-3xl bg-surface shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_-12px_rgba(0,0,0,0.08)] ring-1 ring-black/[0.04]">
+      {/* Ocupa toda a altura restante; as visões ajustam a escala a ela. */}
+      <div
+        ref={quadro}
+        className={`relative min-h-[320px] flex-1 overflow-auto rounded-3xl bg-surface shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_-12px_rgba(0,0,0,0.08)] ring-1 ring-black/[0.04] ${
+          ladoALado ? "" : "snap-y snap-proximity"
+        }`}
+      >
         {ladoALado ? <VisaoLadoALado {...propsVisao} /> : <VisaoEmpilhada modo={modo} {...propsVisao} />}
       </div>
 
@@ -118,6 +131,14 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
         }}
         mostrarDesmarcados={mostrarDesmarcados}
         aoMostrarDesmarcados={setMostrarDesmarcados}
+        opcoesDeVisao={
+          modo === "semana" && (
+            <>
+              <OpcaoVisao aoEscolher={() => setMenuAberto(false)} href={urlDaVisao.empilhada} ativa={!ladoALado} rotulo="Empilhado" descricao="Um dia abaixo do outro" icone={<IconeEmpilhado />} />
+              <OpcaoVisao aoEscolher={() => setMenuAberto(false)} href={urlDaVisao.lado} ativa={ladoALado} rotulo="Lado a lado" descricao="A semana inteira numa tela" icone={<IconeLadoALado />} />
+            </>
+          )
+        }
       />
 
       {selecionado && <PainelAtendimento key={selecionado} id={selecionado} aoFechar={() => setSelecionado(null)} />}
@@ -125,19 +146,22 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
   );
 }
 
-function OpcaoVisao({ href, ativa, rotulo, icone }: { href: string; ativa: boolean; rotulo: string; icone: ReactNode }) {
+type OpcaoVisaoProps = { href: string; ativa: boolean; rotulo: string; descricao: string; icone: ReactNode; aoEscolher: () => void };
+
+function OpcaoVisao({ href, ativa, rotulo, descricao, icone, aoEscolher }: OpcaoVisaoProps) {
   return (
     <Link
       href={href}
+      // A semana continua a mesma, então o componente (e o menu aberto) seria mantido.
+      onClick={aoEscolher}
       aria-current={ativa ? "page" : undefined}
-      aria-label={rotulo}
-      title={`Visualização: ${rotulo.toLowerCase()}`}
-      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm transition ${
-        ativa ? "bg-surface font-medium shadow-sm" : "text-muted hover:bg-surface/60 hover:text-foreground"
-      }`}
+      className={`flex items-center gap-3 rounded-xl px-2 py-2 transition ${ativa ? "bg-accent-soft text-accent" : "hover:bg-background"}`}
     >
-      {icone}
-      <span className="hidden sm:inline">{rotulo}</span>
+      <span className={`flex size-8 items-center justify-center rounded-lg ${ativa ? "bg-surface" : "bg-black/[0.04] text-muted"}`}>{icone}</span>
+      <span className="leading-tight">
+        <span className="block text-sm font-medium">{rotulo}</span>
+        <span className={`block text-xs ${ativa ? "text-accent/80" : "text-muted"}`}>{descricao}</span>
+      </span>
     </Link>
   );
 }
@@ -165,6 +189,22 @@ function IconeLadoALado() {
       <rect x="1.5" y="2.5" width="3.6" height="11" rx="1.2" stroke="currentColor" strokeWidth="1.4" />
       <rect x="6.2" y="2.5" width="3.6" height="11" rx="1.2" stroke="currentColor" strokeWidth="1.4" />
       <rect x="10.9" y="2.5" width="3.6" height="11" rx="1.2" stroke="currentColor" strokeWidth="1.4" />
+    </svg>
+  );
+}
+
+function IconeAmpliar() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
+      <path d="M9.5 2.5h4v4M6.5 13.5h-4v-4M13.5 2.5 9 7M2.5 13.5 7 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function IconeRecolher() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
+      <path d="M13 7H9V3M3 9h4v4M9 7l4.5-4.5M7 9l-4.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

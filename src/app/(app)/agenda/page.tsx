@@ -41,7 +41,7 @@ export default async function AgendaPage({ searchParams }: PageProps<"/agenda">)
   };
 
   return (
-    <div className="flex flex-1 flex-col px-3 py-4 sm:px-6 sm:py-5">
+    <div className="flex min-h-0 flex-1 flex-col px-3 py-3 sm:px-5">
       <AgendaGrade
         key={dias.join()}
         modo={dia ? "dia" : "semana"}

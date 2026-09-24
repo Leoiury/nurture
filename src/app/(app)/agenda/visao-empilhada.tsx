@@ -9,10 +9,13 @@ import type { AtendimentoAgenda, ProfissionalAgenda } from "@/lib/agenda/dados";
 import { alturaDoSegmento, montarSegmentos, posicaoY, type Segmento } from "@/lib/agenda/layout";
 import { formatarHora, nomeLongoDoDia } from "@/lib/agenda/tempo";
 import {
+  FUNDO_DA_HORA,
   HORARIO_PADRAO,
   corDoPlano,
   descricaoDoAtendimento,
+  escalaParaCaber,
   fundoDoCard,
+  geometriaDoCard,
   horarioDoAtendimento,
   horasExpandidas,
   iniciais,
@@ -21,11 +24,14 @@ import {
 
 type Modo = "semana" | "dia";
 
-const PX_POR_QUARTO: Record<Modo, number> = { semana: 14, dia: 20 };
-const LARGURA_MIN_COLUNA = 168;
-const LARGURA_EIXO = 56;
-const ALTURA_CABECALHO_PROF = 64;
-const ALTURA_CABECALHO_DIA = 44;
+// A escala vertical se ajusta para o expediente de um dia caber na altura visível.
+const ESCALA = { padrao: 14, min: 9, max: 30 };
+// Com zoom, as colunas encolhem até este mínimo antes de a grade rolar na horizontal.
+const LARGURA_MIN_COLUNA = 132;
+const CARD = { min: 72, max: 280 };
+const LARGURA_EIXO = 52;
+const ALTURA_CABECALHO_PROF = 40;
+const ALTURA_CABECALHO_DIA = 32;
 
 type Props = {
   modo: Modo;
@@ -40,10 +46,12 @@ type Props = {
   aoAbrir: (id: string) => void;
   /** Sufixo de URL que preserva a visão escolhida ao abrir um dia. */
   sufixoUrl: string;
+  /** Altura visível do quadro da agenda, em px. */
+  alturaVisivel: number | null;
 };
 
-export function VisaoEmpilhada({ modo, dias, hoje, colunas, visiveis, porColuna, compactar, expandidos, aoExpandir, aoAbrir, sufixoUrl }: Props) {
-  const px = PX_POR_QUARTO[modo];
+export function VisaoEmpilhada({ modo, dias, hoje, colunas, visiveis, porColuna, compactar, expandidos, aoExpandir, aoAbrir, sufixoUrl, alturaVisivel }: Props) {
+  const px = escalaParaCaber(alturaVisivel && alturaVisivel - ALTURA_CABECALHO_PROF - ALTURA_CABECALHO_DIA - 8, ESCALA);
 
   // Cada dia tem seus próprios segmentos: as horas vazias de um dia não dependem dos outros.
   const segmentosPorDia = useMemo(() => {
@@ -66,14 +74,11 @@ export function VisaoEmpilhada({ modo, dias, hoje, colunas, visiveis, porColuna,
       <div className="sticky top-0 z-30 flex border-b border-black/[0.06] bg-surface/95 backdrop-blur" style={{ height: ALTURA_CABECALHO_PROF }}>
         <div className="sticky left-0 z-10 shrink-0 bg-surface/95" style={{ width: LARGURA_EIXO }} />
         {colunas.map((p) => (
-          <div key={p.id} className="flex min-w-0 flex-1 items-center gap-2.5 px-3" title={p.nome}>
-            <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-accent-soft text-xs font-semibold text-accent">
+          <div key={p.id} className="flex min-w-0 flex-1 items-center gap-2 px-2" title={p.especialidade ? `${p.nome} · ${p.especialidade}` : p.nome}>
+            <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-accent-soft text-[10px] font-semibold text-accent">
               {iniciais(p.nome)}
             </span>
-            <span className="min-w-0 leading-tight">
-              <span className="block truncate text-sm font-medium">{p.nome}</span>
-              {p.especialidade && <span className="block truncate text-xs text-muted">{p.especialidade}</span>}
-            </span>
+            <span className="truncate text-xs font-medium">{p.nome}</span>
           </div>
         ))}
         {colunas.length === 0 && <div className="flex flex-1 items-center px-4 text-sm text-muted">Nenhum profissional selecionado.</div>}
@@ -118,21 +123,21 @@ function Dia({ dia, ehHoje, modo, px, segmentos, colunas, porColuna, total, aoEx
   const titulo = nomeLongoDoDia(dia);
 
   return (
-    <section aria-label={dia} className="border-b border-black/[0.06] last:border-b-0">
+    <section aria-label={dia} className="snap-start border-b border-black/[0.06] last:border-b-0" style={{ scrollMarginTop: ALTURA_CABECALHO_PROF }}>
       <div
         className="sticky z-20 flex items-center border-b border-black/[0.04] bg-surface/95 backdrop-blur"
         style={{ top: ALTURA_CABECALHO_PROF, height: ALTURA_CABECALHO_DIA }}
       >
-        <div className="sticky left-0 flex items-center gap-2.5 px-4">
+        <div className="sticky left-0 flex items-center gap-2 px-3">
           <span className={`size-2 rounded-full ${ehHoje ? "bg-accent" : "bg-black/15"}`} aria-hidden />
           {modo === "semana" ? (
-            <Link href={`/agenda?dia=${dia}${sufixoUrl}`} className="text-sm font-semibold first-letter:uppercase hover:text-accent" title="Abrir só este dia">
+            <Link href={`/agenda?dia=${dia}${sufixoUrl}`} className="text-[13px] font-semibold first-letter:uppercase hover:text-accent" title="Abrir só este dia">
               {titulo}
             </Link>
           ) : (
-            <span className="text-sm font-semibold first-letter:uppercase">{titulo}</span>
+            <span className="text-[13px] font-semibold first-letter:uppercase">{titulo}</span>
           )}
-          {ehHoje && <span className="rounded-full bg-accent px-2 py-0.5 text-[11px] font-medium text-white">Hoje</span>}
+          {ehHoje && <span className="rounded-full bg-accent px-1.5 py-px text-[10px] font-medium text-white">Hoje</span>}
           <span className="text-xs text-muted">
             {total} atendimento{total === 1 ? "" : "s"}
           </span>
@@ -212,11 +217,8 @@ function LinhasDeFundo({ segmentos, px, aoExpandir }: { segmentos: Segmento[]; p
         ) : (
           <div
             key={s.inicio}
-            className={i > 0 && !segmentos[i - 1].compacto ? "border-t border-black/[0.06]" : ""}
-            style={{
-              height: alturaDoSegmento(s, px),
-              backgroundImage: `repeating-linear-gradient(to bottom, transparent 0 ${px - 1}px, rgba(0,0,0,0.025) ${px - 1}px ${px}px)`,
-            }}
+            className={i > 0 ? "border-t border-[var(--grid-hour)]" : ""}
+            style={{ height: alturaDoSegmento(s, px), backgroundImage: FUNDO_DA_HORA }}
           />
         ),
       )}
@@ -253,8 +255,7 @@ function Card({ atendimento: a, modo, top, altura, profissional, aoAbrir }: Card
       style={{
         top: top + 1.5,
         height: alturaCard,
-        left: `calc(${(a.faixa / a.faixas) * 100}% + ${a.faixa > 0 ? 2 : 0}px)`,
-        width: `calc(${100 / a.faixas}% - ${a.faixas > 1 ? 2 : 0}px)`,
+        ...geometriaDoCard(a.faixa, a.faixas, CARD.min, CARD.max),
         background: fundoDoCard(cor),
       }}
     >

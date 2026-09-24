@@ -6,8 +6,8 @@
   --foreground: #1f2421;
   --muted: #6b716d;
   --border: #e3e4df;
-  --grid-hour: #d9dad4;
-  --grid-quarter: #efefeb;
+  --grid-hour: rgba(0, 0, 0, 0.11);
+  --grid-half-hour: rgba(0, 0, 0, 0.05);
   --accent: #2f6f6a;
   --accent-soft: #e3efed;
   --danger: #b4443c;
@@ -29,4 +29,9 @@
 body {
   background: var(--background);
   color: var(--foreground);
+}
+
+/* Modo foco da agenda: esconde o cabeçalho do app para ganhar altura. */
+html[data-foco] [data-cabecalho-app] {
+  display: none;
 }

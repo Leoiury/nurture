@@ -9,8 +9,9 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
   if (!data?.claims) redirect("/login");
 
   return (
-    <div className="flex min-h-full flex-1 flex-col">
-      <header className="flex items-center justify-between gap-4 border-b border-border bg-surface px-4 py-3 sm:px-6">
+    // Altura fixa da janela: as páginas ocupam o espaço restante (a agenda se ajusta a ele).
+    <div className="flex h-dvh flex-col">
+      <header data-cabecalho-app className="flex shrink-0 items-center justify-between gap-4 border-b border-border bg-surface px-4 py-2 sm:px-6">
         <div className="flex items-center gap-6">
           <Link href="/agenda" className="text-lg font-semibold tracking-tight">
             Nurture
@@ -30,7 +31,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
           </form>
         </div>
       </header>
-      <main className="flex flex-1 flex-col">{children}</main>
+      <main className="flex min-h-0 flex-1 flex-col overflow-auto">{children}</main>
     </div>
   );
 }

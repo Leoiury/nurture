@@ -2,7 +2,7 @@
 
 // Menu lateral deslizante com os filtros da agenda.
 
-import { useEffect } from "react";
+import { useEffect, type ReactNode } from "react";
 import type { ProfissionalAgenda } from "@/lib/agenda/dados";
 import { iniciais } from "./comum";
 
@@ -18,6 +18,8 @@ type MenuProps = {
   aoCompactar: (v: boolean) => void;
   mostrarDesmarcados: boolean;
   aoMostrarDesmarcados: (v: boolean) => void;
+  /** Opções de visualização (só na semana). */
+  opcoesDeVisao: ReactNode;
 };
 
 export function MenuLateral(props: MenuProps) {
@@ -55,6 +57,15 @@ export function MenuLateral(props: MenuProps) {
             ✕
           </button>
         </div>
+
+        {props.opcoesDeVisao && (
+          <section className="flex flex-col gap-2">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">Visualização</h3>
+            <nav aria-label="Tipo de visualização" className="flex flex-col gap-1">
+              {props.opcoesDeVisao}
+            </nav>
+          </section>
+        )}
 
         <section className="flex flex-col gap-2">
           <div className="flex items-center justify-between">
