@@ -13,8 +13,9 @@ import type { Visao } from "./comum";
 /**
  * referencia: data que define o mês exibido (e a semana, via inicioDaSemana).
  * visao: preservada em todos os links.
+ * variante: "barra" (linha no topo da agenda) ou "menu" (em coluna, dentro do menu lateral).
  */
-type Props = { referencia: string; dia: string | null; hoje: string; visao: Visao };
+type Props = { referencia: string; dia: string | null; hoje: string; visao: Visao; variante?: "barra" | "menu" };
 
 const botao =
   "inline-flex h-9 min-w-9 items-center justify-center rounded-full bg-surface px-3 text-sm shadow-sm ring-1 ring-black/5 transition hover:shadow";
@@ -37,14 +38,15 @@ function linkMes(referencia: string, meses: number, sufixo: string): string {
   return linkSemana(semanasDoMes(mes)[0], mes, sufixo);
 }
 
-export function Navegacao({ referencia, dia, hoje, visao }: Props) {
+export function Navegacao({ referencia, dia, hoje, visao, variante = "barra" }: Props) {
+  const noMenu = variante === "menu";
   const sufixo = visao === "lado" ? "&visao=lado" : "";
   const segunda = inicioDaSemana(referencia);
   const semanas = semanasDoMes(referencia);
   const semanaHoje = inicioDaSemana(hoje);
 
   return (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
+    <div className={noMenu ? "flex flex-col items-start gap-3" : "flex flex-wrap items-center gap-x-4 gap-y-3"}>
       <div className="flex items-center gap-1.5">
         <Link href={linkMes(referencia, -1, sufixo)} className={botao} aria-label="Mês anterior">
           ‹
@@ -68,7 +70,10 @@ export function Navegacao({ referencia, dia, hoje, visao }: Props) {
           </Link>
         </div>
       ) : (
-        <nav aria-label="Semanas do mês" className="flex max-w-full gap-0.5 overflow-x-auto rounded-full bg-black/[0.04] p-1">
+        <nav
+          aria-label="Semanas do mês"
+          className={`flex max-w-full gap-0.5 bg-black/[0.04] p-1 ${noMenu ? "flex-wrap rounded-2xl" : "overflow-x-auto rounded-full"}`}
+        >
           {semanas.map((s) => {
             const atual = s === segunda;
             return (
@@ -87,7 +92,7 @@ export function Navegacao({ referencia, dia, hoje, visao }: Props) {
         </nav>
       )}
 
-      <Link href={visao === "lado" ? "/agenda?visao=lado" : "/agenda"} className={`${botao} ml-auto`}>
+      <Link href={visao === "lado" ? "/agenda?visao=lado" : "/agenda"} className={noMenu ? botao : `${botao} ml-auto`}>
         Hoje
       </Link>
     </div>

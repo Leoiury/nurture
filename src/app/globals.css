@@ -31,7 +31,13 @@ body {
   color: var(--foreground);
 }
 
-/* Modo foco da agenda: esconde o cabeçalho do app para ganhar altura. */
-html[data-foco] [data-cabecalho-app] {
+/* Modo foco da agenda: esconde o cabeçalho do app e a barra da agenda para ganhar
+   altura; sobra só o botão flutuante que abre o menu. */
+html[data-foco] [data-cabecalho-app],
+html[data-foco] [data-barra-agenda] {
+  display: none;
+}
+
+html:not([data-foco]) [data-botao-flutuante] {
   display: none;
 }

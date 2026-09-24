@@ -85,12 +85,26 @@ export function formatarHora(minutos: number): string {
 }
 
 const nomesMes = new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric", timeZone: "UTC" });
+const nomesMesCurto = new Intl.DateTimeFormat("pt-BR", { month: "short", timeZone: "UTC" });
 const nomesDia = new Intl.DateTimeFormat("pt-BR", { weekday: "short", timeZone: "UTC" });
 const nomesDiaLongo = new Intl.DateTimeFormat("pt-BR", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
 
 export function nomeDoMes(data: string): string {
   const s = nomesMes.format(comoUTC(data));
   return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+/** "set", "out"… */
+export function nomeCurtoDoMes(data: string): string {
+  return nomesMesCurto.format(comoUTC(data)).replace(".", "");
+}
+
+/** "21–25 set", "29 set–3 out" (segunda a sexta) */
+export function rotuloDaSemana(segunda: string): string {
+  const sexta = somarDias(segunda, 4);
+  return segunda.slice(5, 7) === sexta.slice(5, 7)
+    ? `${diaDoMes(segunda)}–${diaDoMes(sexta)} ${nomeCurtoDoMes(sexta)}`
+    : `${diaDoMes(segunda)} ${nomeCurtoDoMes(segunda)}–${diaDoMes(sexta)} ${nomeCurtoDoMes(sexta)}`;
 }
 
 /** "seg", "ter"… */

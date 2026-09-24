@@ -8,6 +8,10 @@ import { iniciais } from "./comum";
 
 type MenuProps = {
   aberto: boolean;
+  foco: boolean;
+  aoMudarFoco: (v: boolean) => void;
+  /** Mês e semanas; só no modo foco, quando a barra da agenda está escondida. */
+  navegacao: ReactNode;
   aoFechar: () => void;
   profissionais: ProfissionalAgenda[];
   ocultos: Set<string>;
@@ -58,6 +62,13 @@ export function MenuLateral(props: MenuProps) {
           </button>
         </div>
 
+        {props.navegacao && (
+          <section className="flex flex-col gap-2">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">Período</h3>
+            {props.navegacao}
+          </section>
+        )}
+
         {props.opcoesDeVisao && (
           <section className="flex flex-col gap-2">
             <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">Visualização</h3>
@@ -103,6 +114,13 @@ export function MenuLateral(props: MenuProps) {
 
         <section className="flex flex-col gap-2">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">Exibição</h3>
+          <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl px-2 py-2 text-sm hover:bg-background">
+            <span className="leading-tight">
+              Modo foco
+              <span className="block text-xs text-muted">Esconde cabeçalho, mês e semanas</span>
+            </span>
+            <Interruptor ligado={props.foco} aoMudar={() => props.aoMudarFoco(!props.foco)} rotulo="Modo foco" />
+          </label>
           <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl px-2 py-2 text-sm hover:bg-background">
             Compactar horários vazios
             <Interruptor ligado={props.compactar} aoMudar={() => props.aoCompactar(!props.compactar)} rotulo="Compactar horários vazios" />

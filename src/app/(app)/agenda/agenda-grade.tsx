@@ -19,11 +19,15 @@ type Props = {
   hoje: string;
   profissionais: ProfissionalAgenda[];
   atendimentos: AtendimentoAgenda[];
-  /** Navegação (mês/semana), exibida ao lado do botão de filtros. */
+  /** Navegação (mês/semana), exibida na barra acima da agenda. */
   navegacao: ReactNode;
+  /** A mesma navegação em coluna, para o menu lateral no modo foco (quando a barra some). */
+  navegacaoNoMenu: ReactNode;
+  /** Período exibido ("21–25 set"), mostrado no botão flutuante do modo foco. */
+  rotuloDoPeriodo: string;
 };
 
-export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais, atendimentos, navegacao }: Props) {
+export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais, atendimentos, navegacao, navegacaoNoMenu, rotuloDoPeriodo }: Props) {
   // Profissionais sem atendimentos no período começam ocultos (podem ser exibidos no menu).
   const [ocultos, setOcultos] = useState<Set<string>>(
     () => new Set(profissionais.filter((p) => !atendimentos.some((a) => a.profissionalId === p.id)).map((p) => p.id)),
@@ -74,7 +78,8 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3">
-      <div className="flex shrink-0 flex-wrap items-center gap-3">
+      {/* Barra: some no modo foco (via CSS, para valer já na primeira pintura). */}
+      <div data-barra-agenda className="flex shrink-0 flex-wrap items-center gap-3">
         <button
           type="button"
           onClick={() => setMenuAberto(true)}
@@ -116,8 +121,29 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
         {ladoALado ? <VisaoLadoALado {...propsVisao} /> : <VisaoEmpilhada modo={modo} {...propsVisao} />}
       </div>
 
+      {/* Modo foco: único controle visível, abre o menu (com período e filtros). */}
+      <button
+        data-botao-flutuante
+        type="button"
+        onClick={() => setMenuAberto(true)}
+        aria-expanded={menuAberto}
+        aria-controls="menu-agenda"
+        className="fixed right-5 bottom-5 z-30 inline-flex h-11 items-center gap-2 rounded-full bg-accent pr-4 pl-3.5 text-sm font-medium text-white shadow-lg shadow-black/15 transition hover:brightness-110"
+      >
+        <IconeFiltros />
+        <span className="tabular-nums">{rotuloDoPeriodo}</span>
+        {ocultos.size > 0 && <span className="rounded-full bg-white/20 px-1.5 text-xs">{ocultos.size} oculto{ocultos.size === 1 ? "" : "s"}</span>}
+      </button>
+
       <MenuLateral
         aberto={menuAberto}
+        foco={foco}
+        aoMudarFoco={(v) => {
+          setFoco(v);
+          // Ao sair do foco a barra volta; o menu pode fechar.
+          if (!v) setMenuAberto(false);
+        }}
+        navegacao={foco ? navegacaoNoMenu : null}
         aoFechar={() => setMenuAberto(false)}
         profissionais={profissionais}
         ocultos={ocultos}
