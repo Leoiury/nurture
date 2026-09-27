@@ -47,3 +47,8 @@ supabase/.branches
 
 # dados reais de pacientes (LGPD) - nunca commitar
 /dados/
+
+# testes
+/tests/e2e/.auth/
+/playwright-report/
+/test-results/
