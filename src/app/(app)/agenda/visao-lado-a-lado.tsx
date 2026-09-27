@@ -17,7 +17,7 @@ import {
   fundoDoCard,
   geometriaDoCard,
   horasExpandidas,
-  iniciais,
+  nomeAbreviado,
   type Posicionado,
 } from "./comum";
 
@@ -115,10 +115,8 @@ export function VisaoLadoALado({ dias, hoje, colunas, visiveis, porColuna, compa
               </Link>
               <div className="flex px-0.5 pb-1.5">
                 {colunas.map((p) => (
-                  <div key={p.id} className="flex min-w-0 flex-1 justify-center" title={p.nome}>
-                    <span className="flex size-5 items-center justify-center rounded-full bg-black/[0.04] text-[9px] font-semibold text-muted">
-                      {iniciais(p.nome)}
-                    </span>
+                  <div key={p.id} className="flex min-w-0 flex-1 justify-center px-px" title={p.nome}>
+                    <span className="truncate text-[10px] font-semibold text-muted">{nomeAbreviado(p.nome)}</span>
                   </div>
                 ))}
               </div>

@@ -39,11 +39,12 @@ test("empilhado: 08:00–18:00 cabe na tela, inclusive com zoom", async ({ page 
   expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(false);
 });
 
-test("painel do atendimento mostra paciente e histórico", async ({ page }) => {
+test("painel do atendimento mostra dados e leva à página do paciente", async ({ page }) => {
   await abrirAgenda(page);
   await cards(page).first().click();
   const painel = page.getByRole("dialog", { name: "Detalhes do atendimento" });
-  await expect(painel.getByText("Histórico")).toBeVisible();
+  await expect(painel.getByRole("button", { name: /Ver página do paciente/ })).toBeVisible();
+  await expect(painel.getByText("Histórico")).toHaveCount(0);
   await expect(painel.getByText("Profissional")).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(painel).toBeHidden();
@@ -95,7 +96,12 @@ test("modo foco: esconde cabeçalho e barra, lembra ao recarregar e sai pelo bot
   expect(await barra.evaluate((e) => getComputedStyle(e).display)).toBe("none");
 
   // Navegação pelo menu, que no foco ganha a seção Período.
-  await page.locator("[data-botao-flutuante]").filter({ hasText: /\d/ }).click();
+  // No foco, os filtros viram um botão flutuante só com ícone, no canto superior esquerdo.
+  const filtrosFlutuante = page.locator("button[data-botao-flutuante][aria-label='Filtros']");
+  const caixa = (await filtrosFlutuante.boundingBox())!;
+  expect(caixa.x).toBeLessThan(40);
+  expect(caixa.y).toBeLessThan(40);
+  await filtrosFlutuante.click();
   await expect(menu(page).getByText("Período")).toBeVisible();
 
   await page.keyboard.press("Escape");
@@ -124,4 +130,38 @@ test("celular: a página não rola na horizontal", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await abrirAgenda(page);
   expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(false);
+});
+
+test("cabeçalho mostra o nome abreviado (primeiro nome + inicial do sobrenome)", async ({ page }) => {
+  await abrirAgenda(page);
+  const nomes = await page.locator(".sticky.top-0 > div[title] span").allInnerTexts();
+  expect(nomes.length).toBeGreaterThan(0);
+  for (const nome of nomes) expect(nome).toMatch(/^\S+( \p{Lu}\.)?$/u);
+});
+
+test("botão de filtros só com ícone e botão + abre o novo atendimento", async ({ page }) => {
+  await abrirAgenda(page);
+  const filtros = page.locator("[data-barra-agenda]").getByRole("button", { name: "Filtros" });
+  await expect(filtros).toBeVisible();
+  expect((await filtros.innerText()).replace(/\d/g, "").trim()).toBe("");
+
+  const mais = page.getByRole("button", { name: "Novo atendimento" });
+  const caixa = (await mais.boundingBox())!;
+  const tela = page.viewportSize()!;
+  expect(caixa.x + caixa.width).toBeGreaterThan(tela.width - 40);
+  expect(caixa.y + caixa.height).toBeGreaterThan(tela.height - 40);
+  await mais.click();
+  await expect(page.getByRole("dialog", { name: "Novo atendimento" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog", { name: "Novo atendimento" })).toBeHidden();
+});
+
+test("abre rolada até o dia de hoje", async ({ page }) => {
+  await abrirAgenda(page);
+  const hoje = await page.evaluate(() => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date()));
+  const secao = page.locator(`section[aria-label="${hoje}"]`);
+  test.skip((await secao.count()) === 0, "hoje é fim de semana sem atendimentos");
+  const distancia = await secao.evaluate((s) => s.getBoundingClientRect().top - s.closest(".overflow-auto")!.getBoundingClientRect().top);
+  // Logo abaixo do cabeçalho dos profissionais (40 px).
+  expect(Math.abs(distancia - 40)).toBeLessThan(4);
 });

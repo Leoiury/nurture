@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { escalaParaCaber, geometriaDoCard } from "@/app/(app)/agenda/comum";
+import { escalaParaCaber, geometriaDoCard, nomeAbreviado } from "@/app/(app)/agenda/comum";
 import { PALETA_PLANOS, TEXTO_CLARO, TEXTO_ESCURO, corDoTexto } from "./cores";
 import { lerVisao, sufixoDaVisao } from "./visao";
 
@@ -17,6 +17,22 @@ describe("escalaParaCaber", () => {
 
   it("usa o padrão antes de a altura ser medida", () => {
     expect(escalaParaCaber(null, limites)).toBe(14);
+  });
+});
+
+describe("nomeAbreviado", () => {
+  it("usa o primeiro nome e a inicial do primeiro sobrenome", () => {
+    expect(nomeAbreviado("Júlia Palaoro Tesk")).toBe("Júlia P.");
+    expect(nomeAbreviado("Diego Bernardo")).toBe("Diego B.");
+  });
+
+  it("ignora partículas como da/de/dos", () => {
+    expect(nomeAbreviado("Jesebel da Silva")).toBe("Jesebel S.");
+    expect(nomeAbreviado("Marilda de  Paula")).toBe("Marilda P.");
+  });
+
+  it("nome único fica como está", () => {
+    expect(nomeAbreviado("Jesebel")).toBe("Jesebel");
   });
 });
 

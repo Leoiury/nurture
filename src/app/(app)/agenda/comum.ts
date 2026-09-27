@@ -22,9 +22,13 @@ export function fundoDoCard(cor: string): string {
   return `color-mix(in srgb, ${cor} 26%, white)`;
 }
 
-export function iniciais(nome: string): string {
-  const partes = nome.split(" ").filter((p) => p.length > 2);
-  return ((partes[0]?.[0] ?? nome[0] ?? "") + (partes.length > 1 ? partes.at(-1)![0] : "")).toUpperCase();
+const PARTICULAS = new Set(["da", "de", "do", "das", "dos", "e"]);
+
+/** "Júlia Palaoro Tesk" → "Júlia P."; "Jesebel da Silva" → "Jesebel S." */
+export function nomeAbreviado(nome: string): string {
+  const [primeiro, ...resto] = nome.trim().split(/\s+/);
+  const sobrenome = resto.find((p) => !PARTICULAS.has(p.toLowerCase()));
+  return sobrenome ? `${primeiro} ${sobrenome[0].toUpperCase()}.` : primeiro;
 }
 
 export function horarioDoAtendimento(a: AtendimentoAgenda): string {

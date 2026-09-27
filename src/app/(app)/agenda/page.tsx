@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { carregarAgenda } from "@/lib/agenda/dados";
-import { diaDoMes, ehDataValida, hoje, inicioDaSemana, nomeCurtoDoDia, nomeCurtoDoMes, rotuloDaSemana, somarDias } from "@/lib/agenda/tempo";
+import { ehDataValida, hoje, inicioDaSemana, somarDias } from "@/lib/agenda/tempo";
 import { AgendaGrade } from "./agenda-grade";
 import { lerVisao, type Visao } from "@/lib/agenda/visao";
 import { Navegacao } from "./navegacao";
@@ -54,7 +54,6 @@ export default async function AgendaPage({ searchParams }: PageProps<"/agenda">)
         atendimentos={dia ? atendimentos.filter((a) => a.data === dia) : atendimentos}
         navegacao={<Navegacao referencia={referencia} dia={dia} hoje={dataHoje} visao={visao} />}
         navegacaoNoMenu={<Navegacao referencia={referencia} dia={dia} hoje={dataHoje} visao={visao} variante="menu" />}
-        rotuloDoPeriodo={dia ? `${nomeCurtoDoDia(dia)}, ${diaDoMes(dia)} ${nomeCurtoDoMes(dia)}` : rotuloDaSemana(segunda)}
       />
     </div>
   );

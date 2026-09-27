@@ -4,7 +4,6 @@
 
 import { useEffect, type ReactNode } from "react";
 import type { ProfissionalAgenda } from "@/lib/agenda/dados";
-import { iniciais } from "./comum";
 
 type MenuProps = {
   aberto: boolean;
@@ -93,13 +92,6 @@ export function MenuLateral(props: MenuProps) {
               return (
                 <li key={p.id}>
                   <label className="flex cursor-pointer items-center gap-3 rounded-xl px-2 py-2 hover:bg-background">
-                    <span
-                      className={`flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold transition ${
-                        visivel ? "bg-accent-soft text-accent" : "bg-black/5 text-muted"
-                      }`}
-                    >
-                      {iniciais(p.nome)}
-                    </span>
                     <span className="min-w-0 flex-1 leading-tight">
                       <span className={`block truncate text-sm ${visivel ? "font-medium" : "text-muted"}`}>{p.nome}</span>
                       {p.especialidade && <span className="block truncate text-xs text-muted">{p.especialidade}</span>}

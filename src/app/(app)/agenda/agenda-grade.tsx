@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { AtendimentoAgenda, ProfissionalAgenda } from "@/lib/agenda/dados";
 import type { Segmento } from "@/lib/agenda/layout";
 import { sufixoDaVisao, type Visao } from "@/lib/agenda/visao";
 import { agruparPorColuna, useAlturaDoElemento, useModoFoco } from "./comum";
 import { MenuLateral } from "./menu-lateral";
 import { PainelAtendimento } from "./painel-atendimento";
+import { PainelNovoAtendimento } from "./painel-novo-atendimento";
 import { VisaoEmpilhada } from "./visao-empilhada";
 import { VisaoLadoALado } from "./visao-lado-a-lado";
 
@@ -24,11 +25,9 @@ type Props = {
   navegacao: ReactNode;
   /** A mesma navegação em coluna, para o menu lateral no modo foco (quando a barra some). */
   navegacaoNoMenu: ReactNode;
-  /** Período exibido ("21–25 set"), mostrado no botão flutuante do modo foco. */
-  rotuloDoPeriodo: string;
 };
 
-export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais, atendimentos, navegacao, navegacaoNoMenu, rotuloDoPeriodo }: Props) {
+export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais, atendimentos, navegacao, navegacaoNoMenu }: Props) {
   // Profissionais sem atendimentos no período começam ocultos (podem ser exibidos no menu).
   const [ocultos, setOcultos] = useState<Set<string>>(
     () => new Set(profissionais.filter((p) => !atendimentos.some((a) => a.profissionalId === p.id)).map((p) => p.id)),
@@ -38,6 +37,7 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
   const [expandidos, setExpandidos] = useState<Set<string>>(new Set());
   const [menuAberto, setMenuAberto] = useState(false);
   const [selecionado, setSelecionado] = useState<string | null>(null);
+  const [criando, setCriando] = useState(false);
   const [foco, setFoco] = useModoFoco();
   const quadro = useRef<HTMLDivElement>(null);
   const alturaVisivel = useAlturaDoElemento(quadro);
@@ -76,6 +76,15 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
   const visaoEfetiva: Visao = modo === "dia" && visao === "lado" ? "empilhada" : visao;
   const ladoALado = visaoEfetiva === "lado";
   const sufixoUrl = sufixoDaVisao(visao);
+  // Ao abrir a semana atual, rola até o dia de hoje (nas visões empilhadas).
+  useEffect(() => {
+    if (ladoALado || modo !== "semana") return;
+    const secao = quadro.current?.querySelector<HTMLElement>(`section[aria-label="${hoje}"]`);
+    if (secao && quadro.current) quadro.current.scrollTop = secao.offsetTop - secao.clientTop - parseFloat(getComputedStyle(secao).scrollMarginTop || "0");
+    // Só na abertura: a grade é recriada a cada semana (key na página).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const propsVisao = { dias, hoje, colunas, visiveis, porColuna, compactar, expandidos, aoExpandir: expandirSegmento, aoAbrir: setSelecionado, sufixoUrl, alturaVisivel };
 
   return (
@@ -87,15 +96,12 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
           onClick={() => setMenuAberto(true)}
           aria-expanded={menuAberto}
           aria-controls="menu-agenda"
-          className="inline-flex h-9 items-center gap-2 rounded-full bg-surface px-3.5 text-sm font-medium shadow-sm ring-1 ring-black/5 transition hover:shadow"
+          aria-label="Filtros"
+          title="Filtros"
+          className="relative inline-flex size-9 items-center justify-center rounded-full bg-surface shadow-sm ring-1 ring-black/5 transition hover:shadow"
         >
           <IconeFiltros />
-          Filtros
-          {ocultos.size > 0 && (
-            <span className="rounded-full bg-accent-soft px-1.5 text-xs text-accent">
-              {ocultos.size} oculto{ocultos.size === 1 ? "" : "s"}
-            </span>
-          )}
+          <ContadorOcultos quantidade={ocultos.size} />
         </button>
 
         {/* Largura mínima: sem espaço, a navegação desce para a linha de baixo em vez de transbordar. */}
@@ -140,18 +146,30 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
         <IconeRecolher />
       </button>
 
-      {/* Modo foco: controle principal, abre o menu (com período e filtros). */}
+      {/* Modo foco: filtros num botão flutuante no canto superior esquerdo (abre o menu, com o período). */}
       <button
         data-botao-flutuante
         type="button"
         onClick={() => setMenuAberto(true)}
         aria-expanded={menuAberto}
         aria-controls="menu-agenda"
-        className="fixed right-5 bottom-5 z-30 inline-flex h-11 items-center gap-2 rounded-full bg-accent pr-4 pl-3.5 text-sm font-medium text-white shadow-lg shadow-black/15 transition hover:brightness-110"
+        aria-label="Filtros"
+        title="Filtros e período"
+        className="fixed top-3 left-3 z-30 inline-flex size-9 items-center justify-center rounded-full bg-surface/90 text-foreground shadow-md ring-1 ring-black/5 backdrop-blur transition hover:shadow-lg"
       >
         <IconeFiltros />
-        <span className="tabular-nums">{rotuloDoPeriodo}</span>
-        {ocultos.size > 0 && <span className="rounded-full bg-white/20 px-1.5 text-xs">{ocultos.size} oculto{ocultos.size === 1 ? "" : "s"}</span>}
+        <ContadorOcultos quantidade={ocultos.size} />
+      </button>
+
+      {/* Novo atendimento: sempre visível, no canto inferior direito. */}
+      <button
+        type="button"
+        onClick={() => setCriando(true)}
+        aria-label="Novo atendimento"
+        title="Novo atendimento"
+        className="fixed right-5 bottom-5 z-30 inline-flex size-14 items-center justify-center rounded-full bg-accent text-white shadow-lg shadow-black/20 transition hover:brightness-110 active:scale-95"
+      >
+        <IconeMais />
       </button>
 
       <MenuLateral
@@ -209,6 +227,7 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
       />
 
       {selecionado && <PainelAtendimento key={selecionado} id={selecionado} aoFechar={() => setSelecionado(null)} />}
+      {criando && <PainelNovoAtendimento aoFechar={() => setCriando(false)} />}
     </div>
   );
 }
@@ -233,10 +252,31 @@ function OpcaoVisao({ href, ativa, rotulo, descricao, icone, aoEscolher }: Opcao
   );
 }
 
+/** Número de profissionais ocultos, como um selo no canto do botão de filtros. */
+function ContadorOcultos({ quantidade }: { quantidade: number }) {
+  if (quantidade === 0) return null;
+  return (
+    <span
+      className="absolute -top-1 -right-1 flex min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] leading-4 font-semibold text-white"
+      title={`${quantidade} profissiona${quantidade === 1 ? "l oculto" : "is ocultos"}`}
+    >
+      {quantidade}
+    </span>
+  );
+}
+
 function IconeFiltros() {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
-      <path d="M2 4h12M4.5 8h7M7 12h2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      <path d="M3 4h10M3 8h10M3 12h10" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function IconeMais() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 22 22" fill="none" aria-hidden>
+      <path d="M11 4v14M4 11h14" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
     </svg>
   );
 }

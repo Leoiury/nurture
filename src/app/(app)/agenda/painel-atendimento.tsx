@@ -22,7 +22,6 @@ const dataHora = new Intl.DateTimeFormat("pt-BR", {
   minute: "2-digit",
 });
 const hora = new Intl.DateTimeFormat("pt-BR", { timeZone: FUSO, hour: "2-digit", minute: "2-digit" });
-const dataCurta = new Intl.DateTimeFormat("pt-BR", { timeZone: FUSO, day: "2-digit", month: "2-digit", year: "2-digit" });
 const moeda = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 
 function plural(n: number, singular: string, pluralTexto: string): string {
@@ -166,25 +165,17 @@ export function PainelAtendimento({ id, aoFechar }: Props) {
               </section>
             )}
 
-            {p && dados && (
-              <section className="flex flex-col gap-2">
-                <h3 className="font-semibold">Histórico ({dados.historico.length})</h3>
-                <ul className="flex flex-col divide-y divide-border rounded-lg border border-border">
-                  {dados.historico.map((h) => (
-                    <li key={h.id} className={`flex items-center gap-3 px-3 py-2 ${h.id === a.id ? "bg-accent-soft" : ""}`}>
-                      <span className="w-16 shrink-0 tabular-nums text-muted">{dataCurta.format(new Date(h.inicio))}</span>
-                      <span className="min-w-0 flex-1 truncate">
-                        {h.tipo?.nome ?? "—"} <span className="text-muted">· {h.profissional?.nome}</span>
-                      </span>
-                      <span
-                        className={`shrink-0 text-xs ${h.status === "desmarcado" || h.status === "faltou" ? "text-danger" : "text-muted"}`}
-                      >
-                        {ROTULO_STATUS[h.status]}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </section>
+            {p && (
+              // A página do paciente (com o histórico completo) vem numa próxima etapa.
+              <button
+                type="button"
+                disabled
+                title="Em breve"
+                className="flex items-center justify-between rounded-xl border border-border px-4 py-3 text-sm font-medium text-muted disabled:cursor-not-allowed"
+              >
+                Ver página do paciente
+                <span className="text-xs font-normal">em breve</span>
+              </button>
             )}
           </div>
         )}

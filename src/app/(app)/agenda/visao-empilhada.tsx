@@ -19,7 +19,7 @@ import {
   geometriaDoCard,
   horarioDoAtendimento,
   horasExpandidas,
-  iniciais,
+  nomeAbreviado,
   type Posicionado,
 } from "./comum";
 
@@ -81,11 +81,8 @@ export function VisaoEmpilhada({ modo, dias, hoje, colunas, visiveis, porColuna,
       <div className="sticky top-0 z-30 flex border-b border-black/[0.06] bg-surface/95 backdrop-blur" style={{ height: ALTURA_CABECALHO_PROF }}>
         <div className="sticky left-0 z-10 shrink-0 bg-surface/95" style={{ width: LARGURA_EIXO }} />
         {colunas.map((p) => (
-          <div key={p.id} className="flex min-w-0 flex-1 items-center gap-2 px-2" title={p.especialidade ? `${p.nome} · ${p.especialidade}` : p.nome}>
-            <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-accent-soft text-[10px] font-semibold text-accent">
-              {iniciais(p.nome)}
-            </span>
-            <span className="truncate text-xs font-medium">{p.nome}</span>
+          <div key={p.id} className="flex min-w-0 flex-1 items-center px-3" title={p.especialidade ? `${p.nome} · ${p.especialidade}` : p.nome}>
+            <span className="truncate text-[13px] font-semibold">{nomeAbreviado(p.nome)}</span>
           </div>
         ))}
         {colunas.length === 0 && <div className="flex flex-1 items-center px-4 text-sm text-muted">Nenhum profissional selecionado.</div>}
