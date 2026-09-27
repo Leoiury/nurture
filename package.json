@@ -14,7 +14,8 @@
     "test:e2e": "playwright test",
     "db:local": "supabase start && node scripts/ambiente-local.mjs",
     "db:local:reset": "supabase db reset && node scripts/ambiente-local.mjs",
-    "db:local:parar": "supabase stop"
+    "db:local:parar": "supabase stop",
+    "typecheck": "next typegen && tsc --noEmit"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
