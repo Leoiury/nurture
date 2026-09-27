@@ -59,9 +59,11 @@ test("troca de visão pelo menu e preservação ao navegar", async ({ page }) =>
   await expect(menu(page)).not.toBeInViewport(); // o menu fecha ao escolher
   expect(await expedienteCabeNaTela(page)).toBe(true);
 
-  // Trocar de semana mantém a visão.
+  // Trocar de mês mantém a visão. Espera a URL nova (com semana=) antes de seguir:
+  // a anterior também tinha visao=lado e o menu abriria antes da navegação terminar.
   await page.getByRole("link", { name: "Próximo mês" }).click();
-  await expect(page).toHaveURL(/visao=lado/);
+  await expect(page).toHaveURL(/semana=.*visao=lado/);
+  await expect(page.locator("section").first()).toBeVisible();
 
   await page.getByRole("button", { name: /Filtros/ }).click();
   await menu(page).getByRole("link", { name: /Ampliado/ }).click();

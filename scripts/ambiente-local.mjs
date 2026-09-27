@@ -10,13 +10,12 @@
 //
 // Com --ci também grava .env.production.local, para `next build`/`next start`.
 
-import { execFileSync } from "node:child_process";
+import { execSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { createClient } from "@supabase/supabase-js";
 
-const status = JSON.parse(
-  execFileSync("npx", ["supabase", "status", "-o", "json"], { encoding: "utf8", shell: process.platform === "win32" }),
-);
+// Comando fixo, sem argumentos vindos de fora (o shell é necessário para o npx no Windows).
+const status = JSON.parse(execSync("npx supabase status -o json", { encoding: "utf8" }));
 
 // Os nomes das chaves variam entre versões do CLI (publishable/anon, secret/service_role).
 const url = status.API_URL;

@@ -17,6 +17,11 @@ export default defineConfig({
   testDir: "tests/e2e",
   fullyParallel: true,
   retries: CI ? 1 : 0,
+  // Localmente roda contra `next dev`, que compila cada página no primeiro acesso:
+  // mais tempo por teste e menos navegadores simultâneos.
+  timeout: CI ? 30_000 : 90_000,
+  expect: { timeout: CI ? 5_000 : 15_000 },
+  workers: CI ? undefined : 2,
   reporter: CI ? [["github"], ["html", { open: "never" }]] : "list",
   use: {
     baseURL: "http://localhost:3000",
