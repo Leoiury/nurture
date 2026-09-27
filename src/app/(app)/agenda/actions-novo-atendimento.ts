@@ -56,7 +56,12 @@ const formatoConflito = new Intl.DateTimeFormat("pt-BR", {
  * (paralelo) ou o mesmo paciente (com outro profissional). Só avisa; não bloqueia.
  */
 export async function verificarConflitos(
-  agendamento: Agendamento & { profissionais: string[]; pacienteId: string | null },
+  agendamento: Agendamento & {
+    profissionais: string[];
+    pacienteId: string | null;
+    /** Na edição: o próprio atendimento (e a série, se o alcance for além dele) não conta como conflito. */
+    ignorar?: { id: string; recorrenciaId: string | null };
+  },
 ): Promise<Conflito[]> {
   const lista = inicios(agendamento);
   if (lista.length === 0 || (agendamento.profissionais.length === 0 && !agendamento.pacienteId)) return [];
@@ -67,7 +72,7 @@ export async function verificarConflitos(
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("atendimentos")
-    .select("inicio, fim, paciente_id, paciente:pacientes(nome), profissionais:atendimento_profissionais(profissional:profissionais(id, nome))")
+    .select("id, recorrencia_id, inicio, fim, paciente_id, paciente:pacientes(nome), profissionais:atendimento_profissionais(profissional:profissionais(id, nome))")
     .is("excluido_em", null)
     .neq("status", "desmarcado")
     .lt("inicio", new Date(Math.max(...janelas.map((j) => j.fim))).toISOString())
@@ -75,7 +80,9 @@ export async function verificarConflitos(
   if (error) throw new Error("Não foi possível verificar conflitos.");
 
   const conflitos: Conflito[] = [];
+  const { ignorar } = agendamento;
   for (const existente of data) {
+    if (ignorar && (existente.id === ignorar.id || (ignorar.recorrenciaId && existente.recorrencia_id === ignorar.recorrenciaId))) continue;
     const ini = new Date(existente.inicio).getTime();
     const fim = new Date(existente.fim).getTime();
     const janela = janelas.find((j) => j.inicio < fim && j.fim > ini);
@@ -117,7 +124,12 @@ export async function criarAtendimentos(novo: NovoAtendimento): Promise<Resultad
   if (!(novo.duracaoMin > 0 && novo.duracaoMin <= 12 * 60)) return { ok: false, erro: "Duração inválida." };
   if (novo.valor !== null && !(novo.valor >= 0)) return { ok: false, erro: "Valor inválido." };
 
-  const lista = inicios(novo);
+  let lista: string[];
+  try {
+    lista = inicios(novo);
+  } catch {
+    return { ok: false, erro: "Data inválida." }; // ex.: 31/02 não converte
+  }
   if (lista.length === 0) return { ok: false, erro: "A repetição não gera nenhuma data: confira a data final." };
   if (lista.length > MAXIMO_DE_SESSOES) return { ok: false, erro: `Uma série pode ter no máximo ${MAXIMO_DE_SESSOES} atendimentos.` };
 

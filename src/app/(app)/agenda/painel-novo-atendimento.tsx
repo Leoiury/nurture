@@ -1,12 +1,14 @@
 "use client";
 
-// Painel (sheet) para lançar um novo atendimento — avulso ou em série.
-// Padrões automáticos (sempre editáveis): o plano vem do paciente; duração e valor
-// vêm do plano; o tipo vem da especialidade do primeiro profissional.
+// Painel (sheet) para lançar um novo atendimento — avulso ou em série — ou editar
+// um existente. Padrões automáticos (sempre editáveis): o plano vem do paciente;
+// duração e valor vêm do plano; o tipo vem da especialidade do primeiro profissional.
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { MAXIMO_DE_SESSOES, ROTULO_FREQUENCIA, datasDaSerie, descricaoMensal, type Frequencia } from "@/lib/agenda/recorrencia";
 import { hoje as dataDeHoje, nomeCurtoDoDia } from "@/lib/agenda/tempo";
+import { lerValor } from "@/lib/agenda/valores";
+import { editar, type Alcance } from "./actions";
 import {
   criarAtendimentos,
   criarPaciente,
@@ -18,11 +20,30 @@ import {
 } from "./actions-novo-atendimento";
 import { nomeAbreviado } from "./comum";
 
+/** Atendimento existente aberto para edição. */
+export type DadosEdicao = {
+  id: string;
+  recorrenciaId: string | null;
+  serie: { total: number; seguintes: number } | null;
+  pacienteId: string;
+  pacienteNome: string;
+  profissionais: string[];
+  data: string;
+  hora: string;
+  duracaoMin: number;
+  planoId: string | null;
+  tipoId: string | null;
+  valor: number | null;
+};
+
 type Props = {
   aoFechar: () => void;
   /** Pré-preenchimento (ex.: ao clicar num horário vazio da grade). */
   inicial?: { data?: string; hora?: string; profissionalId?: string };
+  /** Se informado, o painel edita este atendimento em vez de criar um novo. */
+  edicao?: DadosEdicao;
 };
+
 
 const DURACOES = [30, 45, 60];
 const STATUS_INICIAIS = [
@@ -47,20 +68,23 @@ function tipoSugerido(especialidade: string | null, tipos: OpcoesDoFormulario["t
 const formatoData = new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit", timeZone: "UTC" });
 const dataCurta = (d: string) => `${nomeCurtoDoDia(d)} ${formatoData.format(new Date(`${d}T12:00:00Z`))}`;
 
-export function PainelNovoAtendimento({ aoFechar, inicial }: Props) {
+export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
   const [opcoes, setOpcoes] = useState<OpcoesDoFormulario | null>(null);
   const [erroCarga, setErroCarga] = useState<string | null>(null);
 
-  const [pacienteId, setPacienteId] = useState<string | null>(null);
-  const [busca, setBusca] = useState("");
+  const [pacienteId, setPacienteId] = useState<string | null>(edicao?.pacienteId || null);
+  const [busca, setBusca] = useState(edicao?.pacienteNome ?? "");
   const [cadastrandoPaciente, setCadastrandoPaciente] = useState(false);
-  const [profissionais, setProfissionais] = useState<string[]>(inicial?.profissionalId ? [inicial.profissionalId] : []);
-  const [data, setData] = useState(inicial?.data ?? dataDeHoje());
-  const [hora, setHora] = useState(inicial?.hora ?? "");
-  const [duracao, setDuracao] = useState(45);
-  const [planoId, setPlanoId] = useState<string | null>(null);
-  const [tipoId, setTipoId] = useState<string | null>(null);
-  const [valor, setValor] = useState("");
+  const [profissionais, setProfissionais] = useState<string[]>(
+    edicao?.profissionais ?? (inicial?.profissionalId ? [inicial.profissionalId] : []),
+  );
+  const [data, setData] = useState(edicao?.data ?? inicial?.data ?? dataDeHoje());
+  const [hora, setHora] = useState(edicao?.hora ?? inicial?.hora ?? "");
+  const [duracao, setDuracao] = useState(edicao?.duracaoMin ?? 45);
+  const [planoId, setPlanoId] = useState<string | null>(edicao?.planoId ?? null);
+  const [tipoId, setTipoId] = useState<string | null>(edicao?.tipoId ?? null);
+  const [valor, setValor] = useState(edicao?.valor != null ? String(edicao.valor).replace(".", ",") : "");
+  const [alcance, setAlcance] = useState<Alcance>("este");
   const [status, setStatus] = useState<(typeof STATUS_INICIAIS)[number]["valor"]>("marcado");
   const [observacao, setObservacao] = useState("");
 
@@ -109,13 +133,15 @@ export function PainelNovoAtendimento({ aoFechar, inicial }: Props) {
   useEffect(() => {
     if (!hora || !data) return;
     const temporizador = setTimeout(() => {
-      verificarConflitos({ data, hora, duracaoMin: duracao, serie, profissionais, pacienteId })
+      // Na edição, o próprio atendimento (e a série, se o alcance for além dele) não conta.
+      const ignorar = edicao ? { id: edicao.id, recorrenciaId: alcance === "este" ? null : edicao.recorrenciaId } : undefined;
+      verificarConflitos({ data, hora, duracaoMin: duracao, serie, profissionais, pacienteId, ignorar })
         .then(setConflitos)
         .catch(() => setConflitos([]));
     }, 400);
     return () => clearTimeout(temporizador);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, hora, duracao, repetir, frequencia, fimPor, ate, sessoes, profissionais, pacienteId]);
+  }, [data, hora, duracao, repetir, frequencia, fimPor, ate, sessoes, profissionais, pacienteId, alcance]);
 
   const paciente = opcoes?.pacientes.find((p) => p.id === pacienteId) ?? null;
   const sugestoes = useMemo(() => {
@@ -150,22 +176,14 @@ export function PainelNovoAtendimento({ aoFechar, inicial }: Props) {
 
   async function salvar() {
     setErro(null);
-    const valorNumero = valor.trim() ? Number(valor.replace(/\./g, "").replace(",", ".")) : null;
+    const valorNumero = lerValor(valor);
     if (valorNumero !== null && Number.isNaN(valorNumero)) return setErro("Valor inválido.");
     setSalvando(true);
-    const resultado = await criarAtendimentos({
-      pacienteId: pacienteId ?? "",
-      profissionais,
-      data,
-      hora,
-      duracaoMin: duracao,
-      serie,
-      planoId,
-      tipoId,
-      valor: valorNumero,
-      status,
-      observacao: observacao.trim(),
-    }).catch(() => ({ ok: false as const, erro: "Falha de conexão ao salvar." }));
+    const comuns = { pacienteId: pacienteId ?? "", profissionais, data, hora, duracaoMin: duracao, planoId, tipoId, valor: valorNumero };
+    const resultado = await (edicao
+      ? editar({ ...comuns, id: edicao.id, alcance })
+      : criarAtendimentos({ ...comuns, serie, status, observacao: observacao.trim() })
+    ).catch(() => ({ ok: false as const, erro: "Falha de conexão ao salvar." }));
     setSalvando(false);
     if (!resultado.ok) return setErro(resultado.erro);
     aoFechar();
@@ -180,11 +198,11 @@ export function PainelNovoAtendimento({ aoFechar, inicial }: Props) {
       <aside
         role="dialog"
         aria-modal="true"
-        aria-label="Novo atendimento"
+        aria-label={edicao ? "Editar atendimento" : "Novo atendimento"}
         className="fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col bg-surface shadow-2xl"
       >
         <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-5 py-4">
-          <h2 className="text-lg font-semibold">Novo atendimento</h2>
+          <h2 className="text-lg font-semibold">{edicao ? "Editar atendimento" : "Novo atendimento"}</h2>
           <button type="button" onClick={aoFechar} className="rounded-full px-2 py-1 text-muted hover:bg-background" aria-label="Fechar">
             ✕
           </button>
@@ -354,22 +372,30 @@ export function PainelNovoAtendimento({ aoFechar, inicial }: Props) {
                     ))}
                   </select>
                 </Campo>
-                <Campo rotulo="Status" id="campo-status">
-                  <select id="campo-status" value={status} onChange={(e) => setStatus(e.target.value as typeof status)} className={entrada}>
-                    {STATUS_INICIAIS.map((s) => (
-                      <option key={s.valor} value={s.valor}>
-                        {s.rotulo}
-                      </option>
-                    ))}
-                  </select>
-                </Campo>
+                {/* Na edição, status e observações ficam no painel do atendimento. */}
+                {!edicao && (
+                  <Campo rotulo="Status" id="campo-status">
+                    <select id="campo-status" value={status} onChange={(e) => setStatus(e.target.value as typeof status)} className={entrada}>
+                      {STATUS_INICIAIS.map((s) => (
+                        <option key={s.valor} value={s.valor}>
+                          {s.rotulo}
+                        </option>
+                      ))}
+                    </select>
+                  </Campo>
+                )}
               </div>
 
-              <Campo rotulo="Observação" id="campo-observacao">
-                <textarea id="campo-observacao" value={observacao} onChange={(e) => setObservacao(e.target.value)} rows={2} className={entrada} />
-              </Campo>
+              {!edicao && (
+                <Campo rotulo="Observação" id="campo-observacao">
+                  <textarea id="campo-observacao" value={observacao} onChange={(e) => setObservacao(e.target.value)} rows={2} className={entrada} />
+                </Campo>
+              )}
 
-              {/* Repetição */}
+              {/* Na criação: repetição. Na edição de uma série: a quais atendimentos aplicar. */}
+              {edicao ? (
+                <AlcanceDaEdicao serie={edicao.serie} valor={alcance} aoMudar={setAlcance} />
+              ) : (
               <section className="flex flex-col gap-3 rounded-2xl bg-black/[0.03] p-4">
                 <label className="flex cursor-pointer items-center gap-2 text-sm font-medium">
                   <input type="checkbox" checked={repetir} onChange={(e) => setRepetir(e.target.checked)} className="size-4 accent-[var(--accent)]" />
@@ -430,6 +456,7 @@ export function PainelNovoAtendimento({ aoFechar, inicial }: Props) {
                   </>
                 )}
               </section>
+              )}
 
               {conflitos.length > 0 && (
                 <section className="flex flex-col gap-1 rounded-2xl bg-amber-50 p-4 text-sm text-amber-900 ring-1 ring-amber-200" aria-live="polite">
@@ -454,7 +481,15 @@ export function PainelNovoAtendimento({ aoFechar, inicial }: Props) {
                 Cancelar
               </button>
               <button type="submit" disabled={!podeSalvar} className="rounded-full bg-accent px-5 py-2 text-sm font-medium text-white transition hover:brightness-110 disabled:opacity-50">
-                {salvando ? "Salvando…" : datas.length > 1 ? `Salvar ${datas.length} atendimentos` : "Salvar"}
+                {salvando
+                  ? "Salvando…"
+                  : edicao
+                    ? quantidadeNaEdicao(edicao, alcance) > 1
+                      ? `Salvar ${quantidadeNaEdicao(edicao, alcance)} atendimentos`
+                      : "Salvar alterações"
+                    : datas.length > 1
+                      ? `Salvar ${datas.length} atendimentos`
+                      : "Salvar"}
               </button>
             </div>
           </form>
@@ -562,5 +597,35 @@ function CadastroRapido({
         </button>
       </div>
     </div>
+  );
+}
+
+/** Quantos atendimentos uma edição atinge, conforme o alcance escolhido. */
+function quantidadeNaEdicao(edicao: DadosEdicao, alcance: Alcance): number {
+  if (!edicao.serie || alcance === "este") return 1;
+  return alcance === "seguintes" ? edicao.serie.seguintes : edicao.serie.total;
+}
+
+function AlcanceDaEdicao({ serie, valor, aoMudar }: { serie: DadosEdicao["serie"]; valor: Alcance; aoMudar: (a: Alcance) => void }) {
+  if (!serie || serie.total <= 1) return null;
+  const opcoes: [Alcance, string][] = [
+    ["este", "Só este atendimento"],
+    ["seguintes", `Este e os próximos (${serie.seguintes})`],
+    ["todos", `Todos da série (${serie.total})`],
+  ];
+  return (
+    <fieldset className="flex flex-col gap-1.5 rounded-2xl bg-black/[0.03] p-4 text-sm">
+      <legend className="sr-only">Aplicar a</legend>
+      <p className="mb-1 text-xs font-semibold tracking-wide text-muted uppercase">Este atendimento faz parte de uma série. Aplicar a:</p>
+      {opcoes.map(([v, rotulo]) => (
+        <label key={v} className="flex cursor-pointer items-center gap-2">
+          <input type="radio" name="alcance-edicao" checked={valor === v} onChange={() => aoMudar(v)} className="accent-[var(--accent)]" />
+          {rotulo}
+        </label>
+      ))}
+      {valor !== "este" && (
+        <p className="mt-1 text-xs text-muted">Data e horário são deslocados igualmente em todos (ex.: de terça 10:30 para quinta 14:00).</p>
+      )}
+    </fieldset>
   );
 }

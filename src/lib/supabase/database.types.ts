@@ -462,6 +462,13 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      atendimentos_do_alcance: {
+        Args: {
+          p_alcance: Database["public"]["Enums"]["alcance_serie"]
+          p_id: string
+        }
+        Returns: string[]
+      }
       criar_atendimentos: {
         Args: {
           p_data_fim?: string
@@ -479,12 +486,44 @@ export type Database = {
         }
         Returns: string[]
       }
+      desmarcar_atendimentos: {
+        Args: {
+          p_alcance: Database["public"]["Enums"]["alcance_serie"]
+          p_id: string
+          p_motivo: string
+        }
+        Returns: number
+      }
+      editar_atendimentos: {
+        Args: {
+          p_alcance: Database["public"]["Enums"]["alcance_serie"]
+          p_data: string
+          p_duracao_min: number
+          p_hora: string
+          p_id: string
+          p_paciente_id: string
+          p_plano_id?: string
+          p_profissionais: string[]
+          p_tipo_id?: string
+          p_valor?: number
+        }
+        Returns: number
+      }
+      excluir_atendimentos: {
+        Args: {
+          p_alcance: Database["public"]["Enums"]["alcance_serie"]
+          p_id: string
+          p_motivo: string
+        }
+        Returns: number
+      }
       formatar_periodo: {
         Args: { fim: string; inicio: string }
         Returns: string
       }
     }
     Enums: {
+      alcance_serie: "este" | "seguintes" | "todos"
       frequencia_recorrencia: "semanal" | "quinzenal" | "mensal"
       status_atendimento:
         | "marcado"
@@ -622,6 +661,7 @@ export const Constants = {
   },
   public: {
     Enums: {
+      alcance_serie: ["este", "seguintes", "todos"],
       frequencia_recorrencia: ["semanal", "quinzenal", "mensal"],
       status_atendimento: [
         "marcado",

@@ -8,7 +8,7 @@ import { sufixoDaVisao, type Visao } from "@/lib/agenda/visao";
 import { agruparPorColuna, useAlturaDoElemento, useModoFoco } from "./comum";
 import { MenuLateral } from "./menu-lateral";
 import { PainelAtendimento } from "./painel-atendimento";
-import { PainelNovoAtendimento } from "./painel-novo-atendimento";
+import { PainelNovoAtendimento, type DadosEdicao } from "./painel-novo-atendimento";
 import { VisaoEmpilhada } from "./visao-empilhada";
 import { VisaoLadoALado } from "./visao-lado-a-lado";
 
@@ -38,6 +38,7 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
   const [menuAberto, setMenuAberto] = useState(false);
   const [selecionado, setSelecionado] = useState<string | null>(null);
   const [criando, setCriando] = useState(false);
+  const [editando, setEditando] = useState<DadosEdicao | null>(null);
   const [foco, setFoco] = useModoFoco();
   const quadro = useRef<HTMLDivElement>(null);
   const alturaVisivel = useAlturaDoElemento(quadro);
@@ -229,8 +230,19 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
         }
       />
 
-      {selecionado && <PainelAtendimento key={selecionado} id={selecionado} aoFechar={() => setSelecionado(null)} />}
+      {selecionado && (
+        <PainelAtendimento
+          key={selecionado}
+          id={selecionado}
+          aoFechar={() => setSelecionado(null)}
+          aoEditar={(dados) => {
+            setSelecionado(null);
+            setEditando(dados);
+          }}
+        />
+      )}
       {criando && <PainelNovoAtendimento aoFechar={() => setCriando(false)} />}
+      {editando && <PainelNovoAtendimento key={editando.id} edicao={editando} aoFechar={() => setEditando(null)} />}
     </div>
   );
 }

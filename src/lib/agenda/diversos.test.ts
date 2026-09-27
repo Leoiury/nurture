@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { escalaParaCaber, geometriaDoCard, nomeAbreviado } from "@/app/(app)/agenda/comum";
 import { PALETA_PLANOS, TEXTO_CLARO, TEXTO_ESCURO, corDoTexto } from "./cores";
+import { lerValor } from "./valores";
 import { lerVisao, sufixoDaVisao } from "./visao";
 
 describe("escalaParaCaber", () => {
@@ -70,5 +71,21 @@ describe("visão", () => {
   it("só adiciona parâmetro para visões diferentes da padrão", () => {
     expect(sufixoDaVisao("empilhada")).toBe("");
     expect(sufixoDaVisao("lado")).toBe("&visao=lado");
+  });
+});
+
+describe("lerValor", () => {
+  it("aceita formatos brasileiros e com ponto decimal", () => {
+    expect(lerValor("150")).toBe(150);
+    expect(lerValor("150,50")).toBe(150.5);
+    expect(lerValor("1.234,56")).toBe(1234.56);
+    expect(lerValor("R$ 80")).toBe(80);
+    expect(lerValor("150.5")).toBe(150.5); // não vira 1505
+    expect(lerValor("150.00")).toBe(150); // não vira 15000
+  });
+
+  it("vazio é null e texto inválido é NaN", () => {
+    expect(lerValor("  ")).toBeNull();
+    expect(lerValor("abc")).toBeNaN();
   });
 });
