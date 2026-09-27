@@ -321,7 +321,7 @@ export function PainelNovoAtendimento({ aoFechar, inicial }: Props) {
                     step={5}
                     value={duracao}
                     onChange={(e) => setDuracao(Number(e.target.value))}
-                    className={`${entrada} w-24`}
+                    className={`${entradaBase} w-24`}
                     aria-label="Duração em minutos"
                   />
                 </div>
@@ -405,7 +405,7 @@ export function PainelNovoAtendimento({ aoFechar, inicial }: Props) {
                           setAte(e.target.value);
                           setFimPor("data");
                         }}
-                        className={`${entrada} w-auto`}
+                        className={`${entradaBase} w-40`}
                         aria-label="Repetir até"
                       />
                       <label className="ml-2 flex items-center gap-1.5">
@@ -421,7 +421,7 @@ export function PainelNovoAtendimento({ aoFechar, inicial }: Props) {
                           setSessoes(Number(e.target.value));
                           setFimPor("sessoes");
                         }}
-                        className={`${entrada} w-20`}
+                        className={`${entradaBase} w-20`}
                         aria-label="Número de sessões"
                       />
                       sessões
@@ -464,8 +464,10 @@ export function PainelNovoAtendimento({ aoFechar, inicial }: Props) {
   );
 }
 
-const entrada =
-  "w-full rounded-xl border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft";
+// Base sem largura, para campos pequenos definirem a sua; "entrada" ocupa a linha toda.
+const entradaBase =
+  "rounded-xl border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft";
+const entrada = `w-full ${entradaBase}`;
 const botaoSecundario = "shrink-0 rounded-full bg-black/[0.04] px-4 py-2 text-sm font-medium hover:bg-black/[0.07]";
 
 function Campo({ rotulo, id, children }: { rotulo: string; id: string; children: ReactNode }) {
