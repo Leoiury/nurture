@@ -35,9 +35,9 @@ export function horarioDoAtendimento(a: AtendimentoAgenda): string {
   return `${formatarHora(a.inicio)} – ${formatarHora(a.fim)}`;
 }
 
-/** Texto completo do atendimento (tooltip e leitor de tela). */
-export function descricaoDoAtendimento(a: AtendimentoAgenda, profissional: string): string {
-  return [horarioDoAtendimento(a), a.paciente ?? "Sem paciente", profissional, a.plano?.nome, a.tipo, a.status]
+/** Texto completo do atendimento (tooltip e leitor de tela), com todos os profissionais. */
+export function descricaoDoAtendimento(a: AtendimentoAgenda): string {
+  return [horarioDoAtendimento(a), a.paciente ?? "Sem paciente", a.profissionalNomes.join(" + "), a.plano?.nome, a.tipo, a.status]
     .filter(Boolean)
     .join(" · ");
 }
@@ -45,9 +45,12 @@ export function descricaoDoAtendimento(a: AtendimentoAgenda, profissional: strin
 /** Atendimentos agrupados por "dia|profissional", já distribuídos em faixas paralelas. */
 export function agruparPorColuna(atendimentos: AtendimentoAgenda[]): Map<string, Posicionado[]> {
   const grupos = new Map<string, AtendimentoAgenda[]>();
+  // Atendimento com vários profissionais entra na coluna de cada um.
   for (const a of atendimentos) {
-    const chave = `${a.data}|${a.profissionalId}`;
-    grupos.set(chave, [...(grupos.get(chave) ?? []), a]);
+    for (const profissionalId of a.profissionalIds) {
+      const chave = `${a.data}|${profissionalId}`;
+      grupos.set(chave, [...(grupos.get(chave) ?? []), a]);
+    }
   }
   const resultado = new Map<string, Posicionado[]>();
   for (const [chave, itens] of grupos) {

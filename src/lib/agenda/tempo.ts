@@ -78,6 +78,11 @@ export function inicioDoDiaISO(data: string): string {
   return `${data}T00:00:00-03:00`;
 }
 
+/** Data (AAAA-MM-DD) + hora ("HH:MM") no fuso da clínica → instante ISO em UTC. */
+export function instanteNoFuso(data: string, hora: string): string {
+  return new Date(`${data}T${hora}:00-03:00`).toISOString();
+}
+
 export function formatarHora(minutos: number): string {
   const h = Math.floor(minutos / 60);
   const m = minutos % 60;

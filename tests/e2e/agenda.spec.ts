@@ -8,18 +8,29 @@ const menu = (page: Page) => page.getByRole("dialog", { name: "Filtros da agenda
 async function abrirAgenda(page: Page, caminho = "/agenda") {
   await page.goto(caminho);
   await expect(page.locator("section").first()).toBeVisible();
+  // Espera o app hidratar e ajustar a escala à altura do quadro.
+  await expect(page.locator("[data-altura-medida]")).toBeAttached();
 }
 
-/** O expediente 08:00–18:00 do primeiro dia cabe na área visível do quadro? */
+/**
+ * O expediente 08:00–18:00 do primeiro dia cabe na altura visível do quadro?
+ * Mede a extensão (independe de onde a rolagem parou): de 08:00 ao fim das 17:00,
+ * mais os cabeçalhos fixos, tem que caber na altura do quadro.
+ */
 async function expedienteCabeNaTela(page: Page) {
-  return page.evaluate(() => {
-    const quadro = document.querySelector(".overflow-auto.rounded-3xl")!.getBoundingClientRect();
-    const rotulos = [...document.querySelectorAll(".overflow-auto.rounded-3xl span")].filter((s) => !s.closest("button"));
+  const CABECALHOS_FIXOS = 80; // profissionais + dia (empilhada) ou dias + profissionais (lado a lado)
+  return page.evaluate((cabecalhos) => {
+    const quadro = document.querySelector<HTMLElement>(".overflow-auto.rounded-3xl")!;
+    // Rótulos do eixo de horas (fora dos cards); o primeiro de cada hora é o do primeiro dia.
+    const rotulos = [...quadro.querySelectorAll("span")].filter((s) => !s.closest("button"));
     const y = (t: string) => rotulos.find((s) => s.textContent === t)?.getBoundingClientRect().top;
     const oito = y("08:00");
+    const dezesseis = y("16:00");
     const dezessete = y("17:00");
-    return oito !== undefined && dezessete !== undefined && oito >= quadro.top && dezessete + 60 <= quadro.bottom;
-  });
+    if (oito === undefined || dezesseis === undefined || dezessete === undefined) return false;
+    const fimDoExpediente = dezessete + (dezessete - dezesseis); // 18:00
+    return fimDoExpediente - oito + cabecalhos <= quadro.clientHeight;
+  }, CABECALHOS_FIXOS);
 }
 
 test("semana atual mostra os atendimentos do seed", async ({ page }) => {
@@ -116,12 +127,18 @@ test("colunas em ordem decrescente de atendimentos na semana", async ({ page }) 
   await abrirAgenda(page);
   const nomes = await page.locator(".sticky.top-0 > div[title]").evaluateAll((els) => els.map((e) => e.getAttribute("title")!.split(" · ")[0]));
   const totais = await page.evaluate((lista) => {
+    // Cada atendimento conta uma vez por profissional, mesmo aparecendo em várias
+    // colunas (atendimento conjunto): deduplica pelo id.
+    const vistos = new Set<string>();
     const contagem = new Map<string, number>();
-    for (const b of document.querySelectorAll("section button[aria-label]")) {
+    for (const b of document.querySelectorAll("section button[data-atendimento]")) {
+      const id = b.getAttribute("data-atendimento")!;
       const rotulo = b.getAttribute("aria-label")!;
-      if (rotulo.endsWith("desmarcado")) continue;
-      const nome = lista.find((n) => rotulo.includes(` · ${n} · `));
-      if (nome) contagem.set(nome, (contagem.get(nome) ?? 0) + 1);
+      if (vistos.has(id) || rotulo.endsWith("desmarcado")) continue;
+      vistos.add(id);
+      // Descrição: "horário · paciente · profissional A + profissional B · plano · tipo · status"
+      const profissionais = rotulo.split(" · ")[2].split(" + ");
+      for (const n of lista.filter((n) => profissionais.includes(n))) contagem.set(n, (contagem.get(n) ?? 0) + 1);
     }
     return lista.map((n) => contagem.get(n) ?? 0);
   }, nomes);

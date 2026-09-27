@@ -42,7 +42,20 @@ select
 from generate_series(1, 48) as g;
 
 -- Agenda: para cada profissional e dia útil, horários a cada 45 min (manhã e
--- tarde, sem o almoço). Cerca de 60% dos horários ficam ocupados.
+-- tarde, sem o almoço). Cerca de 60% dos horários ficam ocupados. Gerada numa
+-- tabela temporária e depois gravada em atendimentos + atendimento_profissionais.
+create temporary table agenda_gerada (
+  id uuid primary key default gen_random_uuid(),
+  profissional_id uuid,
+  paciente_id uuid,
+  plano_id uuid,
+  tipo_id uuid,
+  inicio timestamptz,
+  fim timestamptz,
+  valor numeric,
+  status status_atendimento
+);
+
 with
   profs as (select id, row_number() over (order by nome) as n, especialidade from profissionais),
   pacs as (select id, row_number() over (order by nome) as n, plano_id from pacientes),
@@ -60,7 +73,7 @@ with
     join pacs pac on pac.n = 1 + (v.sorteio / 10) % 48
     where v.sorteio % 10 < 6
   )
-insert into atendimentos (profissional_id, paciente_id, plano_id, tipo_id, inicio, fim, valor, status)
+insert into agenda_gerada (profissional_id, paciente_id, plano_id, tipo_id, inicio, fim, valor, status)
 select
   e.profissional_id,
   e.paciente_id,
@@ -85,12 +98,47 @@ join planos pl on pl.id = e.plano_id;
 
 -- Um atendimento paralelo por dia (mesmo profissional e horário), para exercitar
 -- a exibição lado a lado.
-insert into atendimentos (profissional_id, paciente_id, plano_id, tipo_id, inicio, fim, status)
+insert into agenda_gerada (profissional_id, paciente_id, plano_id, tipo_id, inicio, fim, status)
 select a.profissional_id, p.id, p.plano_id, a.tipo_id, a.inicio, a.inicio + interval '30 minutes', 'marcado'
 from (
   select distinct on ((inicio at time zone 'America/Sao_Paulo')::date) *
-  from atendimentos
+  from agenda_gerada
   where extract(hour from inicio at time zone 'America/Sao_Paulo') = 14
   order by (inicio at time zone 'America/Sao_Paulo')::date, inicio
 ) a
 join lateral (select id, plano_id from pacientes where id <> a.paciente_id order by nome limit 1) p on true;
+
+insert into atendimentos (id, paciente_id, plano_id, tipo_id, inicio, fim, valor, status)
+select id, paciente_id, plano_id, tipo_id, inicio, fim, valor, status from agenda_gerada;
+
+insert into atendimento_profissionais (atendimento_id, profissional_id)
+select id, profissional_id from agenda_gerada;
+
+-- Atendimento conjunto: um por dia com dois profissionais (o card aparece nas
+-- duas colunas).
+insert into atendimento_profissionais (atendimento_id, profissional_id)
+select distinct on ((g.inicio at time zone 'America/Sao_Paulo')::date)
+  g.id,
+  (select id from profissionais where id <> g.profissional_id order by nome limit 1)
+from agenda_gerada g
+where to_char(g.inicio at time zone 'America/Sao_Paulo', 'HH24:MI') = '09:30'
+order by (g.inicio at time zone 'America/Sao_Paulo')::date, g.inicio;
+
+drop table agenda_gerada;
+
+-- Uma série recorrente (semanal, 8 sessões) às quartas 17:15, criada pela mesma
+-- função usada pelo formulário.
+select criar_atendimentos(
+  p_paciente_id => (select id from pacientes order by nome limit 1),
+  p_profissionais => array[(select id from profissionais order by nome limit 1)],
+  p_inicios => array(
+    select ((date_trunc('week', (now() at time zone 'America/Sao_Paulo'))::date + 2 + s * 7) + time '17:15') at time zone 'America/Sao_Paulo'
+    from generate_series(0, 7) s
+  ),
+  p_duracao_min => 45,
+  p_plano_id => (select plano_id from pacientes order by nome limit 1),
+  p_tipo_id => (select id from tipos_atendimento where nome = 'Sessão Psicologia'),
+  p_observacao => 'Série de exemplo (seed)',
+  p_frequencia => 'semanal',
+  p_sessoes => 8
+);

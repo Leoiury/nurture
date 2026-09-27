@@ -7,11 +7,6 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
-  __InternalSupabase: {
-    PostgrestVersion: "14.5"
-  }
   graphql_public: {
     Tables: {
       [_ in never]: never
@@ -39,18 +34,51 @@ export type Database = {
   }
   public: {
     Tables: {
+      atendimento_profissionais: {
+        Row: {
+          atendimento_id: string
+          profissional_id: string
+        }
+        Insert: {
+          atendimento_id: string
+          profissional_id: string
+        }
+        Update: {
+          atendimento_id?: string
+          profissional_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "atendimento_profissionais_atendimento_id_fkey"
+            columns: ["atendimento_id"]
+            isOneToOne: false
+            referencedRelation: "atendimentos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "atendimento_profissionais_profissional_id_fkey"
+            columns: ["profissional_id"]
+            isOneToOne: false
+            referencedRelation: "profissionais"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       atendimentos: {
         Row: {
           atualizado_em: string
           criado_em: string
+          excluido_em: string | null
+          excluido_por: string | null
           fim: string
           id: string
           id_legado: number | null
           inicio: string
+          motivo_desmarcacao: string | null
+          motivo_exclusao: string | null
           observacao: string | null
           paciente_id: string | null
           plano_id: string | null
-          profissional_id: string
           recorrencia_id: string | null
           status: Database["public"]["Enums"]["status_atendimento"]
           tipo_id: string | null
@@ -59,14 +87,17 @@ export type Database = {
         Insert: {
           atualizado_em?: string
           criado_em?: string
+          excluido_em?: string | null
+          excluido_por?: string | null
           fim: string
           id?: string
           id_legado?: number | null
           inicio: string
+          motivo_desmarcacao?: string | null
+          motivo_exclusao?: string | null
           observacao?: string | null
           paciente_id?: string | null
           plano_id?: string | null
-          profissional_id: string
           recorrencia_id?: string | null
           status?: Database["public"]["Enums"]["status_atendimento"]
           tipo_id?: string | null
@@ -75,14 +106,17 @@ export type Database = {
         Update: {
           atualizado_em?: string
           criado_em?: string
+          excluido_em?: string | null
+          excluido_por?: string | null
           fim?: string
           id?: string
           id_legado?: number | null
           inicio?: string
+          motivo_desmarcacao?: string | null
+          motivo_exclusao?: string | null
           observacao?: string | null
           paciente_id?: string | null
           plano_id?: string | null
-          profissional_id?: string
           recorrencia_id?: string | null
           status?: Database["public"]["Enums"]["status_atendimento"]
           tipo_id?: string | null
@@ -104,13 +138,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "atendimentos_profissional_id_fkey"
-            columns: ["profissional_id"]
-            isOneToOne: false
-            referencedRelation: "profissionais"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "atendimentos_recorrencia_id_fkey"
             columns: ["recorrencia_id"]
             isOneToOne: false
@@ -122,6 +149,71 @@ export type Database = {
             columns: ["tipo_id"]
             isOneToOne: false
             referencedRelation: "tipos_atendimento"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      atendimentos_alteracoes: {
+        Row: {
+          alterado_em: string
+          alterado_por: string | null
+          antes: Json | null
+          atendimento_id: string
+          depois: Json | null
+          id: number
+          operacao: string
+        }
+        Insert: {
+          alterado_em?: string
+          alterado_por?: string | null
+          antes?: Json | null
+          atendimento_id: string
+          depois?: Json | null
+          id?: never
+          operacao: string
+        }
+        Update: {
+          alterado_em?: string
+          alterado_por?: string | null
+          antes?: Json | null
+          atendimento_id?: string
+          depois?: Json | null
+          id?: never
+          operacao?: string
+        }
+        Relationships: []
+      }
+      atendimentos_observacoes: {
+        Row: {
+          atendimento_id: string
+          automatica: boolean
+          autor_id: string | null
+          criado_em: string
+          id: string
+          texto: string
+        }
+        Insert: {
+          atendimento_id: string
+          automatica?: boolean
+          autor_id?: string | null
+          criado_em?: string
+          id?: string
+          texto: string
+        }
+        Update: {
+          atendimento_id?: string
+          automatica?: boolean
+          autor_id?: string | null
+          criado_em?: string
+          id?: string
+          texto?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "atendimentos_observacoes_atendimento_id_fkey"
+            columns: ["atendimento_id"]
+            isOneToOne: false
+            referencedRelation: "atendimentos"
             referencedColumns: ["id"]
           },
         ]
@@ -315,81 +407,31 @@ export type Database = {
         Row: {
           atualizado_em: string
           criado_em: string
-          data_fim: string
+          data_fim: string | null
           data_inicio: string
-          dias_semana: number[]
-          duracao_min: number
-          hora_inicio: string
+          frequencia: Database["public"]["Enums"]["frequencia_recorrencia"]
           id: string
-          intervalo_semanas: number
-          paciente_id: string | null
-          plano_id: string | null
-          profissional_id: string
-          tipo_id: string | null
-          valor: number | null
+          sessoes: number | null
         }
         Insert: {
           atualizado_em?: string
           criado_em?: string
-          data_fim: string
+          data_fim?: string | null
           data_inicio: string
-          dias_semana: number[]
-          duracao_min: number
-          hora_inicio: string
+          frequencia: Database["public"]["Enums"]["frequencia_recorrencia"]
           id?: string
-          intervalo_semanas?: number
-          paciente_id?: string | null
-          plano_id?: string | null
-          profissional_id: string
-          tipo_id?: string | null
-          valor?: number | null
+          sessoes?: number | null
         }
         Update: {
           atualizado_em?: string
           criado_em?: string
-          data_fim?: string
+          data_fim?: string | null
           data_inicio?: string
-          dias_semana?: number[]
-          duracao_min?: number
-          hora_inicio?: string
+          frequencia?: Database["public"]["Enums"]["frequencia_recorrencia"]
           id?: string
-          intervalo_semanas?: number
-          paciente_id?: string | null
-          plano_id?: string | null
-          profissional_id?: string
-          tipo_id?: string | null
-          valor?: number | null
+          sessoes?: number | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "recorrencias_paciente_id_fkey"
-            columns: ["paciente_id"]
-            isOneToOne: false
-            referencedRelation: "pacientes"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "recorrencias_plano_id_fkey"
-            columns: ["plano_id"]
-            isOneToOne: false
-            referencedRelation: "planos"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "recorrencias_profissional_id_fkey"
-            columns: ["profissional_id"]
-            isOneToOne: false
-            referencedRelation: "profissionais"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "recorrencias_tipo_id_fkey"
-            columns: ["tipo_id"]
-            isOneToOne: false
-            referencedRelation: "tipos_atendimento"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       tipos_atendimento: {
         Row: {
@@ -420,9 +462,30 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      criar_atendimentos: {
+        Args: {
+          p_data_fim?: string
+          p_duracao_min: number
+          p_frequencia?: Database["public"]["Enums"]["frequencia_recorrencia"]
+          p_inicios: string[]
+          p_observacao?: string
+          p_paciente_id: string
+          p_plano_id?: string
+          p_profissionais: string[]
+          p_sessoes?: number
+          p_status?: Database["public"]["Enums"]["status_atendimento"]
+          p_tipo_id?: string
+          p_valor?: number
+        }
+        Returns: string[]
+      }
+      formatar_periodo: {
+        Args: { fim: string; inicio: string }
+        Returns: string
+      }
     }
     Enums: {
+      frequencia_recorrencia: "semanal" | "quinzenal" | "mensal"
       status_atendimento:
         | "marcado"
         | "confirmado"
@@ -559,6 +622,7 @@ export const Constants = {
   },
   public: {
     Enums: {
+      frequencia_recorrencia: ["semanal", "quinzenal", "mensal"],
       status_atendimento: [
         "marcado",
         "confirmado",
@@ -569,3 +633,4 @@ export const Constants = {
     },
   },
 } as const
+

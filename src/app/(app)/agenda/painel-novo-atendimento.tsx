@@ -1,11 +1,93 @@
 "use client";
 
-// Painel (sheet) para lançar um novo atendimento. O formulário será definido na
-// próxima etapa; por ora só a estrutura, aberta pelo botão "+" da agenda.
+// Painel (sheet) para lançar um novo atendimento — avulso ou em série.
+// Padrões automáticos (sempre editáveis): o plano vem do paciente; duração e valor
+// vêm do plano; o tipo vem da especialidade do primeiro profissional.
 
-import { useEffect } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { MAXIMO_DE_SESSOES, ROTULO_FREQUENCIA, datasDaSerie, descricaoMensal, type Frequencia } from "@/lib/agenda/recorrencia";
+import { hoje as dataDeHoje, nomeCurtoDoDia } from "@/lib/agenda/tempo";
+import {
+  criarAtendimentos,
+  criarPaciente,
+  opcoesDoFormulario,
+  verificarConflitos,
+  type Conflito,
+  type OpcoesDoFormulario,
+  type Serie,
+} from "./actions-novo-atendimento";
+import { nomeAbreviado } from "./comum";
 
-export function PainelNovoAtendimento({ aoFechar }: { aoFechar: () => void }) {
+type Props = {
+  aoFechar: () => void;
+  /** Pré-preenchimento (ex.: ao clicar num horário vazio da grade). */
+  inicial?: { data?: string; hora?: string; profissionalId?: string };
+};
+
+const DURACOES = [30, 45, 60];
+const STATUS_INICIAIS = [
+  { valor: "marcado", rotulo: "Marcado" },
+  { valor: "confirmado", rotulo: "Confirmado" },
+  { valor: "atendido", rotulo: "Atendido" },
+] as const;
+
+// Especialidade → palavra que aparece no nome do tipo de atendimento.
+const TIPO_POR_ESPECIALIDADE: [RegExp, string][] = [
+  [/psic/i, "psicologia"],
+  [/fono|estagi/i, "fono"],
+  [/pedag|neuro/i, "pedag"],
+  [/nutri/i, "nutri"],
+];
+
+function tipoSugerido(especialidade: string | null, tipos: OpcoesDoFormulario["tipos"]): string | null {
+  const palavra = TIPO_POR_ESPECIALIDADE.find(([re]) => especialidade && re.test(especialidade))?.[1];
+  return (palavra && tipos.find((t) => t.nome.toLowerCase().includes(palavra))?.id) || null;
+}
+
+const formatoData = new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit", timeZone: "UTC" });
+const dataCurta = (d: string) => `${nomeCurtoDoDia(d)} ${formatoData.format(new Date(`${d}T12:00:00Z`))}`;
+
+export function PainelNovoAtendimento({ aoFechar, inicial }: Props) {
+  const [opcoes, setOpcoes] = useState<OpcoesDoFormulario | null>(null);
+  const [erroCarga, setErroCarga] = useState<string | null>(null);
+
+  const [pacienteId, setPacienteId] = useState<string | null>(null);
+  const [busca, setBusca] = useState("");
+  const [cadastrandoPaciente, setCadastrandoPaciente] = useState(false);
+  const [profissionais, setProfissionais] = useState<string[]>(inicial?.profissionalId ? [inicial.profissionalId] : []);
+  const [data, setData] = useState(inicial?.data ?? dataDeHoje());
+  const [hora, setHora] = useState(inicial?.hora ?? "");
+  const [duracao, setDuracao] = useState(45);
+  const [planoId, setPlanoId] = useState<string | null>(null);
+  const [tipoId, setTipoId] = useState<string | null>(null);
+  const [valor, setValor] = useState("");
+  const [status, setStatus] = useState<(typeof STATUS_INICIAIS)[number]["valor"]>("marcado");
+  const [observacao, setObservacao] = useState("");
+
+  const [repetir, setRepetir] = useState(false);
+  const [frequencia, setFrequencia] = useState<Frequencia>("semanal");
+  const [fimPor, setFimPor] = useState<"data" | "sessoes">("data");
+  const [ate, setAte] = useState("");
+  const [sessoes, setSessoes] = useState(10);
+
+  const [conflitos, setConflitos] = useState<Conflito[]>([]);
+  const [salvando, setSalvando] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+
+  useEffect(() => {
+    let ativo = true;
+    opcoesDoFormulario()
+      .then((o) => {
+        if (ativo) setOpcoes(o);
+      })
+      .catch((e: Error) => {
+        if (ativo) setErroCarga(e.message);
+      });
+    return () => {
+      ativo = false;
+    };
+  }, []);
+
   useEffect(() => {
     const aoTeclar = (e: KeyboardEvent) => {
       if (e.key === "Escape") aoFechar();
@@ -14,6 +96,84 @@ export function PainelNovoAtendimento({ aoFechar }: { aoFechar: () => void }) {
     return () => window.removeEventListener("keydown", aoTeclar);
   }, [aoFechar]);
 
+  const serie: Serie = repetir
+    ? { frequencia, fim: fimPor === "data" ? { tipo: "data", ate: ate || data } : { tipo: "sessoes", quantidade: sessoes } }
+    : null;
+  const datas = useMemo(
+    () => (serie ? datasDaSerie(data, serie.frequencia, serie.fim) : [data]),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [data, repetir, frequencia, fimPor, ate, sessoes],
+  );
+
+  // Conflitos: consulta o banco um instante depois da última mudança nos campos.
+  useEffect(() => {
+    if (!hora || !data) return;
+    const temporizador = setTimeout(() => {
+      verificarConflitos({ data, hora, duracaoMin: duracao, serie, profissionais, pacienteId })
+        .then(setConflitos)
+        .catch(() => setConflitos([]));
+    }, 400);
+    return () => clearTimeout(temporizador);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, hora, duracao, repetir, frequencia, fimPor, ate, sessoes, profissionais, pacienteId]);
+
+  const paciente = opcoes?.pacientes.find((p) => p.id === pacienteId) ?? null;
+  const sugestoes = useMemo(() => {
+    if (!opcoes || paciente) return [];
+    const termo = busca.trim().toLowerCase();
+    if (termo.length < 2) return [];
+    return opcoes.pacientes.filter((p) => p.nome.toLowerCase().includes(termo)).slice(0, 8);
+  }, [opcoes, paciente, busca]);
+
+  function escolherPlano(id: string | null) {
+    setPlanoId(id);
+    const plano = opcoes?.planos.find((p) => p.id === id);
+    if (plano) {
+      setDuracao(plano.duracao_padrao_min);
+      setValor(plano.valor_padrao != null ? String(plano.valor_padrao).replace(".", ",") : "");
+    }
+  }
+
+  function escolherPaciente(id: string, nome: string, planoPadrao: string | null) {
+    setPacienteId(id);
+    setBusca(nome);
+    if (planoPadrao) escolherPlano(planoPadrao);
+  }
+
+  function adicionarProfissional(id: string) {
+    if (!id || profissionais.includes(id)) return;
+    if (profissionais.length === 0 && !tipoId && opcoes) {
+      setTipoId(tipoSugerido(opcoes.profissionais.find((p) => p.id === id)?.especialidade ?? null, opcoes.tipos));
+    }
+    setProfissionais([...profissionais, id]);
+  }
+
+  async function salvar() {
+    setErro(null);
+    const valorNumero = valor.trim() ? Number(valor.replace(/\./g, "").replace(",", ".")) : null;
+    if (valorNumero !== null && Number.isNaN(valorNumero)) return setErro("Valor inválido.");
+    setSalvando(true);
+    const resultado = await criarAtendimentos({
+      pacienteId: pacienteId ?? "",
+      profissionais,
+      data,
+      hora,
+      duracaoMin: duracao,
+      serie,
+      planoId,
+      tipoId,
+      valor: valorNumero,
+      status,
+      observacao: observacao.trim(),
+    }).catch(() => ({ ok: false as const, erro: "Falha de conexão ao salvar." }));
+    setSalvando(false);
+    if (!resultado.ok) return setErro(resultado.erro);
+    aoFechar();
+  }
+
+  const conflitosPorData = new Set(conflitos.map((c) => c.inicio.slice(0, 10)));
+  const podeSalvar = !!pacienteId && profissionais.length > 0 && !!data && !!hora && datas.length > 0 && !salvando;
+
   return (
     <>
       <div className="fixed inset-0 z-40 bg-black/20" onClick={aoFechar} aria-hidden />
@@ -21,16 +181,384 @@ export function PainelNovoAtendimento({ aoFechar }: { aoFechar: () => void }) {
         role="dialog"
         aria-modal="true"
         aria-label="Novo atendimento"
-        className="fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col overflow-y-auto bg-surface shadow-2xl"
+        className="fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col bg-surface shadow-2xl"
       >
-        <div className="flex items-center justify-between gap-3 border-b border-border p-5">
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-5 py-4">
           <h2 className="text-lg font-semibold">Novo atendimento</h2>
           <button type="button" onClick={aoFechar} className="rounded-full px-2 py-1 text-muted hover:bg-background" aria-label="Fechar">
             ✕
           </button>
         </div>
-        <p className="p-5 text-sm text-muted">O formulário de novo atendimento está em construção.</p>
+
+        {erroCarga && <p className="p-5 text-sm text-danger">{erroCarga}</p>}
+        {!opcoes && !erroCarga && <p className="p-5 text-sm text-muted">Carregando…</p>}
+
+        {opcoes && (
+          <form
+            className="flex min-h-0 flex-1 flex-col"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void salvar();
+            }}
+          >
+            <div className="flex flex-1 flex-col gap-5 overflow-y-auto px-5 py-4">
+              {/* Paciente */}
+              <Campo rotulo="Paciente" id="campo-paciente">
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <input
+                      id="campo-paciente"
+                      value={busca}
+                      onChange={(e) => {
+                        setBusca(e.target.value);
+                        setPacienteId(null);
+                      }}
+                      placeholder="Buscar pelo nome…"
+                      autoComplete="off"
+                      className={entrada}
+                    />
+                    {sugestoes.length > 0 && (
+                      <ul role="listbox" aria-label="Pacientes encontrados" className="absolute inset-x-0 top-full z-10 mt-1 max-h-64 overflow-y-auto rounded-xl bg-surface p-1 shadow-lg ring-1 ring-black/10">
+                        {sugestoes.map((p) => (
+                          <li key={p.id}>
+                            <button
+                              type="button"
+                              role="option"
+                              aria-selected={false}
+                              onClick={() => escolherPaciente(p.id, p.nome, p.plano_id)}
+                              className="w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-background"
+                            >
+                              {p.nome}
+                              {p.responsavel && <span className="block text-xs text-muted">Resp.: {p.responsavel}</span>}
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                  <button type="button" onClick={() => setCadastrandoPaciente(true)} className={botaoSecundario} title="Cadastrar novo paciente">
+                    + Novo
+                  </button>
+                </div>
+                {busca.trim().length >= 2 && !paciente && sugestoes.length === 0 && (
+                  <p className="text-xs text-muted">Nenhum paciente com esse nome. Use “+ Novo” para cadastrar.</p>
+                )}
+                {cadastrandoPaciente && (
+                  <CadastroRapido
+                    nomeInicial={paciente ? "" : busca}
+                    planos={opcoes.planos}
+                    aoCancelar={() => setCadastrandoPaciente(false)}
+                    aoCriar={(novo) => {
+                      setOpcoes({ ...opcoes, pacientes: [...opcoes.pacientes, novo].sort((a, b) => a.nome.localeCompare(b.nome)) });
+                      escolherPaciente(novo.id, novo.nome, novo.plano_id);
+                      setCadastrandoPaciente(false);
+                    }}
+                  />
+                )}
+              </Campo>
+
+              {/* Profissionais */}
+              <Campo rotulo="Profissionais" id="campo-profissional">
+                <div className="flex flex-wrap gap-1.5">
+                  {profissionais.map((id) => {
+                    const p = opcoes.profissionais.find((x) => x.id === id);
+                    return (
+                      <span key={id} className="inline-flex items-center gap-1 rounded-full bg-accent-soft py-1 pr-1 pl-3 text-sm text-accent">
+                        {p ? nomeAbreviado(p.nome) : "—"}
+                        <button
+                          type="button"
+                          onClick={() => setProfissionais(profissionais.filter((x) => x !== id))}
+                          className="rounded-full px-1.5 hover:bg-accent/10"
+                          aria-label={`Remover ${p?.nome}`}
+                        >
+                          ×
+                        </button>
+                      </span>
+                    );
+                  })}
+                </div>
+                <select id="campo-profissional" value="" onChange={(e) => adicionarProfissional(e.target.value)} className={entrada}>
+                  <option value="">{profissionais.length ? "+ Adicionar outro profissional" : "Escolher profissional…"}</option>
+                  {opcoes.profissionais
+                    .filter((p) => !profissionais.includes(p.id))
+                    .map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.nome}
+                        {p.especialidade ? ` — ${p.especialidade}` : ""}
+                      </option>
+                    ))}
+                </select>
+              </Campo>
+
+              {/* Quando */}
+              <div className="grid grid-cols-2 gap-3">
+                <Campo rotulo="Data" id="campo-data">
+                  <input id="campo-data" type="date" value={data} onChange={(e) => setData(e.target.value)} required className={entrada} />
+                </Campo>
+                <Campo rotulo="Início" id="campo-hora">
+                  <input id="campo-hora" type="time" step={900} value={hora} onChange={(e) => setHora(e.target.value)} required className={entrada} />
+                </Campo>
+              </div>
+
+              <Campo rotulo="Duração (min)" id="campo-duracao">
+                <div className="flex items-center gap-1.5">
+                  {DURACOES.map((d) => (
+                    <button
+                      key={d}
+                      type="button"
+                      onClick={() => setDuracao(d)}
+                      aria-pressed={duracao === d}
+                      className={`rounded-full px-3 py-1.5 text-sm ${duracao === d ? "bg-accent text-white" : "bg-black/[0.04] hover:bg-black/[0.07]"}`}
+                    >
+                      {d}
+                    </button>
+                  ))}
+                  <input
+                    id="campo-duracao"
+                    type="number"
+                    min={5}
+                    max={720}
+                    step={5}
+                    value={duracao}
+                    onChange={(e) => setDuracao(Number(e.target.value))}
+                    className={`${entrada} w-24`}
+                    aria-label="Duração em minutos"
+                  />
+                </div>
+              </Campo>
+
+              {/* Plano, tipo e valor */}
+              <div className="grid grid-cols-2 gap-3">
+                <Campo rotulo="Plano" id="campo-plano">
+                  <select id="campo-plano" value={planoId ?? ""} onChange={(e) => escolherPlano(e.target.value || null)} className={entrada}>
+                    <option value="">—</option>
+                    {opcoes.planos.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.nome}
+                      </option>
+                    ))}
+                  </select>
+                </Campo>
+                <Campo rotulo="Valor (R$)" id="campo-valor">
+                  <input id="campo-valor" inputMode="decimal" value={valor} onChange={(e) => setValor(e.target.value)} placeholder="—" className={entrada} />
+                </Campo>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <Campo rotulo="Tipo" id="campo-tipo">
+                  <select id="campo-tipo" value={tipoId ?? ""} onChange={(e) => setTipoId(e.target.value || null)} className={entrada}>
+                    <option value="">—</option>
+                    {opcoes.tipos.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.nome}
+                      </option>
+                    ))}
+                  </select>
+                </Campo>
+                <Campo rotulo="Status" id="campo-status">
+                  <select id="campo-status" value={status} onChange={(e) => setStatus(e.target.value as typeof status)} className={entrada}>
+                    {STATUS_INICIAIS.map((s) => (
+                      <option key={s.valor} value={s.valor}>
+                        {s.rotulo}
+                      </option>
+                    ))}
+                  </select>
+                </Campo>
+              </div>
+
+              <Campo rotulo="Observação" id="campo-observacao">
+                <textarea id="campo-observacao" value={observacao} onChange={(e) => setObservacao(e.target.value)} rows={2} className={entrada} />
+              </Campo>
+
+              {/* Repetição */}
+              <section className="flex flex-col gap-3 rounded-2xl bg-black/[0.03] p-4">
+                <label className="flex cursor-pointer items-center gap-2 text-sm font-medium">
+                  <input type="checkbox" checked={repetir} onChange={(e) => setRepetir(e.target.checked)} className="size-4 accent-[var(--accent)]" />
+                  Repetir
+                </label>
+                {repetir && (
+                  <>
+                    <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Frequência">
+                      {(Object.keys(ROTULO_FREQUENCIA) as Frequencia[]).map((f) => (
+                        <button
+                          key={f}
+                          type="button"
+                          role="radio"
+                          aria-checked={frequencia === f}
+                          onClick={() => setFrequencia(f)}
+                          className={`rounded-full px-3 py-1.5 text-sm ${frequencia === f ? "bg-accent text-white" : "bg-surface ring-1 ring-black/10 hover:bg-background"}`}
+                        >
+                          {ROTULO_FREQUENCIA[f]}
+                        </button>
+                      ))}
+                    </div>
+                    {frequencia === "mensal" && data && <p className="text-xs text-muted">Sempre na {descricaoMensal(data)}.</p>}
+                    <div className="flex flex-wrap items-center gap-2 text-sm">
+                      <label className="flex items-center gap-1.5">
+                        <input type="radio" name="fim" checked={fimPor === "data"} onChange={() => setFimPor("data")} className="accent-[var(--accent)]" />
+                        Até
+                      </label>
+                      <input
+                        type="date"
+                        value={ate}
+                        min={data}
+                        onChange={(e) => {
+                          setAte(e.target.value);
+                          setFimPor("data");
+                        }}
+                        className={`${entrada} w-auto`}
+                        aria-label="Repetir até"
+                      />
+                      <label className="ml-2 flex items-center gap-1.5">
+                        <input type="radio" name="fim" checked={fimPor === "sessoes"} onChange={() => setFimPor("sessoes")} className="accent-[var(--accent)]" />
+                        ou
+                      </label>
+                      <input
+                        type="number"
+                        min={1}
+                        max={MAXIMO_DE_SESSOES}
+                        value={sessoes}
+                        onChange={(e) => {
+                          setSessoes(Number(e.target.value));
+                          setFimPor("sessoes");
+                        }}
+                        className={`${entrada} w-20`}
+                        aria-label="Número de sessões"
+                      />
+                      sessões
+                    </div>
+                    <PreviaDaSerie datas={datas} comConflito={conflitosPorData} semDataFinal={fimPor === "data" && !ate} />
+                  </>
+                )}
+              </section>
+
+              {conflitos.length > 0 && (
+                <section className="flex flex-col gap-1 rounded-2xl bg-amber-50 p-4 text-sm text-amber-900 ring-1 ring-amber-200" aria-live="polite">
+                  <p className="font-medium">Atenção: {conflitos.length === 1 ? "há 1 conflito" : `há ${conflitos.length} conflitos`} (dá para salvar mesmo assim)</p>
+                  <ul className="list-disc pl-5 text-[13px]">
+                    {conflitos.slice(0, 6).map((c, i) => (
+                      <li key={i}>{c.descricao}</li>
+                    ))}
+                    {conflitos.length > 6 && <li>e mais {conflitos.length - 6}…</li>}
+                  </ul>
+                </section>
+              )}
+            </div>
+
+            <div className="flex shrink-0 items-center justify-end gap-2 border-t border-border px-5 py-3">
+              {erro && (
+                <p role="alert" className="mr-auto text-sm text-danger">
+                  {erro}
+                </p>
+              )}
+              <button type="button" onClick={aoFechar} className={botaoSecundario}>
+                Cancelar
+              </button>
+              <button type="submit" disabled={!podeSalvar} className="rounded-full bg-accent px-5 py-2 text-sm font-medium text-white transition hover:brightness-110 disabled:opacity-50">
+                {salvando ? "Salvando…" : datas.length > 1 ? `Salvar ${datas.length} atendimentos` : "Salvar"}
+              </button>
+            </div>
+          </form>
+        )}
       </aside>
     </>
+  );
+}
+
+const entrada =
+  "w-full rounded-xl border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft";
+const botaoSecundario = "shrink-0 rounded-full bg-black/[0.04] px-4 py-2 text-sm font-medium hover:bg-black/[0.07]";
+
+function Campo({ rotulo, id, children }: { rotulo: string; id: string; children: ReactNode }) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label htmlFor={id} className="text-xs font-semibold tracking-wide text-muted uppercase">
+        {rotulo}
+      </label>
+      {children}
+    </div>
+  );
+}
+
+function PreviaDaSerie({ datas, comConflito, semDataFinal }: { datas: string[]; comConflito: Set<string>; semDataFinal: boolean }) {
+  if (semDataFinal) return <p className="text-xs text-muted">Escolha a data final ou o número de sessões.</p>;
+  if (datas.length === 0) return <p className="text-xs text-danger">Nenhuma data: a data final é anterior ao início.</p>;
+  const visiveis = datas.slice(0, 16);
+  return (
+    <div className="flex flex-col gap-1.5">
+      <p className="text-xs text-muted">
+        {datas.length} atendimento{datas.length === 1 ? "" : "s"}: {dataCurta(datas[0])} até {dataCurta(datas.at(-1)!)}
+        {datas.length >= MAXIMO_DE_SESSOES && ` (limite de ${MAXIMO_DE_SESSOES})`}
+      </p>
+      <ul className="flex flex-wrap gap-1" aria-label="Datas da série">
+        {visiveis.map((d) => (
+          <li
+            key={d}
+            className={`rounded-md px-1.5 py-0.5 text-[11px] tabular-nums ${comConflito.has(d) ? "bg-amber-100 text-amber-900" : "bg-surface ring-1 ring-black/5"}`}
+            title={comConflito.has(d) ? "Há conflito nesta data" : undefined}
+          >
+            {dataCurta(d)}
+          </li>
+        ))}
+        {datas.length > visiveis.length && <li className="px-1 text-[11px] text-muted">+{datas.length - visiveis.length}</li>}
+      </ul>
+    </div>
+  );
+}
+
+type PacienteCriado = OpcoesDoFormulario["pacientes"][number];
+
+function CadastroRapido({
+  nomeInicial,
+  planos,
+  aoCancelar,
+  aoCriar,
+}: {
+  nomeInicial: string;
+  planos: OpcoesDoFormulario["planos"];
+  aoCancelar: () => void;
+  aoCriar: (p: PacienteCriado) => void;
+}) {
+  const [nome, setNome] = useState(nomeInicial);
+  const [responsavel, setResponsavel] = useState("");
+  const [celular, setCelular] = useState("");
+  const [planoId, setPlanoId] = useState<string | null>(null);
+  const [salvando, setSalvando] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+
+  async function salvar() {
+    setSalvando(true);
+    setErro(null);
+    const r = await criarPaciente({ nome, responsavel, celular, planoId }).catch(() => ({ ok: false as const, erro: "Falha de conexão." }));
+    setSalvando(false);
+    if (!r.ok) return setErro(r.erro);
+    aoCriar(r.paciente);
+  }
+
+  return (
+    <div role="group" aria-label="Novo paciente" className="mt-1 flex flex-col gap-3 rounded-2xl bg-black/[0.03] p-4">
+      <p className="text-sm font-medium">Novo paciente</p>
+      <input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Nome completo" aria-label="Nome do paciente" className={entrada} />
+      <input value={responsavel} onChange={(e) => setResponsavel(e.target.value)} placeholder="Responsável (opcional)" aria-label="Responsável" className={entrada} />
+      <div className="grid grid-cols-2 gap-2">
+        <input value={celular} onChange={(e) => setCelular(e.target.value)} placeholder="Celular" inputMode="tel" aria-label="Celular" className={entrada} />
+        <select value={planoId ?? ""} onChange={(e) => setPlanoId(e.target.value || null)} aria-label="Plano do paciente" className={entrada}>
+          <option value="">Plano…</option>
+          {planos.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.nome}
+            </option>
+          ))}
+        </select>
+      </div>
+      {erro && <p className="text-xs text-danger">{erro}</p>}
+      <div className="flex justify-end gap-2">
+        <button type="button" onClick={aoCancelar} className={botaoSecundario}>
+          Cancelar
+        </button>
+        <button type="button" onClick={() => void salvar()} disabled={salvando || nome.trim().length < 3} className="rounded-full bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
+          {salvando ? "Salvando…" : "Cadastrar"}
+        </button>
+      </div>
+    </div>
   );
 }

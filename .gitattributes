@@ -1,0 +1,4 @@
+# Fim de linha LF em todo o repositório (evita mistura LF/CRLF no Windows)
+* text=auto eol=lf
+*.png binary
+*.ico binary

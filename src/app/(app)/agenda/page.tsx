@@ -24,7 +24,8 @@ export default async function AgendaPage({ searchParams }: PageProps<"/agenda">)
   // dia, a ordem segue o total da semana.
   const totalNaSemana = new Map<string, number>();
   for (const a of atendimentos) {
-    if (a.status !== "desmarcado") totalNaSemana.set(a.profissionalId, (totalNaSemana.get(a.profissionalId) ?? 0) + 1);
+    if (a.status === "desmarcado") continue;
+    for (const id of a.profissionalIds) totalNaSemana.set(id, (totalNaSemana.get(id) ?? 0) + 1);
   }
   const profissionaisOrdenados = profissionais.toSorted(
     (a, b) => (totalNaSemana.get(b.id) ?? 0) - (totalNaSemana.get(a.id) ?? 0) || a.nome.localeCompare(b.nome, "pt-BR"),

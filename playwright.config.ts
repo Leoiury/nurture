@@ -16,7 +16,9 @@ const SESSAO = "tests/e2e/.auth/usuario.json";
 export default defineConfig({
   testDir: "tests/e2e",
   fullyParallel: true,
-  retries: CI ? 1 : 0,
+  // Uma nova tentativa: no CI e localmente (o `next dev` frio às vezes derruba a
+  // primeira navegação enquanto compila). Testes que só passam na 2ª aparecem como "flaky".
+  retries: 1,
   // Localmente roda contra `next dev`, que compila cada página no primeiro acesso:
   // mais tempo por teste e menos navegadores simultâneos.
   timeout: CI ? 30_000 : 90_000,

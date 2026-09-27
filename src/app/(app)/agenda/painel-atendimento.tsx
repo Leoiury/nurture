@@ -101,8 +101,8 @@ export function PainelAtendimento({ id, aoFechar }: Props) {
                 {dataHora.format(new Date(a.inicio))} – {hora.format(new Date(a.fim))}
               </p>
               <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5">
-                <dt className="text-muted">Profissional</dt>
-                <dd>{a.profissional?.nome}</dd>
+                <dt className="text-muted">{a.profissionais.length > 1 ? "Profissionais" : "Profissional"}</dt>
+                <dd>{a.profissionais.map((p) => p.profissional.nome).join(", ")}</dd>
                 <dt className="text-muted">Plano</dt>
                 <dd className="flex items-center gap-1.5">
                   {a.plano && <span className="inline-block size-3 rounded-sm" style={{ background: a.plano.cor }} />}

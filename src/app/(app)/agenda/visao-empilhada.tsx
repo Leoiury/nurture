@@ -193,7 +193,6 @@ function Dia({ dia, ehHoje, modo, px, segmentos, colunas, porColuna, total, aoEx
                       modo={modo}
                       top={posicaoY(a.inicio, segmentos, px)}
                       altura={posicaoY(a.fim, segmentos, px) - posicaoY(a.inicio, segmentos, px)}
-                      profissional={p.nome}
                       ampliada={ampliada}
                       aoAbrir={() => aoAbrir(a.id)}
                     />
@@ -244,15 +243,14 @@ type CardProps = {
   modo: Modo;
   top: number;
   altura: number;
-  profissional: string;
   ampliada: boolean;
   aoAbrir: () => void;
 };
 
-function Card({ atendimento: a, modo, top, altura, profissional, ampliada, aoAbrir }: CardProps) {
+function Card({ atendimento: a, modo, top, altura, ampliada, aoAbrir }: CardProps) {
   const cor = corDoPlano(a);
   const desmarcado = a.status === "desmarcado";
-  const descricao = descricaoDoAtendimento(a, profissional);
+  const descricao = descricaoDoAtendimento(a);
   const alturaCard = Math.max(altura - 3, 14);
   // Quanto cabe no card, conforme a altura.
   const linhas = alturaCard >= 50 ? 3 : alturaCard >= 34 ? 2 : 1;
@@ -263,6 +261,7 @@ function Card({ atendimento: a, modo, top, altura, profissional, ampliada, aoAbr
       onClick={aoAbrir}
       title={descricao}
       aria-label={descricao}
+      data-atendimento={a.id}
       className={`pointer-events-auto absolute overflow-hidden rounded-xl text-left text-foreground ring-1 ring-black/[0.04] transition hover:z-10 hover:-translate-y-px hover:shadow-md focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-[var(--accent)] ${
         desmarcado ? "opacity-50" : ""
       } ${a.status === "faltou" ? "ring-2 ring-[var(--danger)]" : ""}`}
@@ -274,6 +273,12 @@ function Card({ atendimento: a, modo, top, altura, profissional, ampliada, aoAbr
       }}
     >
       <span className="absolute inset-y-1 left-1 w-1 rounded-full" style={{ background: cor }} aria-hidden />
+      {/* Atendimento conjunto: mais de um profissional (o card aparece em cada coluna). */}
+      {a.profissionalIds.length > 1 && (
+        <span className="absolute top-1 right-1 rounded-full bg-black/10 px-1.5 text-[10px] leading-4 font-semibold" aria-hidden>
+          +{a.profissionalIds.length - 1}
+        </span>
+      )}
       <span className={`flex h-full flex-col justify-center gap-px pl-3.5 pr-2 leading-tight ${linhas === 1 ? "flex-row items-center justify-start gap-1.5" : ""}`}>
         <span className={`truncate font-semibold ${ampliada ? "text-[15px]" : modo === "dia" ? "text-sm" : "text-[13px]"} ${desmarcado ? "line-through" : ""}`}>
           {a.paciente ?? "Sem paciente"}

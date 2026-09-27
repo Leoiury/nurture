@@ -30,7 +30,7 @@ type Props = {
 export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais, atendimentos, navegacao, navegacaoNoMenu }: Props) {
   // Profissionais sem atendimentos no período começam ocultos (podem ser exibidos no menu).
   const [ocultos, setOcultos] = useState<Set<string>>(
-    () => new Set(profissionais.filter((p) => !atendimentos.some((a) => a.profissionalId === p.id)).map((p) => p.id)),
+    () => new Set(profissionais.filter((p) => !atendimentos.some((a) => a.profissionalIds.includes(p.id))).map((p) => p.id)),
   );
   const [compactar, setCompactar] = useState(true);
   const [mostrarDesmarcados, setMostrarDesmarcados] = useState(false);
@@ -44,7 +44,8 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
 
   const colunas = profissionais.filter((p) => !ocultos.has(p.id));
   const visiveis = useMemo(
-    () => atendimentos.filter((a) => !ocultos.has(a.profissionalId) && (mostrarDesmarcados || a.status !== "desmarcado")),
+    // Visível se ao menos um dos profissionais estiver visível (aparece só nas colunas visíveis).
+    () => atendimentos.filter((a) => a.profissionalIds.some((id) => !ocultos.has(id)) && (mostrarDesmarcados || a.status !== "desmarcado")),
     [atendimentos, ocultos, mostrarDesmarcados],
   );
   const porColuna = useMemo(() => agruparPorColuna(visiveis), [visiveis]);
@@ -122,6 +123,8 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
       {/* Ocupa toda a altura restante; as visões ajustam a escala a ela. */}
       <div
         ref={quadro}
+        // Sinaliza que a altura já foi medida e a escala ajustada (usado pelos testes).
+        data-altura-medida={alturaVisivel ? "" : undefined}
         className={`relative min-h-[320px] flex-1 overflow-auto rounded-3xl bg-surface shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_-12px_rgba(0,0,0,0.08)] ring-1 ring-black/[0.04] ${
           // Encaixe por dia só quando cada dia cabe na tela (na ampliada ele atrapalharia a rolagem).
           visaoEfetiva === "empilhada" ? "snap-y snap-proximity" : ""

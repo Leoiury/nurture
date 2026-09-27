@@ -13,7 +13,9 @@ export type ProfissionalAgenda = {
 
 export type AtendimentoAgenda = {
   id: string;
-  profissionalId: string;
+  /** Um ou mais profissionais: o card aparece na coluna de cada um. */
+  profissionalIds: string[];
+  profissionalNomes: string[];
   data: string; // AAAA-MM-DD no fuso da clínica
   inicio: number; // minutos desde 00:00
   fim: number;
@@ -44,7 +46,10 @@ export async function carregarAgenda(primeiroDia: string, ultimoDia: string) {
     comNovaTentativa(() =>
       supabase
         .from("atendimentos")
-        .select("id, inicio, fim, status, profissional_id, paciente:pacientes(nome), plano:planos(nome, cor), tipo:tipos_atendimento(nome)")
+        .select(
+          "id, inicio, fim, status, profissionais:atendimento_profissionais(profissional:profissionais(id, nome)), paciente:pacientes(nome), plano:planos(nome, cor), tipo:tipos_atendimento(nome)",
+        )
+        .is("excluido_em", null)
         .gte("inicio", inicioDoDiaISO(primeiroDia))
         .lt("inicio", inicioDoDiaISO(somarDias(ultimoDia, 1)))
         .order("inicio"),
@@ -60,7 +65,8 @@ export async function carregarAgenda(primeiroDia: string, ultimoDia: string) {
       const fim = partesNoFuso(a.fim);
       return {
         id: a.id,
-        profissionalId: a.profissional_id,
+        profissionalIds: a.profissionais.map((p) => p.profissional.id),
+        profissionalNomes: a.profissionais.map((p) => p.profissional.nome),
         data: inicio.data,
         inicio: inicio.minutos,
         // Atendimento que atravessa a meia-noite é cortado no fim do dia.

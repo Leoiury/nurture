@@ -144,7 +144,6 @@ export function VisaoLadoALado({ dias, hoje, colunas, visiveis, porColuna, compa
                         atendimento={a}
                         top={posicaoY(a.inicio, segmentos, px)}
                         altura={posicaoY(a.fim, segmentos, px) - posicaoY(a.inicio, segmentos, px)}
-                        profissional={p.nome}
                         aoAbrir={() => aoAbrir(a.id)}
                       />
                     ))}
@@ -163,14 +162,13 @@ type CardProps = {
   atendimento: Posicionado;
   top: number;
   altura: number;
-  profissional: string;
   aoAbrir: () => void;
 };
 
-function CardCompacto({ atendimento: a, top, altura, profissional, aoAbrir }: CardProps) {
+function CardCompacto({ atendimento: a, top, altura, aoAbrir }: CardProps) {
   const cor = corDoPlano(a);
   const desmarcado = a.status === "desmarcado";
-  const descricao = descricaoDoAtendimento(a, profissional);
+  const descricao = descricaoDoAtendimento(a);
 
   return (
     <button
@@ -178,6 +176,7 @@ function CardCompacto({ atendimento: a, top, altura, profissional, aoAbrir }: Ca
       onClick={aoAbrir}
       title={descricao}
       aria-label={descricao}
+      data-atendimento={a.id}
       className={`pointer-events-auto absolute overflow-hidden rounded-md text-left text-foreground transition hover:z-10 hover:shadow-md focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-[var(--accent)] ${
         desmarcado ? "opacity-50" : ""
       } ${a.status === "faltou" ? "ring-2 ring-[var(--danger)]" : ""}`}

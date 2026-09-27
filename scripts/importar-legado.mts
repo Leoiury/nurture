@@ -250,6 +250,7 @@ for (const p of ok(
 
 // Atendimentos (apenas os não deletados).
 const semPaciente: string[] = [];
+const profissionalDoLegado = new Map<number, string>(); // id_legado do atendimento -> profissional
 const atendimentos = validos.map((a) => {
   const plano = PLANOS[chave(a["Convênio"])];
   const inicio = new Date(`${dataISO(a["Data Atend"])}T${a["Hora"]}:00${FUSO}`).toISOString();
@@ -257,9 +258,9 @@ const atendimentos = validos.map((a) => {
   const pacienteId = pacId.get(Number(a["# (2)"])) ?? null;
   if (!pacienteId) semPaciente.push(a["#"]);
   const valorPlanilha = vazio(a["Valor"]);
+  profissionalDoLegado.set(Number(a["#"]), profId.get(chave(a["Profissional"]))!);
   return {
     id_legado: Number(a["#"]),
-    profissional_id: profId.get(chave(a["Profissional"]))!,
     paciente_id: pacienteId,
     plano_id: planoDoConvenio(a["Convênio"]),
     tipo_id: tipoId.get(chave(a["Tipo"])) ?? null,
@@ -267,15 +268,23 @@ const atendimentos = validos.map((a) => {
     fim: somarMinutos(inicio, plano.duracao),
     valor: valorPlanilha ? Number(valorPlanilha.replace(",", ".")) : plano.valor,
     status: STATUS[chave(a["Status"]).replace(/MOTIVO.*$/, "").trim()] ?? "marcado",
-    // Ex.: "DesmarcadoMotivo: Paciente desmarcou" -> observação "Paciente desmarcou"
-    observacao: a["Status"].match(/Motivo:\s*(.+)$/)?.[1] ?? null,
+    // Ex.: "DesmarcadoMotivo: Paciente desmarcou" -> motivo "Paciente desmarcou"
+    motivo_desmarcacao: a["Status"].match(/Motivo:\s*(.+)$/)?.[1] ?? null,
   };
 });
 
+// Profissionais ficam na tabela de ligação (um atendimento pode ter vários).
 for (let i = 0; i < atendimentos.length; i += 500) {
-  ok(
-    await db.from("atendimentos").upsert(atendimentos.slice(i, i + 500), { onConflict: "id_legado" }).select("id"),
+  const gravados = ok(
+    await db.from("atendimentos").upsert(atendimentos.slice(i, i + 500), { onConflict: "id_legado" }).select("id, id_legado"),
     "atendimentos",
+  );
+  semErro(
+    await db.from("atendimento_profissionais").upsert(
+      gravados.map((g) => ({ atendimento_id: g.id, profissional_id: profissionalDoLegado.get(g.id_legado!)! })),
+      { onConflict: "atendimento_id,profissional_id", ignoreDuplicates: true },
+    ),
+    "profissionais dos atendimentos",
   );
 }
 

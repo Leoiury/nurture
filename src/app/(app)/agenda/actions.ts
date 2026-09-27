@@ -10,7 +10,7 @@ export async function detalhesAtendimento(id: string) {
     .from("atendimentos")
     .select(
       `id, inicio, fim, status, valor, observacao,
-       profissional:profissionais(nome, especialidade),
+       profissionais:atendimento_profissionais(profissional:profissionais(nome, especialidade)),
        plano:planos(nome, cor),
        tipo:tipos_atendimento(nome),
        paciente:pacientes(id, nome, responsavel, data_nascimento, celular, email, plano:planos(nome))`,
