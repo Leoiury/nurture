@@ -19,12 +19,15 @@ import { hoje as dataDeHoje, nomeCurtoDoDia, partesNoFuso } from "@/lib/agenda/t
 import { lerValor } from "@/lib/agenda/valores";
 import { editar, type Alcance } from "./actions";
 import {
+  buscarHorariosLivres,
   criarAtendimentos,
   criarPaciente,
   diasEspeciaisNoPeriodo,
   opcoesDoFormulario,
   verificarConflitos,
+  type BuscaDeHorarios,
   type Conflito,
+  type HorarioSugerido,
   type OpcoesDoFormulario,
   type Serie,
 } from "./actions-novo-atendimento";
@@ -435,6 +438,18 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
                 )}
               </div>
 
+              <BuscaDeHorariosLivres
+                pronta={!!tipoId && duracao > 0}
+                criterio={{ dataInicial: data || dataDeHoje(), duracaoMin: duracao, profissionais, tipoId, pacienteId, ignorarId: edicao?.id }}
+                nomeDoProfissional={(id) => nomeAbreviado(opcoes.profissionais.find((p) => p.id === id)?.nome ?? "")}
+                escolhido={{ data, hora }}
+                aoEscolher={(s) => {
+                  setData(s.data);
+                  setHora(s.hora);
+                  if (profissionais.length === 0) setProfissionais(s.profissionalIds);
+                }}
+              />
+
               {!edicao && (
                 <Campo rotulo="Observação" id="campo-observacao">
                   <textarea id="campo-observacao" value={observacao} onChange={(e) => setObservacao(e.target.value)} rows={2} className={entrada} />
@@ -707,5 +722,90 @@ function AlcanceDaEdicao({ serie, valor, aoMudar }: { serie: DadosEdicao["serie"
         <p className="mt-1 text-xs text-muted">Data e horário são deslocados igualmente em todos (ex.: de terça 10:30 para quinta 14:00).</p>
       )}
     </fieldset>
+  );
+}
+
+type BuscaProps = {
+  pronta: boolean;
+  criterio: BuscaDeHorarios;
+  nomeDoProfissional: (id: string) => string;
+  escolhido: { data: string; hora: string };
+  aoEscolher: (s: HorarioSugerido) => void;
+};
+
+/** Busca de horários livres (depois de definidos tipo e duração). */
+function BuscaDeHorariosLivres({ pronta, criterio, nomeDoProfissional, escolhido, aoEscolher }: BuscaProps) {
+  const [estado, setEstado] = useState<
+    { tipo: "ocioso" } | { tipo: "buscando" } | { tipo: "pronto"; sugestoes: HorarioSugerido[]; ate: string; chave: string } | { tipo: "erro" }
+  >({ tipo: "ocioso" });
+  const chave = JSON.stringify(criterio);
+
+  async function buscar() {
+    setEstado({ tipo: "buscando" });
+    try {
+      const r = await buscarHorariosLivres(criterio);
+      setEstado({ tipo: "pronto", ...r, chave });
+    } catch {
+      setEstado({ tipo: "erro" });
+    }
+  }
+
+  const porDia = new Map<string, HorarioSugerido[]>();
+  if (estado.tipo === "pronto") for (const s of estado.sugestoes) porDia.set(s.data, [...(porDia.get(s.data) ?? []), s]);
+  const alternativas = criterio.profissionais.length === 0;
+
+  return (
+    <section className="flex flex-col gap-3 rounded-2xl bg-black/[0.03] p-4" aria-label="Horários livres">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm font-medium">Horários livres</p>
+        <button
+          type="button"
+          disabled={!pronta || estado.tipo === "buscando"}
+          onClick={() => void buscar()}
+          className="rounded-full bg-surface px-3 py-1.5 text-sm ring-1 ring-black/10 hover:bg-background disabled:opacity-50"
+        >
+          {estado.tipo === "buscando" ? "Buscando…" : estado.tipo === "pronto" ? "Buscar de novo" : "Buscar horários livres"}
+        </button>
+      </div>
+      {!pronta && <p className="text-xs text-muted">Escolha o tipo e a duração para buscar.</p>}
+      {estado.tipo === "erro" && <p className="text-xs text-danger">Não foi possível buscar agora.</p>}
+      {estado.tipo === "pronto" && (
+        <>
+          {estado.chave !== chave && <p className="text-xs text-amber-800">Os critérios mudaram — busque de novo para atualizar.</p>}
+          {estado.sugestoes.length === 0 ? (
+            <p className="text-xs text-muted">Nenhum horário livre até {dataCurta(estado.ate)}.</p>
+          ) : (
+            <ul className="flex flex-col gap-2" aria-label="Sugestões de horário">
+              {[...porDia].map(([dia, lista]) => (
+                <li key={dia} className="flex flex-col gap-1">
+                  <span className="text-xs font-medium text-muted capitalize">{dataCurta(dia)}</span>
+                  <div className="flex flex-wrap gap-1">
+                    {lista.map((s) => {
+                      const ativo = s.data === escolhido.data && s.hora === escolhido.hora;
+                      return (
+                        <button
+                          key={`${s.hora}${s.profissionalIds.join()}`}
+                          type="button"
+                          onClick={() => aoEscolher(s)}
+                          aria-pressed={ativo}
+                          className={`rounded-lg px-2 py-1 text-xs tabular-nums ${ativo ? "bg-accent text-white" : "bg-surface ring-1 ring-black/10 hover:ring-accent"}`}
+                        >
+                          {s.hora}
+                          {alternativas && ` · ${s.profissionalIds.map(nomeDoProfissional).join(", ")}`}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="text-[11px] text-muted">
+            Próximas 2 semanas, dias úteis, sem feriados e recessos. Expediente padrão (08–12 e 13–18) até as jornadas de cada
+            profissional serem cadastradas.
+          </p>
+        </>
+      )}
+    </section>
   );
 }

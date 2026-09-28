@@ -5,8 +5,9 @@
 import { revalidatePath } from "next/cache";
 import { carregarDiasEspeciais } from "@/lib/agenda/dados";
 import { semExpediente } from "@/lib/agenda/feriados";
+import { horariosLivres, profissionaisCompativeis, type Ocupacao } from "@/lib/agenda/horarios-livres";
 import { MAXIMO_DE_SESSOES, candidatasDaSerie, datasDaSerie, datasSemBloqueios, type FimDaSerie, type Frequencia } from "@/lib/agenda/recorrencia";
-import { FUSO, instanteNoFuso } from "@/lib/agenda/tempo";
+import { FUSO, diaDaSemana, ehDataValida, formatarHora, inicioDoDiaISO, instanteNoFuso, partesNoFuso, somarDias } from "@/lib/agenda/tempo";
 import type { Database } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
 
@@ -183,4 +184,86 @@ export async function criarPaciente(novo: NovoPaciente) {
     .single();
   if (error) return { ok: false as const, erro: "Não foi possível cadastrar o paciente." };
   return { ok: true as const, paciente: data };
+}
+
+export type BuscaDeHorarios = {
+  dataInicial: string; // AAAA-MM-DD: busca a partir dela (ou de hoje, se já passou)
+  duracaoMin: number;
+  /** Escolhidos no formulário: todos precisam estar livres. Vazio: qualquer compatível com o tipo. */
+  profissionais: string[];
+  tipoId: string | null;
+  pacienteId: string | null;
+  /** Na edição, o próprio atendimento não ocupa o horário. */
+  ignorarId?: string;
+};
+
+export type HorarioSugerido = { data: string; hora: string; profissionalIds: string[] };
+
+const DIAS_DE_BUSCA = 14;
+
+/** Próximos horários livres (2 semanas, dias úteis sem feriados/recessos, expediente padrão). */
+export async function buscarHorariosLivres(b: BuscaDeHorarios): Promise<{ sugestoes: HorarioSugerido[]; ate: string }> {
+  if (!(b.duracaoMin > 0)) return { sugestoes: [], ate: b.dataInicial };
+  const agora = partesNoFuso(new Date());
+  const inicio = ehDataValida(b.dataInicial) && b.dataInicial > agora.data ? b.dataInicial : agora.data;
+  const fim = somarDias(inicio, DIAS_DE_BUSCA - 1);
+  const supabase = await createClient();
+
+  // Quem pode atender: os escolhidos (juntos) ou cada compatível com o tipo (alternativas).
+  let grupos: string[][];
+  if (b.profissionais.length) {
+    grupos = [b.profissionais];
+  } else {
+    const [profs, tipo] = await Promise.all([
+      supabase.from("profissionais").select("id, especialidade").eq("ativo", true),
+      b.tipoId ? supabase.from("tipos_atendimento").select("nome").eq("id", b.tipoId).single() : null,
+    ]);
+    if (profs.error) throw new Error("Não foi possível buscar os profissionais.");
+    grupos = profissionaisCompativeis(tipo?.data?.nome ?? null, profs.data).map((p) => [p.id]);
+  }
+  if (!grupos.length) return { sugestoes: [], ate: fim };
+
+  const [especiais, atendimentos] = await Promise.all([
+    carregarDiasEspeciais(inicio, fim),
+    supabase
+      .from("atendimentos")
+      .select("id, inicio, fim, paciente_id, profissionais:atendimento_profissionais(profissional_id)")
+      .is("excluido_em", null)
+      .neq("status", "desmarcado")
+      .gte("inicio", inicioDoDiaISO(inicio))
+      .lt("inicio", inicioDoDiaISO(somarDias(fim, 1))),
+  ]);
+  if (atendimentos.error) throw new Error("Não foi possível buscar os horários.");
+
+  const dias: string[] = [];
+  for (let d = inicio; d <= fim; d = somarDias(d, 1)) {
+    const semana = diaDaSemana(d);
+    if (semana >= 1 && semana <= 5 && !semExpediente(especiais[d])) dias.push(d);
+  }
+
+  const ocupacao = new Map<string, Ocupacao[]>();
+  const ocupacaoDoPaciente: Ocupacao[] = [];
+  for (const a of atendimentos.data) {
+    if (a.id === b.ignorarId) continue;
+    const ini = partesNoFuso(a.inicio);
+    const fimA = partesNoFuso(a.fim);
+    const o = { data: ini.data, inicio: ini.minutos, fim: fimA.data === ini.data ? fimA.minutos : 24 * 60 };
+    for (const { profissional_id } of a.profissionais) ocupacao.set(profissional_id, [...(ocupacao.get(profissional_id) ?? []), o]);
+    if (b.pacienteId && a.paciente_id === b.pacienteId) ocupacaoDoPaciente.push(o);
+  }
+
+  const livres = horariosLivres({
+    dias,
+    duracao: b.duracaoMin,
+    grupos,
+    ocupacao,
+    ocupacaoDoPaciente,
+    agora: { data: agora.data, minutos: agora.minutos },
+    // Com vários profissionais alternativos, menos por profissional para caber na tela.
+    limitePorDia: grupos.length > 1 ? 3 : 8,
+  });
+  return {
+    sugestoes: livres.slice(0, 80).map((l) => ({ data: l.data, hora: formatarHora(l.inicio), profissionalIds: l.profissionalIds })),
+    ate: fim,
+  };
 }
