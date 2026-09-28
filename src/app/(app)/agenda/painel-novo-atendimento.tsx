@@ -402,11 +402,14 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
                 <Campo rotulo="Plano" id="campo-plano">
                   <select id="campo-plano" value={planoId ?? ""} onChange={(e) => escolherPlano(e.target.value || null)} className={entrada}>
                     <option value="">—</option>
-                    {opcoes.planos.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.nome}
-                      </option>
-                    ))}
+                    {opcoes.planos
+                      .filter((p) => p.ativo || p.id === planoId)
+                      .map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.nome}
+                          {!p.ativo && " (inativo)"}
+                        </option>
+                      ))}
                   </select>
                 </Campo>
                 <Campo rotulo="Valor (R$)" id="campo-valor">
@@ -675,7 +678,7 @@ function CadastroRapido({
         <input value={celular} onChange={(e) => setCelular(e.target.value)} placeholder="Celular" inputMode="tel" aria-label="Celular" className={entrada} />
         <select value={planoId ?? ""} onChange={(e) => setPlanoId(e.target.value || null)} aria-label="Plano do paciente" className={entrada}>
           <option value="">Plano…</option>
-          {planos.map((p) => (
+          {planos.filter((p) => p.ativo).map((p) => (
             <option key={p.id} value={p.id}>
               {p.nome}
             </option>

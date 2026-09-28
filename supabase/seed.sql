@@ -12,8 +12,7 @@ insert into planos (nome, cor, duracao_padrao_min, valor_padrao) values
   ('Particular', '#D9534F', 45, null),
   ('Particular - Tabela B', '#F2A19D', 45, 150),
   ('Unimed', '#2E7D5B', 45, 120),
-  ('Unimed - Reembolso', '#4A90D9', 45, 200),
-  ('Reuniões e Visitas', '#D0D3D4', 45, null);
+  ('Unimed - Reembolso', '#4A90D9', 45, 200);
 
 insert into tipos_atendimento (nome) values
   ('Sessão Psicologia'),
@@ -38,7 +37,7 @@ select
   (array['Mariana','Paulo','Renata','Sérgio','Tatiana','Vinícius'])[1 + g % 6] || ' ' || (array['Andrade','Barros','Cardoso','Duarte'])[1 + (g - 1) / 12],
   date '2014-01-01' + (g * 97) % 3650,
   '(49) 90000-' || lpad(g::text, 4, '0'),
-  (select id from planos order by nome offset (g % 7) limit 1)
+  (select id from planos order by nome offset (g % 6) limit 1)
 from generate_series(1, 48) as g;
 
 -- Agenda: para cada profissional e dia útil, horários a cada 45 min (manhã e

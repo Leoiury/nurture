@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { ROTULO_TIPO_DIA, feriadosNacionais } from "@/lib/agenda/feriados";
 import { hoje } from "@/lib/agenda/tempo";
 import { createClient } from "@/lib/supabase/server";
@@ -26,13 +25,10 @@ export default async function FeriadosPage() {
   const passados = cadastrados.filter((f) => f.data_fim < dataHoje).reverse();
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 py-6 sm:px-6">
+    <div className="flex flex-col gap-8">
       <div>
-        <Link href="/agenda" className="text-sm text-muted hover:text-foreground">
-          ← Agenda
-        </Link>
-        <h1 className="mt-2 text-2xl font-semibold tracking-tight">Feriados e recessos</h1>
-        <p className="mt-1 text-sm text-muted">
+        <h2 className="sr-only">Feriados e recessos</h2>
+        <p className="text-sm text-muted">
           Os feriados nacionais já são conhecidos pelo sistema. Cadastre aqui os estaduais (SC), os municipais (Videira) e os recessos da
           clínica. Esses dias ficam destacados na agenda e são pulados nas séries e na busca de horários.
         </p>

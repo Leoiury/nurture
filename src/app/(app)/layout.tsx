@@ -26,8 +26,8 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
           <span className="hidden text-muted sm:inline">{data.claims.email}</span>
           {/* Configurações são pouco usadas: só um ícone discreto. */}
           <Link
-            href="/configuracoes/feriados"
-            title="Configurações: feriados e recessos"
+            href="/configuracoes/planos"
+            title="Configurações: planos, feriados e recessos"
             aria-label="Configurações"
             className="rounded-md p-1.5 text-muted/70 hover:bg-background hover:text-foreground"
           >

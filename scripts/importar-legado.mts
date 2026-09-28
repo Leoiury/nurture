@@ -32,8 +32,13 @@ const PLANOS: Record<string, { nome: string; cor: string; duracao: number; valor
   "UNIMED - REEMBOLSO": { nome: "Unimed - Reembolso", cor: "#4A90D9", duracao: 45, valor: 200 },
   "PETROBRAS - REEMBOLSO": { nome: "Petrobrás - Reembolso", cor: "#4A90D9", duracao: 45, valor: 200 },
   "PROJETO NURE COMUNICACAO": { nome: "Projeto Nure Comunicação", cor: "#B39DDB", duracao: 45, valor: 115 },
-  "REUNIOES E VISITAS": { nome: "Reuniões e Visitas", cor: "#D0D3D4", duracao: 45, valor: null },
 };
+
+// No sistema anterior "Reuniões e Visitas" era um convênio; aqui é um tipo de
+// atendimento, sem plano (ver migration reunioes_visitas_como_tipo).
+const CONVENIO_REUNIOES = "REUNIOES E VISITAS";
+const TIPO_REUNIOES = "Reuniões e Visitas";
+const DURACAO_REUNIOES = 45;
 
 const STATUS: Record<string, Database["public"]["Enums"]["status_atendimento"]> = {
   ATENDIDO: "atendido",
@@ -151,7 +156,7 @@ const planosDesconhecidos = new Set(
   [...agenda.map((a) => a["Convênio"]), ...pacientesXlsx.map((p) => p["Convênio"])]
     .filter(Boolean)
     .map(chave)
-    .filter((k) => !(k in PLANOS)),
+    .filter((k) => !(k in PLANOS) && k !== CONVENIO_REUNIOES),
 );
 if (planosDesconhecidos.size) throw new Error(`Planos não mapeados: ${[...planosDesconhecidos].join(", ")}`);
 
@@ -168,6 +173,7 @@ for (const a of agenda) {
 
 const tipos = new Map<string, string>();
 for (const a of agenda) if (vazio(a["Tipo"])) tipos.set(chave(a["Tipo"]), capitalizar(a["Tipo"]));
+tipos.set(chave(TIPO_REUNIOES), TIPO_REUNIOES);
 
 if (DRY) {
   console.log(`\n[dry] ${profissionais.size} profissionais, ${Object.keys(PLANOS).length} planos, ${tipos.size} tipos`);
@@ -252,7 +258,8 @@ for (const p of ok(
 const semPaciente: string[] = [];
 const profissionalDoLegado = new Map<number, string>(); // id_legado do atendimento -> profissional
 const atendimentos = validos.map((a) => {
-  const plano = PLANOS[chave(a["Convênio"])];
+  const reuniao = chave(a["Convênio"]) === CONVENIO_REUNIOES;
+  const plano = reuniao ? null : PLANOS[chave(a["Convênio"])];
   const inicio = new Date(`${dataISO(a["Data Atend"])}T${a["Hora"]}:00${FUSO}`).toISOString();
   // No relatório de agenda, "#" é o ID do atendimento e "# (2)" o ID do paciente.
   const pacienteId = pacId.get(Number(a["# (2)"])) ?? null;
@@ -263,10 +270,10 @@ const atendimentos = validos.map((a) => {
     id_legado: Number(a["#"]),
     paciente_id: pacienteId,
     plano_id: planoDoConvenio(a["Convênio"]),
-    tipo_id: tipoId.get(chave(a["Tipo"])) ?? null,
+    tipo_id: tipoId.get(chave(reuniao ? TIPO_REUNIOES : a["Tipo"])) ?? null,
     inicio,
-    fim: somarMinutos(inicio, plano.duracao),
-    valor: valorPlanilha ? Number(valorPlanilha.replace(",", ".")) : plano.valor,
+    fim: somarMinutos(inicio, plano?.duracao ?? DURACAO_REUNIOES),
+    valor: valorPlanilha ? Number(valorPlanilha.replace(",", ".")) : (plano?.valor ?? null),
     status: STATUS[chave(a["Status"]).replace(/MOTIVO.*$/, "").trim()] ?? "marcado",
     // Ex.: "DesmarcadoMotivo: Paciente desmarcou" -> motivo "Paciente desmarcou"
     motivo_desmarcacao: a["Status"].match(/Motivo:\s*(.+)$/)?.[1] ?? null,
