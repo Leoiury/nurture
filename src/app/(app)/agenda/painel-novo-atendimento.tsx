@@ -5,13 +5,23 @@
 // duração e valor vêm do plano; o tipo vem da especialidade do primeiro profissional.
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { MAXIMO_DE_SESSOES, ROTULO_FREQUENCIA, datasDaSerie, descricaoMensal, type Frequencia } from "@/lib/agenda/recorrencia";
-import { hoje as dataDeHoje, nomeCurtoDoDia } from "@/lib/agenda/tempo";
+import { ROTULO_TIPO_DIA, semExpediente, type DiaEspecial } from "@/lib/agenda/feriados";
+import {
+  MAXIMO_DE_SESSOES,
+  ROTULO_FREQUENCIA,
+  candidatasDaSerie,
+  datasDaSerie,
+  datasSemBloqueios,
+  descricaoMensal,
+  type Frequencia,
+} from "@/lib/agenda/recorrencia";
+import { hoje as dataDeHoje, nomeCurtoDoDia, partesNoFuso } from "@/lib/agenda/tempo";
 import { lerValor } from "@/lib/agenda/valores";
 import { editar, type Alcance } from "./actions";
 import {
   criarAtendimentos,
   criarPaciente,
+  diasEspeciaisNoPeriodo,
   opcoesDoFormulario,
   verificarConflitos,
   type Conflito,
@@ -93,6 +103,8 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
   const [fimPor, setFimPor] = useState<"data" | "sessoes">("data");
   const [ate, setAte] = useState("");
   const [sessoes, setSessoes] = useState(10);
+  const [pularFeriados, setPularFeriados] = useState(true);
+  const [especiais, setEspeciais] = useState<Record<string, DiaEspecial[]>>({});
 
   const [conflitos, setConflitos] = useState<Conflito[]>([]);
   const [salvando, setSalvando] = useState(false);
@@ -121,13 +133,42 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
   }, [aoFechar]);
 
   const serie: Serie = repetir
-    ? { frequencia, fim: fimPor === "data" ? { tipo: "data", ate: ate || data } : { tipo: "sessoes", quantidade: sessoes } }
+    ? { frequencia, fim: fimPor === "data" ? { tipo: "data", ate: ate || data } : { tipo: "sessoes", quantidade: sessoes }, pularFeriados }
     : null;
-  const datas = useMemo(
-    () => (serie ? datasDaSerie(data, serie.frequencia, serie.fim) : [data]),
+  // Datas candidatas (com folga, para repor sessões puladas) — definem até quando consultar feriados.
+  const candidatas = useMemo(
+    () => (serie && data ? candidatasDaSerie(data, serie.frequencia, serie.fim) : data ? [data] : []),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [data, repetir, frequencia, fimPor, ate, sessoes],
   );
+  const bloqueado = (d: string) => semExpediente(especiais[d]);
+  const datas = useMemo(
+    () => {
+      if (!serie) return [data];
+      return serie.pularFeriados ? datasSemBloqueios(data, serie.frequencia, serie.fim, bloqueado) : datasDaSerie(data, serie.frequencia, serie.fim);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [data, repetir, frequencia, fimPor, ate, sessoes, pularFeriados, especiais],
+  );
+  // Datas da série que caíram em feriado/recesso e foram puladas (até a última data mantida).
+  const puladas = serie?.pularFeriados ? candidatas.filter((d) => bloqueado(d) && d <= (datas.at(-1) ?? d)) : [];
+
+  // Feriados e recessos do período das datas candidatas.
+  useEffect(() => {
+    if (!candidatas.length) return;
+    let ativo = true;
+    const t = setTimeout(() => {
+      diasEspeciaisNoPeriodo(candidatas[0], candidatas.at(-1)!)
+        .then((r) => {
+          if (ativo) setEspeciais(r);
+        })
+        .catch(() => {});
+    }, 250);
+    return () => {
+      ativo = false;
+      clearTimeout(t);
+    };
+  }, [candidatas]);
 
   // Conflitos: consulta o banco um instante depois da última mudança nos campos.
   useEffect(() => {
@@ -141,7 +182,7 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
     }, 400);
     return () => clearTimeout(temporizador);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, hora, duracao, repetir, frequencia, fimPor, ate, sessoes, profissionais, pacienteId, alcance]);
+  }, [data, hora, duracao, repetir, frequencia, fimPor, ate, sessoes, pularFeriados, profissionais, pacienteId, alcance]);
 
   const paciente = opcoes?.pacientes.find((p) => p.id === pacienteId) ?? null;
   const sugestoes = useMemo(() => {
@@ -189,7 +230,8 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
     aoFechar();
   }
 
-  const conflitosPorData = new Set(conflitos.map((c) => c.inicio.slice(0, 10)));
+  const conflitosPorData = new Set(conflitos.map((c) => partesNoFuso(c.inicio).data));
+  const especialDaData = especiais[data];
   const podeSalvar = !!pacienteId && profissionais.length > 0 && !!data && !!hora && datas.length > 0 && !salvando;
 
   return (
@@ -452,10 +494,27 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
                       />
                       sessões
                     </div>
-                    <PreviaDaSerie datas={datas} comConflito={conflitosPorData} semDataFinal={fimPor === "data" && !ate} />
+                    <label className="flex cursor-pointer items-center gap-2 text-sm">
+                      <input type="checkbox" checked={pularFeriados} onChange={(e) => setPularFeriados(e.target.checked)} className="accent-[var(--accent)]" />
+                      Pular feriados e recessos
+                    </label>
+                    <PreviaDaSerie
+                      datas={datas}
+                      puladas={puladas}
+                      especiais={especiais}
+                      comConflito={conflitosPorData}
+                      semDataFinal={fimPor === "data" && !ate}
+                    />
                   </>
                 )}
               </section>
+              )}
+
+              {especialDaData && (
+                <p className="rounded-2xl bg-amber-50 p-3 text-sm text-amber-900 ring-1 ring-amber-200" aria-live="polite">
+                  {especialDaData.map((d) => `${ROTULO_TIPO_DIA[d.tipo]}: ${d.nome}`).join(" · ")}
+                  {semExpediente(especialDaData) ? " — dá para marcar mesmo assim." : ""}
+                </p>
               )}
 
               {conflitos.length > 0 && (
@@ -516,7 +575,15 @@ function Campo({ rotulo, id, children }: { rotulo: string; id: string; children:
   );
 }
 
-function PreviaDaSerie({ datas, comConflito, semDataFinal }: { datas: string[]; comConflito: Set<string>; semDataFinal: boolean }) {
+type PreviaProps = {
+  datas: string[];
+  puladas: string[];
+  especiais: Record<string, DiaEspecial[]>;
+  comConflito: Set<string>;
+  semDataFinal: boolean;
+};
+
+function PreviaDaSerie({ datas, puladas, especiais, comConflito, semDataFinal }: PreviaProps) {
   if (semDataFinal) return <p className="text-xs text-muted">Escolha a data final ou o número de sessões.</p>;
   if (datas.length === 0) return <p className="text-xs text-danger">Nenhuma data: a data final é anterior ao início.</p>;
   const visiveis = datas.slice(0, 16);
@@ -538,6 +605,12 @@ function PreviaDaSerie({ datas, comConflito, semDataFinal }: { datas: string[]; 
         ))}
         {datas.length > visiveis.length && <li className="px-1 text-[11px] text-muted">+{datas.length - visiveis.length}</li>}
       </ul>
+      {puladas.length > 0 && (
+        <p className="text-xs text-amber-800" aria-label="Datas puladas">
+          Pulada{puladas.length === 1 ? "" : "s"}:{" "}
+          {puladas.map((d) => `${dataCurta(d)} (${especiais[d]?.[0]?.nome ?? "feriado"})`).join(", ")}
+        </p>
+      )}
     </div>
   );
 }

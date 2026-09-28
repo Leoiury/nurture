@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MAXIMO_DE_SESSOES, datasDaSerie, descricaoMensal, ordemNoMes } from "./recorrencia";
+import { MAXIMO_DE_SESSOES, datasDaSerie, datasSemBloqueios, descricaoMensal, ordemNoMes } from "./recorrencia";
 
 describe("datasDaSerie — semanal e quinzenal", () => {
   it("semanal por número de sessões", () => {
@@ -70,5 +70,26 @@ describe("descrições", () => {
     expect(ordemNoMes("2026-09-15")).toBe(3);
     expect(descricaoMensal("2026-09-15")).toBe("3ª terça do mês");
     expect(descricaoMensal("2026-09-01")).toBe("1ª terça do mês");
+  });
+});
+
+describe("datasSemBloqueios", () => {
+  const natal = (d: string) => d === "2026-12-22";
+
+  it("por data: só remove os dias bloqueados", () => {
+    expect(datasSemBloqueios("2026-12-08", "semanal", { tipo: "data", ate: "2026-12-29" }, natal)).toEqual([
+      "2026-12-08",
+      "2026-12-15",
+      "2026-12-29",
+    ]);
+  });
+
+  it("por sessões: mantém a quantidade, repondo no fim", () => {
+    expect(datasSemBloqueios("2026-12-08", "semanal", { tipo: "sessoes", quantidade: 4 }, natal)).toEqual([
+      "2026-12-08",
+      "2026-12-15",
+      "2026-12-29",
+      "2027-01-05",
+    ]);
   });
 });

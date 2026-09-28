@@ -1,6 +1,7 @@
 import "server-only";
 import type { Database } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
+import { diasEspeciais, type DiaEspecial } from "./feriados";
 import { inicioDoDiaISO, partesNoFuso, somarDias } from "./tempo";
 
 export type Status = Database["public"]["Enums"]["status_atendimento"];
@@ -37,11 +38,29 @@ async function comNovaTentativa<T extends { error: { code?: string } | null }>(c
   return consulta();
 }
 
-/** Profissionais ativos e atendimentos entre as datas (inclusive). */
+/**
+ * Feriados (nacionais + cadastrados) e recessos da clínica entre as datas, por dia.
+ * Ausências por profissional (profissional_id preenchido) ficam para a próxima sprint.
+ */
+export async function carregarDiasEspeciais(primeiroDia: string, ultimoDia: string): Promise<Record<string, DiaEspecial[]>> {
+  const supabase = await createClient();
+  const { data, error } = await comNovaTentativa(() =>
+    supabase
+      .from("feriados")
+      .select("nome, tipo, data_inicio, data_fim")
+      .is("profissional_id", null)
+      .lte("data_inicio", ultimoDia)
+      .gte("data_fim", primeiroDia),
+  );
+  if (error) throw error;
+  return Object.fromEntries(diasEspeciais(primeiroDia, ultimoDia, data));
+}
+
+/** Profissionais ativos, atendimentos e dias especiais entre as datas (inclusive). */
 export async function carregarAgenda(primeiroDia: string, ultimoDia: string) {
   const supabase = await createClient();
 
-  const [profissionais, atendimentos] = await Promise.all([
+  const [profissionais, atendimentos, especiais] = await Promise.all([
     comNovaTentativa(() => supabase.from("profissionais").select("id, nome, especialidade").eq("ativo", true).order("nome")),
     comNovaTentativa(() =>
       supabase
@@ -54,11 +73,13 @@ export async function carregarAgenda(primeiroDia: string, ultimoDia: string) {
         .lt("inicio", inicioDoDiaISO(somarDias(ultimoDia, 1)))
         .order("inicio"),
     ),
+    carregarDiasEspeciais(primeiroDia, ultimoDia),
   ]);
   if (profissionais.error) throw profissionais.error;
   if (atendimentos.error) throw atendimentos.error;
 
   return {
+    especiais,
     profissionais: profissionais.data satisfies ProfissionalAgenda[],
     atendimentos: atendimentos.data.map((a): AtendimentoAgenda => {
       const inicio = partesNoFuso(a.inicio);

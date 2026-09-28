@@ -3,7 +3,9 @@
 // Ações do painel "Novo atendimento".
 
 import { revalidatePath } from "next/cache";
-import { MAXIMO_DE_SESSOES, datasDaSerie, type FimDaSerie, type Frequencia } from "@/lib/agenda/recorrencia";
+import { carregarDiasEspeciais } from "@/lib/agenda/dados";
+import { semExpediente } from "@/lib/agenda/feriados";
+import { MAXIMO_DE_SESSOES, candidatasDaSerie, datasDaSerie, datasSemBloqueios, type FimDaSerie, type Frequencia } from "@/lib/agenda/recorrencia";
 import { FUSO, instanteNoFuso } from "@/lib/agenda/tempo";
 import type { Database } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
@@ -25,7 +27,13 @@ export async function opcoesDoFormulario() {
 
 export type OpcoesDoFormulario = Awaited<ReturnType<typeof opcoesDoFormulario>>;
 
-export type Serie = { frequencia: Frequencia; fim: FimDaSerie } | null;
+/** pularFeriados: tira da série os feriados e recessos (mantendo o nº de sessões). */
+export type Serie = { frequencia: Frequencia; fim: FimDaSerie; pularFeriados: boolean } | null;
+
+/** Feriados (nacionais e cadastrados), pontos facultativos e recessos do período, por dia. */
+export async function diasEspeciaisNoPeriodo(inicio: string, fim: string) {
+  return carregarDiasEspeciais(inicio, fim);
+}
 
 type Agendamento = {
   data: string; // AAAA-MM-DD
@@ -35,8 +43,15 @@ type Agendamento = {
 };
 
 /** Instantes de início de cada atendimento (um só, ou a série inteira). */
-function inicios({ data, hora, serie }: Agendamento): string[] {
-  const datas = serie ? datasDaSerie(data, serie.frequencia, serie.fim) : [data];
+async function inicios({ data, hora, serie }: Agendamento): Promise<string[]> {
+  let datas = [data];
+  if (serie?.pularFeriados) {
+    const candidatas = candidatasDaSerie(data, serie.frequencia, serie.fim);
+    const especiais = candidatas.length ? await carregarDiasEspeciais(candidatas[0], candidatas.at(-1)!) : {};
+    datas = datasSemBloqueios(data, serie.frequencia, serie.fim, (d) => semExpediente(especiais[d]));
+  } else if (serie) {
+    datas = datasDaSerie(data, serie.frequencia, serie.fim);
+  }
   return datas.map((d) => instanteNoFuso(d, hora));
 }
 
@@ -63,7 +78,7 @@ export async function verificarConflitos(
     ignorar?: { id: string; recorrenciaId: string | null };
   },
 ): Promise<Conflito[]> {
-  const lista = inicios(agendamento);
+  const lista = await inicios(agendamento);
   if (lista.length === 0 || (agendamento.profissionais.length === 0 && !agendamento.pacienteId)) return [];
 
   const duracaoMs = agendamento.duracaoMin * 60_000;
@@ -126,7 +141,7 @@ export async function criarAtendimentos(novo: NovoAtendimento): Promise<Resultad
 
   let lista: string[];
   try {
-    lista = inicios(novo);
+    lista = await inicios(novo);
   } catch {
     return { ok: false, erro: "Data inválida." }; // ex.: 31/02 não converte
   }

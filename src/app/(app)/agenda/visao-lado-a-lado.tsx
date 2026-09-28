@@ -6,6 +6,7 @@
 import Link from "next/link";
 import { useMemo } from "react";
 import type { AtendimentoAgenda, ProfissionalAgenda } from "@/lib/agenda/dados";
+import type { DiaEspecial } from "@/lib/agenda/feriados";
 import { alturaDoSegmento, montarSegmentos, posicaoY, type Segmento } from "@/lib/agenda/layout";
 import { diaDoMes, formatarHora, nomeCurtoDoDia } from "@/lib/agenda/tempo";
 import {
@@ -20,6 +21,7 @@ import {
   nomeAbreviado,
   type Posicionado,
 } from "./comum";
+import { EtiquetaDiaEspecial, FundoSemExpediente, fundoDoCabecalho } from "./dia-especial";
 
 // A escala vertical se ajusta para o expediente (08–18) caber na altura visível.
 const ESCALA = { padrao: 12, min: 8, max: 26 };
@@ -44,9 +46,11 @@ type Props = {
   sufixoUrl: string;
   /** Altura visível do quadro da agenda, em px. */
   alturaVisivel: number | null;
+  /** Feriados, pontos facultativos e recessos, por dia. */
+  especiais: Record<string, DiaEspecial[]>;
 };
 
-export function VisaoLadoALado({ dias, hoje, colunas, visiveis, porColuna, compactar, expandidos, aoExpandir, aoAbrir, sufixoUrl, alturaVisivel }: Props) {
+export function VisaoLadoALado({ dias, hoje, colunas, visiveis, porColuna, compactar, expandidos, aoExpandir, aoAbrir, sufixoUrl, alturaVisivel, especiais }: Props) {
   const px = escalaParaCaber(alturaVisivel && alturaVisivel - ALTURA_CABECALHO - 8, ESCALA);
   const segmentos = useMemo(
     () =>
@@ -101,7 +105,10 @@ export function VisaoLadoALado({ dias, hoje, colunas, visiveis, porColuna, compa
             style={{ marginRight: ESPACO_ENTRE_DIAS }}
           >
             {/* Cabeçalho do dia */}
-            <div className={`sticky top-0 z-10 flex flex-col rounded-t-2xl ${ehHoje ? "bg-[color-mix(in_srgb,var(--accent-soft)_40%,white)]" : "bg-surface"}`} style={{ height: ALTURA_CABECALHO }}>
+            <div
+              className={`sticky top-0 z-10 flex flex-col rounded-t-2xl ${ehHoje ? "bg-[color-mix(in_srgb,var(--accent-soft)_40%,white)]" : "bg-surface"}`}
+              style={{ height: ALTURA_CABECALHO, background: fundoDoCabecalho(especiais[dia]) }}
+            >
               <Link href={`/agenda?dia=${dia}${sufixoUrl}`} title="Abrir o dia" className="group flex flex-1 items-center justify-center gap-1.5">
                 <span className="text-xs font-medium uppercase tracking-wide text-muted">{nomeCurtoDoDia(dia)}</span>
                 <span
@@ -112,6 +119,7 @@ export function VisaoLadoALado({ dias, hoje, colunas, visiveis, porColuna, compa
                   {diaDoMes(dia)}
                 </span>
                 <span className="text-xs text-muted">{total}</span>
+                <EtiquetaDiaEspecial dias={especiais[dia]} compacta />
               </Link>
               <div className="flex px-0.5 pb-1.5">
                 {colunas.map((p) => (
@@ -124,6 +132,7 @@ export function VisaoLadoALado({ dias, hoje, colunas, visiveis, porColuna, compa
 
             {/* Corpo do dia */}
             <div className="relative" style={{ height: altura }}>
+              <FundoSemExpediente dias={especiais[dia]} />
               <div className="absolute inset-0" aria-hidden>
                 {segmentos.map((s, i) => (
                   <div

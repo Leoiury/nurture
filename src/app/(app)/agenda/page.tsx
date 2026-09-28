@@ -17,7 +17,7 @@ export default async function AgendaPage({ searchParams }: PageProps<"/agenda">)
   const segunda = inicioDaSemana(referencia);
 
   const semana = Array.from({ length: 7 }, (_, i) => somarDias(segunda, i));
-  const { profissionais, atendimentos } = await carregarAgenda(semana[0], semana[6]);
+  const { profissionais, atendimentos, especiais } = await carregarAgenda(semana[0], semana[6]);
 
   // Colunas do profissional com mais atendimentos na semana para o com menos
   // (desmarcados não contam; empate em ordem alfabética). Mesmo na visão de um
@@ -53,6 +53,7 @@ export default async function AgendaPage({ searchParams }: PageProps<"/agenda">)
         hoje={dataHoje}
         profissionais={profissionaisOrdenados}
         atendimentos={dia ? atendimentos.filter((a) => a.data === dia) : atendimentos}
+        especiais={especiais}
         navegacao={<Navegacao referencia={referencia} dia={dia} hoje={dataHoje} visao={visao} />}
         navegacaoNoMenu={<Navegacao referencia={referencia} dia={dia} hoje={dataHoje} visao={visao} variante="menu" />}
       />

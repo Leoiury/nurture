@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { AtendimentoAgenda, ProfissionalAgenda } from "@/lib/agenda/dados";
+import type { DiaEspecial } from "@/lib/agenda/feriados";
 import type { Segmento } from "@/lib/agenda/layout";
 import { sufixoDaVisao, type Visao } from "@/lib/agenda/visao";
 import { agruparPorColuna, useAlturaDoElemento, useModoFoco } from "./comum";
@@ -21,13 +22,15 @@ type Props = {
   hoje: string;
   profissionais: ProfissionalAgenda[];
   atendimentos: AtendimentoAgenda[];
+  /** Feriados, pontos facultativos e recessos da semana, por dia (AAAA-MM-DD). */
+  especiais: Record<string, DiaEspecial[]>;
   /** Navegação (mês/semana), exibida na barra acima da agenda. */
   navegacao: ReactNode;
   /** A mesma navegação em coluna, para o menu lateral no modo foco (quando a barra some). */
   navegacaoNoMenu: ReactNode;
 };
 
-export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais, atendimentos, navegacao, navegacaoNoMenu }: Props) {
+export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais, atendimentos, especiais, navegacao, navegacaoNoMenu }: Props) {
   // Profissionais sem atendimentos no período começam ocultos (podem ser exibidos no menu).
   const [ocultos, setOcultos] = useState<Set<string>>(
     () => new Set(profissionais.filter((p) => !atendimentos.some((a) => a.profissionalIds.includes(p.id))).map((p) => p.id)),
@@ -87,7 +90,7 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const propsVisao = { dias, hoje, colunas, visiveis, porColuna, compactar, expandidos, aoExpandir: expandirSegmento, aoAbrir: setSelecionado, sufixoUrl, alturaVisivel };
+  const propsVisao = { dias, hoje, colunas, visiveis, porColuna, compactar, expandidos, aoExpandir: expandirSegmento, aoAbrir: setSelecionado, sufixoUrl, alturaVisivel, especiais };
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3">

@@ -218,6 +218,47 @@ export type Database = {
           },
         ]
       }
+      feriados: {
+        Row: {
+          atualizado_em: string
+          criado_em: string
+          data_fim: string
+          data_inicio: string
+          id: string
+          nome: string
+          profissional_id: string | null
+          tipo: Database["public"]["Enums"]["tipo_feriado"]
+        }
+        Insert: {
+          atualizado_em?: string
+          criado_em?: string
+          data_fim: string
+          data_inicio: string
+          id?: string
+          nome: string
+          profissional_id?: string | null
+          tipo: Database["public"]["Enums"]["tipo_feriado"]
+        }
+        Update: {
+          atualizado_em?: string
+          criado_em?: string
+          data_fim?: string
+          data_inicio?: string
+          id?: string
+          nome?: string
+          profissional_id?: string | null
+          tipo?: Database["public"]["Enums"]["tipo_feriado"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "feriados_profissional_id_fkey"
+            columns: ["profissional_id"]
+            isOneToOne: false
+            referencedRelation: "profissionais"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       jornadas: {
         Row: {
           atualizado_em: string
@@ -462,6 +503,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      atendimentos_ativos_no_periodo: {
+        Args: { p_fim: string; p_inicio: string }
+        Returns: string[]
+      }
       atendimentos_do_alcance: {
         Args: {
           p_alcance: Database["public"]["Enums"]["alcance_serie"]
@@ -492,6 +537,10 @@ export type Database = {
           p_id: string
           p_motivo: string
         }
+        Returns: number
+      }
+      desmarcar_periodo: {
+        Args: { p_fim: string; p_inicio: string; p_motivo: string }
         Returns: number
       }
       editar_atendimentos: {
@@ -531,6 +580,7 @@ export type Database = {
         | "atendido"
         | "faltou"
         | "desmarcado"
+      tipo_feriado: "feriado" | "recesso"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -670,6 +720,7 @@ export const Constants = {
         "faltou",
         "desmarcado",
       ],
+      tipo_feriado: ["feriado", "recesso"],
     },
   },
 } as const

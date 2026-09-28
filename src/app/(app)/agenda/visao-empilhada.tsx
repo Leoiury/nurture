@@ -6,6 +6,7 @@
 import Link from "next/link";
 import { useMemo } from "react";
 import type { AtendimentoAgenda, ProfissionalAgenda } from "@/lib/agenda/dados";
+import type { DiaEspecial } from "@/lib/agenda/feriados";
 import { alturaDoSegmento, montarSegmentos, posicaoY, type Segmento } from "@/lib/agenda/layout";
 import { formatarHora, nomeLongoDoDia } from "@/lib/agenda/tempo";
 import {
@@ -22,6 +23,7 @@ import {
   nomeAbreviado,
   type Posicionado,
 } from "./comum";
+import { EtiquetaDiaEspecial, FundoSemExpediente, fundoDoCabecalho } from "./dia-especial";
 
 type Modo = "semana" | "dia";
 
@@ -53,9 +55,11 @@ type Props = {
   alturaVisivel: number | null;
   /** Linhas e cards maiores, com escala fixa (ignora o ajuste para 08–18 caber na tela). */
   ampliada: boolean;
+  /** Feriados, pontos facultativos e recessos, por dia. */
+  especiais: Record<string, DiaEspecial[]>;
 };
 
-export function VisaoEmpilhada({ modo, dias, hoje, colunas, visiveis, porColuna, compactar, expandidos, aoExpandir, aoAbrir, sufixoUrl, alturaVisivel, ampliada }: Props) {
+export function VisaoEmpilhada({ modo, dias, hoje, colunas, visiveis, porColuna, compactar, expandidos, aoExpandir, aoAbrir, sufixoUrl, alturaVisivel, ampliada, especiais }: Props) {
   const px = ampliada
     ? PX_AMPLIADA
     : escalaParaCaber(alturaVisivel && alturaVisivel - ALTURA_CABECALHO_PROF - ALTURA_CABECALHO_DIA - 8, ESCALA);
@@ -103,6 +107,7 @@ export function VisaoEmpilhada({ modo, dias, hoje, colunas, visiveis, porColuna,
           aoAbrir={aoAbrir}
           sufixoUrl={sufixoUrl}
           ampliada={ampliada}
+          especiais={especiais[dia]}
         />
       ))}
     </div>
@@ -122,9 +127,10 @@ type DiaProps = {
   aoAbrir: (id: string) => void;
   sufixoUrl: string;
   ampliada: boolean;
+  especiais: DiaEspecial[] | undefined;
 };
 
-function Dia({ dia, ehHoje, modo, px, segmentos, colunas, porColuna, total, aoExpandir, aoAbrir, sufixoUrl, ampliada }: DiaProps) {
+function Dia({ dia, ehHoje, modo, px, segmentos, colunas, porColuna, total, aoExpandir, aoAbrir, sufixoUrl, ampliada, especiais }: DiaProps) {
   const altura = segmentos.reduce((soma, s) => soma + alturaDoSegmento(s, px), 0);
   const titulo = nomeLongoDoDia(dia);
 
@@ -132,9 +138,9 @@ function Dia({ dia, ehHoje, modo, px, segmentos, colunas, porColuna, total, aoEx
     <section aria-label={dia} className="snap-start border-b border-black/[0.06] last:border-b-0" style={{ scrollMarginTop: ALTURA_CABECALHO_PROF }}>
       <div
         className="sticky z-20 flex items-center border-b border-black/[0.04] bg-surface/95 backdrop-blur"
-        style={{ top: ALTURA_CABECALHO_PROF, height: ALTURA_CABECALHO_DIA }}
+        style={{ top: ALTURA_CABECALHO_PROF, height: ALTURA_CABECALHO_DIA, background: fundoDoCabecalho(especiais) }}
       >
-        <div className="sticky left-0 flex items-center gap-2 px-3">
+        <div className="sticky left-0 flex min-w-0 items-center gap-2 px-3">
           <span className={`size-2 rounded-full ${ehHoje ? "bg-accent" : "bg-black/15"}`} aria-hidden />
           {modo === "semana" ? (
             <Link href={`/agenda?dia=${dia}${sufixoUrl}`} className="text-[13px] font-semibold first-letter:uppercase hover:text-accent" title="Abrir só este dia">
@@ -144,6 +150,7 @@ function Dia({ dia, ehHoje, modo, px, segmentos, colunas, porColuna, total, aoEx
             <span className="text-[13px] font-semibold first-letter:uppercase">{titulo}</span>
           )}
           {ehHoje && <span className="rounded-full bg-accent px-1.5 py-px text-[10px] font-medium text-white">Hoje</span>}
+          <EtiquetaDiaEspecial dias={especiais} />
           <span className="text-xs text-muted">
             {total} atendimento{total === 1 ? "" : "s"}
           </span>
@@ -182,6 +189,7 @@ function Dia({ dia, ehHoje, modo, px, segmentos, colunas, porColuna, total, aoEx
         {/* Colunas dos profissionais */}
         <div className="relative flex-1">
           <LinhasDeFundo segmentos={segmentos} px={px} aoExpandir={aoExpandir} ampliada={ampliada} />
+          <FundoSemExpediente dias={especiais} />
           <div className="pointer-events-none absolute inset-0 flex">
             {colunas.map((p) => (
               <div key={p.id} className="relative min-w-0 flex-1 px-1">

@@ -74,3 +74,25 @@ export function datasDaSerie(inicio: string, frequencia: Frequencia, fim: FimDaS
   }
   return datas;
 }
+
+/**
+ * Datas da série pulando dias bloqueados (feriados e recessos). Com fim por número
+ * de sessões, a quantidade é mantida: as puladas são repostas no fim da série.
+ * `candidatas` devolve a lista ampliada usada para isso — útil para saber até
+ * que data consultar os feriados.
+ */
+export function candidatasDaSerie(inicio: string, frequencia: Frequencia, fim: FimDaSerie): string[] {
+  if (fim.tipo === "data") return datasDaSerie(inicio, frequencia, fim);
+  const folga = Math.min(fim.quantidade * 2 + 4, MAXIMO_DE_SESSOES);
+  return datasDaSerie(inicio, frequencia, { tipo: "sessoes", quantidade: folga });
+}
+
+export function datasSemBloqueios(
+  inicio: string,
+  frequencia: Frequencia,
+  fim: FimDaSerie,
+  bloqueado: (data: string) => boolean,
+): string[] {
+  const livres = candidatasDaSerie(inicio, frequencia, fim).filter((d) => !bloqueado(d));
+  return fim.tipo === "sessoes" ? livres.slice(0, Math.min(fim.quantidade, MAXIMO_DE_SESSOES)) : livres;
+}
