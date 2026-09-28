@@ -29,6 +29,17 @@ insert into profissionais (nome, especialidade, nome_legado) values
   ('Elisa Fontes', 'Psicóloga', null),
   ('Fábio Nunes', 'Estagiário de Fono', null);
 
+-- Quem atende cada tipo (o seed roda depois das migrations, que não viram estes dados).
+insert into tipos_atendimento_profissionais (tipo_id, profissional_id)
+select t.id, p.id
+from tipos_atendimento t
+join profissionais p on
+     (t.nome ~* 'psic' and p.especialidade ~* 'psic[óo]log')
+  or (t.nome ~* '\mABA\M' and p.especialidade ~* 'psic[óo]log')
+  or (t.nome ~* 'fono' and p.especialidade ~* 'fono|estagi')
+  or (t.nome ~* 'pedag' and p.especialidade ~* 'pedag|neuro')
+  or (t.nome ~* 'nutri' and p.especialidade ~* 'nutri');
+
 -- 48 pacientes com nomes inventados (combinação de listas) e plano variado.
 insert into pacientes (nome, responsavel, data_nascimento, celular, plano_id)
 select

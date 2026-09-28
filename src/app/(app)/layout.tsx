@@ -24,7 +24,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
           {/* Configurações são pouco usadas: só um ícone discreto. */}
           <Link
             href="/configuracoes/planos"
-            title="Configurações: planos, feriados e recessos"
+            title="Configurações: planos, tipos de atendimento, feriados e recessos"
             aria-label="Configurações"
             className="rounded-md p-1.5 text-muted/70 hover:bg-background hover:text-foreground"
           >
