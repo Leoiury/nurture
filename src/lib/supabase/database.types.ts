@@ -570,6 +570,15 @@ export type Database = {
         Args: { fim: string; inicio: string }
         Returns: string
       }
+      mover_atendimento: {
+        Args: {
+          p_de_profissional?: string
+          p_id: string
+          p_inicio: string
+          p_para_profissional?: string
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       alcance_serie: "este" | "seguintes" | "todos"

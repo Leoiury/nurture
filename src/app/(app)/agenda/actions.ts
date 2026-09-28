@@ -124,3 +124,30 @@ export async function editar(e: Edicao): Promise<Resultado> {
   });
   return concluir(error, data ?? 0);
 }
+
+export type Movimento = {
+  id: string;
+  data: string; // AAAA-MM-DD
+  hora: string; // HH:MM
+  /** Coluna de onde o card saiu e para onde foi (iguais: só muda o horário). */
+  deProfissional: string;
+  paraProfissional: string;
+};
+
+/** Arrastar o card: novo horário (mesma duração) e, se mudou de coluna, troca o profissional. */
+export async function mover(m: Movimento): Promise<Resultado> {
+  let inicio: string;
+  try {
+    inicio = instanteNoFuso(m.data, m.hora);
+  } catch {
+    return { ok: false, erro: "Horário inválido." };
+  }
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("mover_atendimento", {
+    p_id: m.id,
+    p_inicio: inicio,
+    p_de_profissional: m.deProfissional,
+    p_para_profissional: m.paraProfissional,
+  });
+  return concluir(error);
+}

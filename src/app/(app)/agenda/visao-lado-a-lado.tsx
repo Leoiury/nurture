@@ -21,6 +21,7 @@ import {
   nomeAbreviado,
   type Posicionado,
 } from "./comum";
+import { useArraste } from "./arraste";
 import { ColunaClicavel, type NovoNoHorario } from "./coluna-clicavel";
 import { EtiquetaDiaEspecial, FundoSemExpediente, fundoDoCabecalho } from "./dia-especial";
 
@@ -166,6 +167,7 @@ export function VisaoLadoALado({ dias, hoje, colunas, visiveis, porColuna, compa
                         atendimento={a}
                         top={posicaoY(a.inicio, segmentos, px)}
                         altura={posicaoY(a.fim, segmentos, px) - posicaoY(a.inicio, segmentos, px)}
+                        profissionalId={p.id}
                         aoAbrir={() => aoAbrir(a.id)}
                       />
                     ))}
@@ -184,10 +186,14 @@ type CardProps = {
   atendimento: Posicionado;
   top: number;
   altura: number;
+  /** Coluna em que este card está (de onde sai, se arrastado). */
+  profissionalId: string;
   aoAbrir: () => void;
 };
 
-function CardCompacto({ atendimento: a, top, altura, aoAbrir }: CardProps) {
+function CardCompacto({ atendimento: a, top, altura, profissionalId, aoAbrir }: CardProps) {
+  const { estado: arraste, iniciar, cliqueSuprimido } = useArraste();
+  const sendoArrastado = arraste?.ativo && arraste.atendimento.id === a.id;
   const cor = corDoPlano(a);
   const desmarcado = a.status === "desmarcado";
   const descricao = descricaoDoAtendimento(a);
@@ -195,15 +201,16 @@ function CardCompacto({ atendimento: a, top, altura, aoAbrir }: CardProps) {
   return (
     <button
       type="button"
+      onPointerDown={(e) => iniciar(e, a, profissionalId)}
       onClick={(e) => {
         e.stopPropagation(); // não abrir também o "novo atendimento" da coluna
-        aoAbrir();
+        if (!cliqueSuprimido()) aoAbrir(); // depois de arrastar, o clique não abre o card
       }}
       title={descricao}
       aria-label={descricao}
       data-atendimento={a.id}
       className={`pointer-events-auto absolute overflow-hidden rounded-md text-left text-foreground transition hover:z-10 hover:shadow-md focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-[var(--accent)] ${
-        desmarcado ? "opacity-50" : ""
+        desmarcado ? "opacity-50" : sendoArrastado ? "opacity-30" : ""
       } ${a.status === "faltou" ? "ring-2 ring-[var(--danger)]" : ""}`}
       style={{
         top: top + 1,

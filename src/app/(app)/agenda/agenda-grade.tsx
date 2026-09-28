@@ -3,10 +3,13 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { AtendimentoAgenda, ProfissionalAgenda } from "@/lib/agenda/dados";
-import type { DiaEspecial } from "@/lib/agenda/feriados";
+import { semExpediente, type DiaEspecial } from "@/lib/agenda/feriados";
 import type { Segmento } from "@/lib/agenda/layout";
+import { formatarHora, nomeCurtoDoDia } from "@/lib/agenda/tempo";
 import { sufixoDaVisao, type Visao } from "@/lib/agenda/visao";
-import { agruparPorColuna, useAlturaDoElemento, useModoFoco } from "./comum";
+import { mover } from "./actions";
+import { ProvedorDeArraste, type AlvoDoArraste } from "./arraste";
+import { agruparPorColuna, nomeAbreviado, useAlturaDoElemento, useModoFoco } from "./comum";
 import type { NovoNoHorario } from "./coluna-clicavel";
 import { MenuLateral } from "./menu-lateral";
 import { PainelAtendimento } from "./painel-atendimento";
@@ -45,14 +48,34 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
   const [criando, setCriando] = useState<boolean | NovoNoHorario>(false);
   const [editando, setEditando] = useState<DadosEdicao | null>(null);
   const [foco, setFoco] = useModoFoco();
+  const [aviso, setAviso] = useState<{ texto: string; desfazer?: () => void } | null>(null);
+
+  // Ajustes locais (arraste): a tela muda na hora, sem esperar o servidor. Quando
+  // chegam dados novos do servidor, os ajustes deixam de ser necessários.
+  const [ajustes, setAjustes] = useState<Record<string, Partial<AtendimentoAgenda>>>({});
+  const [dadosDoServidor, setDadosDoServidor] = useState(atendimentos);
+  if (dadosDoServidor !== atendimentos) {
+    setDadosDoServidor(atendimentos);
+    setAjustes({});
+  }
+  const atendimentosAtuais = useMemo(
+    () => (Object.keys(ajustes).length ? atendimentos.map((a) => (ajustes[a.id] ? { ...a, ...ajustes[a.id] } : a)) : atendimentos),
+    [atendimentos, ajustes],
+  );
+
+  useEffect(() => {
+    if (!aviso) return;
+    const t = setTimeout(() => setAviso(null), 8000);
+    return () => clearTimeout(t);
+  }, [aviso]);
   const quadro = useRef<HTMLDivElement>(null);
   const alturaVisivel = useAlturaDoElemento(quadro);
 
   const colunas = profissionais.filter((p) => !ocultos.has(p.id));
   const visiveis = useMemo(
     // Visível se ao menos um dos profissionais estiver visível (aparece só nas colunas visíveis).
-    () => atendimentos.filter((a) => a.profissionalIds.some((id) => !ocultos.has(id)) && (mostrarDesmarcados || a.status !== "desmarcado")),
-    [atendimentos, ocultos, mostrarDesmarcados],
+    () => atendimentosAtuais.filter((a) => a.profissionalIds.some((id) => !ocultos.has(id)) && (mostrarDesmarcados || a.status !== "desmarcado")),
+    [atendimentosAtuais, ocultos, mostrarDesmarcados],
   );
   const porColuna = useMemo(() => agruparPorColuna(visiveis), [visiveis]);
 
@@ -61,6 +84,49 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
     for (const a of atendimentos) if (a.plano) m.set(a.plano.nome, a.plano.cor);
     return [...m].sort(([a], [b]) => a.localeCompare(b));
   }, [atendimentos]);
+
+  const nomePorId = useMemo(() => new Map(profissionais.map((p) => [p.id, p.nome])), [profissionais]);
+
+  /** Card solto em outro horário/coluna: move na hora e oferece desfazer. */
+  async function soltar(a: AtendimentoAgenda, de: string, alvo: AlvoDoArraste) {
+    // Soltar na coluna de outro profissional do mesmo atendimento conjunto: só muda o horário.
+    const para = alvo.profissionalId !== de && a.profissionalIds.includes(alvo.profissionalId) ? de : alvo.profissionalId;
+    if (alvo.dia === a.data && alvo.minuto === a.inicio && para === de) return;
+
+    const duracao = a.fim - a.inicio;
+    const ids = para === de ? a.profissionalIds : [...a.profissionalIds.filter((id) => id !== de), para];
+    const original = { data: a.data, inicio: a.inicio, fim: a.fim, profissionalIds: a.profissionalIds, profissionalNomes: a.profissionalNomes };
+    const aplicar = (mudanca: Partial<AtendimentoAgenda>) => setAjustes((atual) => ({ ...atual, [a.id]: mudanca }));
+
+    aplicar({ data: alvo.dia, inicio: alvo.minuto, fim: alvo.minuto + duracao, profissionalIds: ids, profissionalNomes: ids.map((id) => nomePorId.get(id) ?? "") });
+    const r = await mover({ id: a.id, data: alvo.dia, hora: formatarHora(alvo.minuto), deProfissional: de, paraProfissional: para }).catch(() => ({
+      ok: false as const,
+      erro: "falha de conexão",
+    }));
+    if (!r.ok) {
+      aplicar(original);
+      setAviso({ texto: `Não foi possível mover: ${r.erro}` });
+      return;
+    }
+
+    const quando = `${nomeCurtoDoDia(alvo.dia)} ${alvo.dia.slice(8, 10)}/${alvo.dia.slice(5, 7)} ${formatarHora(alvo.minuto)}`;
+    const especial = especiais[alvo.dia];
+    setAviso({
+      texto:
+        `Movido para ${quando}` +
+        (para !== de ? ` · ${nomeAbreviado(nomePorId.get(para) ?? "")}` : "") +
+        (semExpediente(especial) ? ` (${especial![0].nome})` : ""),
+      desfazer: async () => {
+        aplicar(original);
+        setAviso(null);
+        const volta = await mover({ id: a.id, data: a.data, hora: formatarHora(a.inicio), deProfissional: para, paraProfissional: de }).catch(() => ({
+          ok: false as const,
+          erro: "falha de conexão",
+        }));
+        setAviso({ texto: volta.ok ? "Movimento desfeito." : `Não foi possível desfazer: ${volta.erro}` });
+      },
+    });
+  }
 
   function alternarProfissional(id: string) {
     setOcultos((atual) => {
@@ -95,6 +161,7 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
   const propsVisao = { dias, hoje, colunas, visiveis, porColuna, compactar, expandidos, aoExpandir: expandirSegmento, aoAbrir: setSelecionado, sufixoUrl, alturaVisivel, especiais, aoCriarEm: setCriando };
 
   return (
+    <ProvedorDeArraste aoSoltar={(a, de, alvo) => void soltar(a, de, alvo)}>
     <div className="flex min-h-0 flex-1 flex-col gap-3">
       {/* Barra: some no modo foco (via CSS, para valer já na primeira pintura). */}
       <div data-barra-agenda className="flex shrink-0 flex-wrap items-center gap-3">
@@ -254,7 +321,22 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
         />
       )}
       {editando && <PainelNovoAtendimento key={editando.id} edicao={editando} aoFechar={() => setEditando(null)} />}
+
+      {aviso && (
+        <div
+          role="status"
+          className="fixed bottom-5 left-1/2 z-40 flex -translate-x-1/2 items-center gap-4 rounded-full bg-foreground px-5 py-2.5 text-sm text-white shadow-lg"
+        >
+          {aviso.texto}
+          {aviso.desfazer && (
+            <button type="button" onClick={aviso.desfazer} className="font-semibold text-accent-soft underline-offset-2 hover:underline">
+              Desfazer
+            </button>
+          )}
+        </div>
+      )}
     </div>
+    </ProvedorDeArraste>
   );
 }
 

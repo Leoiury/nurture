@@ -5,9 +5,10 @@
 // mouse, uma prévia mostra onde o atendimento ficaria (encaixe de 15 min).
 // Clicar numa faixa compactada a expande.
 
-import { useState, type MouseEvent, type ReactNode } from "react";
+import { useEffect, useState, type MouseEvent, type ReactNode } from "react";
 import { encaixar, minutosNaPosicao, posicaoY, type Segmento } from "@/lib/agenda/layout";
 import { formatarHora } from "@/lib/agenda/tempo";
+import { useArraste } from "./arraste";
 
 export type NovoNoHorario = { data: string; hora: string; profissionalId: string };
 
@@ -28,6 +29,19 @@ const DURACAO_DA_PREVIA = 45;
 
 export function ColunaClicavel({ dia, profissionalId, segmentos, px, aoExpandir, aoCriar, compacta, className = "", children }: Props) {
   const [previa, setPrevia] = useState<number | null>(null);
+  const { estado: arraste, registrarColuna } = useArraste();
+  const chave = `${dia}|${profissionalId}`;
+
+  // Geometria da coluna, para o arraste converter a posição do ponteiro em horário.
+  useEffect(() => {
+    registrarColuna(chave, { segmentos, px });
+    return () => registrarColuna(chave, null);
+  }, [chave, segmentos, px, registrarColuna]);
+
+  // Destino do card sendo arrastado, se for esta coluna.
+  const destino =
+    arraste?.ativo && arraste.alvo?.dia === dia && arraste.alvo.profissionalId === profissionalId ? arraste.alvo.minuto : null;
+  const duracaoArrastada = arraste ? arraste.atendimento.fim - arraste.atendimento.inicio : 0;
 
   function posicao(e: MouseEvent<HTMLDivElement>) {
     // Sobre um card, quem responde é o card.
@@ -37,8 +51,10 @@ export function ColunaClicavel({ dia, profissionalId, segmentos, px, aoExpandir,
 
   return (
     <div
+      data-coluna={chave}
       className={`pointer-events-auto cursor-pointer ${className}`}
       onMouseMove={(e) => {
+        if (arraste?.ativo) return setPrevia(null);
         const p = posicao(e);
         const minuto = p && !p.segmento.compacto ? encaixar(p.minutos) : null;
         if (minuto !== previa) setPrevia(minuto);
@@ -51,7 +67,19 @@ export function ColunaClicavel({ dia, profissionalId, segmentos, px, aoExpandir,
         aoCriar({ data: dia, hora: formatarHora(encaixar(p.minutos)), profissionalId });
       }}
     >
-      {previa !== null && (
+      {destino !== null && arraste && (
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-x-1 z-20 overflow-hidden rounded-lg border-2 border-accent bg-accent-soft/90 px-2 pt-0.5 text-[11px] font-medium text-accent shadow-lg"
+          style={{
+            top: posicaoY(destino, segmentos, px) + 1,
+            height: Math.max(posicaoY(destino + duracaoArrastada, segmentos, px) - posicaoY(destino, segmentos, px) - 2, 12),
+          }}
+        >
+          {!compacta && `${formatarHora(destino)} · ${arraste.atendimento.paciente ?? ""}`}
+        </div>
+      )}
+      {previa !== null && !arraste?.ativo && (
         <div
           aria-hidden
           className={`pointer-events-none absolute inset-x-1 overflow-hidden rounded-lg border border-dashed border-accent/60 bg-accent-soft/60 text-accent ${

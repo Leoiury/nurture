@@ -23,6 +23,7 @@ import {
   nomeAbreviado,
   type Posicionado,
 } from "./comum";
+import { useArraste } from "./arraste";
 import { ColunaClicavel, type NovoNoHorario } from "./coluna-clicavel";
 import { EtiquetaDiaEspecial, FundoSemExpediente, fundoDoCabecalho } from "./dia-especial";
 
@@ -216,6 +217,7 @@ function Dia({ dia, ehHoje, modo, px, segmentos, colunas, porColuna, total, aoEx
                       top={posicaoY(a.inicio, segmentos, px)}
                       altura={posicaoY(a.fim, segmentos, px) - posicaoY(a.inicio, segmentos, px)}
                       ampliada={ampliada}
+                      profissionalId={p.id}
                       aoAbrir={() => aoAbrir(a.id)}
                     />
                   ))}
@@ -266,10 +268,14 @@ type CardProps = {
   top: number;
   altura: number;
   ampliada: boolean;
+  /** Coluna em que este card está (de onde sai, se arrastado). */
+  profissionalId: string;
   aoAbrir: () => void;
 };
 
-function Card({ atendimento: a, modo, top, altura, ampliada, aoAbrir }: CardProps) {
+function Card({ atendimento: a, modo, top, altura, ampliada, profissionalId, aoAbrir }: CardProps) {
+  const { estado: arraste, iniciar, cliqueSuprimido } = useArraste();
+  const sendoArrastado = arraste?.ativo && arraste.atendimento.id === a.id;
   const cor = corDoPlano(a);
   const desmarcado = a.status === "desmarcado";
   const descricao = descricaoDoAtendimento(a);
@@ -280,15 +286,16 @@ function Card({ atendimento: a, modo, top, altura, ampliada, aoAbrir }: CardProp
   return (
     <button
       type="button"
+      onPointerDown={(e) => iniciar(e, a, profissionalId)}
       onClick={(e) => {
         e.stopPropagation(); // não abrir também o "novo atendimento" da coluna
-        aoAbrir();
+        if (!cliqueSuprimido()) aoAbrir(); // depois de arrastar, o clique não abre o card
       }}
       title={descricao}
       aria-label={descricao}
       data-atendimento={a.id}
       className={`pointer-events-auto absolute overflow-hidden rounded-xl text-left text-foreground ring-1 ring-black/[0.04] transition hover:z-10 hover:-translate-y-px hover:shadow-md focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-[var(--accent)] ${
-        desmarcado ? "opacity-50" : ""
+        desmarcado ? "opacity-50" : sendoArrastado ? "opacity-30" : ""
       } ${a.status === "faltou" ? "ring-2 ring-[var(--danger)]" : ""}`}
       style={{
         top: top + 1.5,
