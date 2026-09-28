@@ -21,6 +21,7 @@ import {
   nomeAbreviado,
   type Posicionado,
 } from "./comum";
+import { ColunaClicavel, type NovoNoHorario } from "./coluna-clicavel";
 import { EtiquetaDiaEspecial, FundoSemExpediente, fundoDoCabecalho } from "./dia-especial";
 
 // A escala vertical se ajusta para o expediente (08–18) caber na altura visível.
@@ -48,9 +49,11 @@ type Props = {
   alturaVisivel: number | null;
   /** Feriados, pontos facultativos e recessos, por dia. */
   especiais: Record<string, DiaEspecial[]>;
+  /** Clique num horário vazio: novo atendimento já preenchido. */
+  aoCriarEm: (novo: NovoNoHorario) => void;
 };
 
-export function VisaoLadoALado({ dias, hoje, colunas, visiveis, porColuna, compactar, expandidos, aoExpandir, aoAbrir, sufixoUrl, alturaVisivel, especiais }: Props) {
+export function VisaoLadoALado({ dias, hoje, colunas, visiveis, porColuna, compactar, expandidos, aoExpandir, aoAbrir, sufixoUrl, alturaVisivel, especiais, aoCriarEm }: Props) {
   const px = escalaParaCaber(alturaVisivel && alturaVisivel - ALTURA_CABECALHO - 8, ESCALA);
   const segmentos = useMemo(
     () =>
@@ -146,7 +149,17 @@ export function VisaoLadoALado({ dias, hoje, colunas, visiveis, porColuna, compa
               </div>
               <div className="pointer-events-none absolute inset-0 flex px-0.5">
                 {colunas.map((p) => (
-                  <div key={p.id} className="relative min-w-0 flex-1 px-px">
+                  <ColunaClicavel
+                    key={p.id}
+                    dia={dia}
+                    profissionalId={p.id}
+                    segmentos={segmentos}
+                    px={px}
+                    aoExpandir={(s) => aoExpandir(ESCOPO, s)}
+                    aoCriar={aoCriarEm}
+                    compacta
+                    className="relative min-w-0 flex-1 px-px"
+                  >
                     {(porColuna.get(`${dia}|${p.id}`) ?? []).map((a) => (
                       <CardCompacto
                         key={a.id}
@@ -156,7 +169,7 @@ export function VisaoLadoALado({ dias, hoje, colunas, visiveis, porColuna, compa
                         aoAbrir={() => aoAbrir(a.id)}
                       />
                     ))}
-                  </div>
+                  </ColunaClicavel>
                 ))}
               </div>
             </div>
@@ -182,7 +195,10 @@ function CardCompacto({ atendimento: a, top, altura, aoAbrir }: CardProps) {
   return (
     <button
       type="button"
-      onClick={aoAbrir}
+      onClick={(e) => {
+        e.stopPropagation(); // não abrir também o "novo atendimento" da coluna
+        aoAbrir();
+      }}
       title={descricao}
       aria-label={descricao}
       data-atendimento={a.id}

@@ -114,7 +114,12 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
     let ativo = true;
     opcoesDoFormulario()
       .then((o) => {
-        if (ativo) setOpcoes(o);
+        if (!ativo) return;
+        setOpcoes(o);
+        // Aberto a partir de uma coluna (profissional já escolhido): sugere o tipo.
+        if (!edicao && inicial?.profissionalId) {
+          setTipoId((atual) => atual ?? tipoSugerido(o.profissionais.find((p) => p.id === inicial.profissionalId)?.especialidade ?? null, o.tipos));
+        }
       })
       .catch((e: Error) => {
         if (ativo) setErroCarga(e.message);
@@ -122,6 +127,8 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
     return () => {
       ativo = false;
     };
+    // Só na abertura: o painel é recriado (key) a cada novo horário/edição.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {

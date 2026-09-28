@@ -184,3 +184,29 @@ test("abre rolada até o dia de hoje", async ({ page }) => {
   // Logo abaixo do cabeçalho dos profissionais (40 px).
   expect(Math.abs(distancia - 40)).toBeLessThan(4);
 });
+
+test("clicar num horário vazio abre o formulário preenchido", async ({ page }) => {
+  await abrirAgenda(page);
+  const coluna = page.locator("section").first().locator(".cursor-pointer").first();
+  const primeiroProfissional = await page.locator(".sticky.top-0 > div[title]").first().getAttribute("title");
+  // Um ponto perto do topo da coluna (08:00–08:15), fora de qualquer card? Procura um espaço livre.
+  const caixa = (await coluna.boundingBox())!;
+  let aberto = false;
+  for (let y = 4; y < caixa.height && !aberto; y += 12) {
+    const alvo = await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.closest("button[data-atendimento], button") === null, {
+      x: caixa.x + caixa.width / 2,
+      y: caixa.y + y,
+    });
+    if (!alvo) continue;
+    await page.mouse.move(caixa.x + caixa.width / 2, caixa.y + y);
+    const previa = coluna.getByText(/^\+ \d\d:\d\d$/);
+    if (!(await previa.isVisible())) continue;
+    const hora = (await previa.innerText()).slice(2);
+    await page.mouse.click(caixa.x + caixa.width / 2, caixa.y + y);
+    const painel = page.getByRole("dialog", { name: "Novo atendimento" });
+    await expect(painel.getByLabel("Início")).toHaveValue(hora);
+    await expect(painel.getByRole("button", { name: /^Remover / })).toHaveAccessibleName(`Remover ${primeiroProfissional!.split(" · ")[0]}`);
+    aberto = true;
+  }
+  expect(aberto).toBe(true);
+});

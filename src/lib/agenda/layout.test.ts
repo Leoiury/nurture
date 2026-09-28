@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ALTURA_COMPACTA, distribuirEmFaixas, montarSegmentos, posicaoY } from "./layout";
+import { ALTURA_COMPACTA, distribuirEmFaixas, encaixar, minutosNaPosicao, montarSegmentos, posicaoY } from "./layout";
 
 const expediente = { inicioPadrao: 8 * 60, fimPadrao: 18 * 60, expandidos: new Set<number>() };
 const resumo = (segmentos: ReturnType<typeof montarSegmentos>) =>
@@ -83,5 +83,27 @@ describe("distribuirEmFaixas", () => {
       { faixa: 0, faixas: 1 },
       { faixa: 0, faixas: 1 },
     ]);
+  });
+});
+
+describe("minutosNaPosicao", () => {
+  const segmentos = montarSegmentos([{ inicio: 8 * 60, fim: 9 * 60 }, { inicio: 12 * 60, fim: 13 * 60 }], {
+    ...expediente,
+    fimPadrao: 13 * 60,
+    compactar: true,
+  });
+
+  it("é o inverso de posicaoY", () => {
+    expect(minutosNaPosicao(posicaoY(8 * 60 + 30, segmentos, 12), segmentos, 12)?.minutos).toBe(8 * 60 + 30);
+    expect(encaixar(minutosNaPosicao(30, segmentos, 12)!.minutos)).toBe(8 * 60 + 30); // 30 px = 37,5 min → 08:30
+  });
+
+  it("identifica a faixa compacta", () => {
+    expect(minutosNaPosicao(48 + 5, segmentos, 12)?.segmento.compacto).toBe(true);
+  });
+
+  it("fora da grade é null", () => {
+    expect(minutosNaPosicao(-1, segmentos, 12)).toBeNull();
+    expect(minutosNaPosicao(10_000, segmentos, 12)).toBeNull();
   });
 });

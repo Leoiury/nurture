@@ -23,6 +23,7 @@ import {
   nomeAbreviado,
   type Posicionado,
 } from "./comum";
+import { ColunaClicavel, type NovoNoHorario } from "./coluna-clicavel";
 import { EtiquetaDiaEspecial, FundoSemExpediente, fundoDoCabecalho } from "./dia-especial";
 
 type Modo = "semana" | "dia";
@@ -57,9 +58,11 @@ type Props = {
   ampliada: boolean;
   /** Feriados, pontos facultativos e recessos, por dia. */
   especiais: Record<string, DiaEspecial[]>;
+  /** Clique num horário vazio: novo atendimento já preenchido. */
+  aoCriarEm: (novo: NovoNoHorario) => void;
 };
 
-export function VisaoEmpilhada({ modo, dias, hoje, colunas, visiveis, porColuna, compactar, expandidos, aoExpandir, aoAbrir, sufixoUrl, alturaVisivel, ampliada, especiais }: Props) {
+export function VisaoEmpilhada({ modo, dias, hoje, colunas, visiveis, porColuna, compactar, expandidos, aoExpandir, aoAbrir, sufixoUrl, alturaVisivel, ampliada, especiais, aoCriarEm }: Props) {
   const px = ampliada
     ? PX_AMPLIADA
     : escalaParaCaber(alturaVisivel && alturaVisivel - ALTURA_CABECALHO_PROF - ALTURA_CABECALHO_DIA - 8, ESCALA);
@@ -108,6 +111,7 @@ export function VisaoEmpilhada({ modo, dias, hoje, colunas, visiveis, porColuna,
           sufixoUrl={sufixoUrl}
           ampliada={ampliada}
           especiais={especiais[dia]}
+          aoCriarEm={aoCriarEm}
         />
       ))}
     </div>
@@ -128,9 +132,10 @@ type DiaProps = {
   sufixoUrl: string;
   ampliada: boolean;
   especiais: DiaEspecial[] | undefined;
+  aoCriarEm: (novo: NovoNoHorario) => void;
 };
 
-function Dia({ dia, ehHoje, modo, px, segmentos, colunas, porColuna, total, aoExpandir, aoAbrir, sufixoUrl, ampliada, especiais }: DiaProps) {
+function Dia({ dia, ehHoje, modo, px, segmentos, colunas, porColuna, total, aoExpandir, aoAbrir, sufixoUrl, ampliada, especiais, aoCriarEm }: DiaProps) {
   const altura = segmentos.reduce((soma, s) => soma + alturaDoSegmento(s, px), 0);
   const titulo = nomeLongoDoDia(dia);
 
@@ -192,7 +197,16 @@ function Dia({ dia, ehHoje, modo, px, segmentos, colunas, porColuna, total, aoEx
           <FundoSemExpediente dias={especiais} />
           <div className="pointer-events-none absolute inset-0 flex">
             {colunas.map((p) => (
-              <div key={p.id} className="relative min-w-0 flex-1 px-1">
+              <ColunaClicavel
+                key={p.id}
+                dia={dia}
+                profissionalId={p.id}
+                segmentos={segmentos}
+                px={px}
+                aoExpandir={aoExpandir}
+                aoCriar={aoCriarEm}
+                className="relative min-w-0 flex-1 px-1"
+              >
                 <div className="relative h-full">
                   {(porColuna.get(`${dia}|${p.id}`) ?? []).map((a) => (
                     <Card
@@ -206,7 +220,7 @@ function Dia({ dia, ehHoje, modo, px, segmentos, colunas, porColuna, total, aoEx
                     />
                   ))}
                 </div>
-              </div>
+              </ColunaClicavel>
             ))}
           </div>
         </div>
@@ -266,7 +280,10 @@ function Card({ atendimento: a, modo, top, altura, ampliada, aoAbrir }: CardProp
   return (
     <button
       type="button"
-      onClick={aoAbrir}
+      onClick={(e) => {
+        e.stopPropagation(); // não abrir também o "novo atendimento" da coluna
+        aoAbrir();
+      }}
       title={descricao}
       aria-label={descricao}
       data-atendimento={a.id}

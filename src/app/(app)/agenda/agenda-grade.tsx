@@ -7,6 +7,7 @@ import type { DiaEspecial } from "@/lib/agenda/feriados";
 import type { Segmento } from "@/lib/agenda/layout";
 import { sufixoDaVisao, type Visao } from "@/lib/agenda/visao";
 import { agruparPorColuna, useAlturaDoElemento, useModoFoco } from "./comum";
+import type { NovoNoHorario } from "./coluna-clicavel";
 import { MenuLateral } from "./menu-lateral";
 import { PainelAtendimento } from "./painel-atendimento";
 import { PainelNovoAtendimento, type DadosEdicao } from "./painel-novo-atendimento";
@@ -40,7 +41,8 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
   const [expandidos, setExpandidos] = useState<Set<string>>(new Set());
   const [menuAberto, setMenuAberto] = useState(false);
   const [selecionado, setSelecionado] = useState<string | null>(null);
-  const [criando, setCriando] = useState(false);
+  // true: botão "+" (formulário vazio); objeto: clique num horário da grade (pré-preenchido).
+  const [criando, setCriando] = useState<boolean | NovoNoHorario>(false);
   const [editando, setEditando] = useState<DadosEdicao | null>(null);
   const [foco, setFoco] = useModoFoco();
   const quadro = useRef<HTMLDivElement>(null);
@@ -90,7 +92,7 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const propsVisao = { dias, hoje, colunas, visiveis, porColuna, compactar, expandidos, aoExpandir: expandirSegmento, aoAbrir: setSelecionado, sufixoUrl, alturaVisivel, especiais };
+  const propsVisao = { dias, hoje, colunas, visiveis, porColuna, compactar, expandidos, aoExpandir: expandirSegmento, aoAbrir: setSelecionado, sufixoUrl, alturaVisivel, especiais, aoCriarEm: setCriando };
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3">
@@ -244,7 +246,13 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
           }}
         />
       )}
-      {criando && <PainelNovoAtendimento aoFechar={() => setCriando(false)} />}
+      {criando && (
+        <PainelNovoAtendimento
+          key={typeof criando === "object" ? `${criando.data}${criando.hora}${criando.profissionalId}` : "novo"}
+          inicial={typeof criando === "object" ? criando : undefined}
+          aoFechar={() => setCriando(false)}
+        />
+      )}
       {editando && <PainelNovoAtendimento key={editando.id} edicao={editando} aoFechar={() => setEditando(null)} />}
     </div>
   );

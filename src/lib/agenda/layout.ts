@@ -84,3 +84,24 @@ export function distribuirEmFaixas(itens: Intervalo[]): Faixa[] {
   fecharGrupo();
   return resultado;
 }
+
+/**
+ * Inverso de posicaoY: o horário (minutos desde 00:00) numa posição vertical da
+ * grade, e o segmento em que ela cai. Fora da grade, null.
+ */
+export function minutosNaPosicao(y: number, segmentos: Segmento[], pxPorQuarto: number): { minutos: number; segmento: Segmento } | null {
+  let topo = 0;
+  for (const s of segmentos) {
+    const altura = alturaDoSegmento(s, pxPorQuarto);
+    if (y >= topo && y < topo + altura) {
+      return { minutos: s.inicio + ((y - topo) / altura) * (s.fim - s.inicio), segmento: s };
+    }
+    topo += altura;
+  }
+  return null;
+}
+
+/** Arredonda para baixo no múltiplo de `passo` minutos (padrão: 15). */
+export function encaixar(minutos: number, passo = 15): number {
+  return Math.floor(minutos / passo) * passo;
+}

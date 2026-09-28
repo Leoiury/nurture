@@ -58,6 +58,9 @@ export async function criarAtendimento(page: Page, opcoes: { nome: string; dia: 
 
 /** Abre o painel de detalhes do atendimento do paciente. */
 export async function abrirAtendimento(page: Page, nome: string) {
-  await cardDoPaciente(page, nome).click();
+  // Aciona o card diretamente: no banco local, execuções anteriores deixam
+  // atendimentos de teste no mesmo horário, e outro card pode ficar por cima
+  // (em cascata, como deve). O clique continua passando pelo onClick real.
+  await cardDoPaciente(page, nome).dispatchEvent("click");
   await expect(painelDetalhes(page).getByRole("heading", { name: nome })).toBeVisible();
 }
