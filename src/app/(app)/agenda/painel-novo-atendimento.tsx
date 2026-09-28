@@ -17,6 +17,7 @@ import {
 } from "@/lib/agenda/recorrencia";
 import { hoje as dataDeHoje, nomeCurtoDoDia, partesNoFuso } from "@/lib/agenda/tempo";
 import { lerValor } from "@/lib/agenda/valores";
+import { paraBusca } from "@/lib/pacientes";
 import { editar, type Alcance } from "./actions";
 import {
   buscarHorariosLivres,
@@ -197,9 +198,9 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
   const paciente = opcoes?.pacientes.find((p) => p.id === pacienteId) ?? null;
   const sugestoes = useMemo(() => {
     if (!opcoes || paciente) return [];
-    const termo = busca.trim().toLowerCase();
+    const termo = paraBusca(busca);
     if (termo.length < 2) return [];
-    return opcoes.pacientes.filter((p) => p.nome.toLowerCase().includes(termo)).slice(0, 8);
+    return opcoes.pacientes.filter((p) => paraBusca(p.nome).includes(termo)).slice(0, 8);
   }, [opcoes, paciente, busca]);
 
   function escolherPlano(id: string | null) {
