@@ -312,8 +312,10 @@ export type Database = {
           endereco: string | null
           id: string
           id_legado: number | null
+          nivel_cadastral: Database["public"]["Enums"]["nivel_cadastral"]
           nome: string
           observacoes: string | null
+          pendencias_cadastrais: string[]
           plano_id: string | null
           profissional_responsavel_id: string | null
           responsavel: string | null
@@ -333,8 +335,10 @@ export type Database = {
           endereco?: string | null
           id?: string
           id_legado?: number | null
+          nivel_cadastral?: Database["public"]["Enums"]["nivel_cadastral"]
           nome: string
           observacoes?: string | null
+          pendencias_cadastrais?: string[]
           plano_id?: string | null
           profissional_responsavel_id?: string | null
           responsavel?: string | null
@@ -354,8 +358,10 @@ export type Database = {
           endereco?: string | null
           id?: string
           id_legado?: number | null
+          nivel_cadastral?: Database["public"]["Enums"]["nivel_cadastral"]
           nome?: string
           observacoes?: string | null
+          pendencias_cadastrais?: string[]
           plano_id?: string | null
           profissional_responsavel_id?: string | null
           responsavel?: string | null
@@ -448,32 +454,41 @@ export type Database = {
         Row: {
           ativo: boolean
           atualizado_em: string
+          celular: string | null
           cor: string | null
           criado_em: string
+          email: string | null
           especialidade: string | null
           id: string
           nome: string
           nome_legado: string | null
+          registro: string | null
         }
         Insert: {
           ativo?: boolean
           atualizado_em?: string
+          celular?: string | null
           cor?: string | null
           criado_em?: string
+          email?: string | null
           especialidade?: string | null
           id?: string
           nome: string
           nome_legado?: string | null
+          registro?: string | null
         }
         Update: {
           ativo?: boolean
           atualizado_em?: string
+          celular?: string | null
           cor?: string | null
           criado_em?: string
+          email?: string | null
           especialidade?: string | null
           id?: string
           nome?: string
           nome_legado?: string | null
+          registro?: string | null
         }
         Relationships: []
       }
@@ -655,6 +670,7 @@ export type Database = {
     Enums: {
       alcance_serie: "este" | "seguintes" | "todos"
       frequencia_recorrencia: "semanal" | "quinzenal" | "mensal"
+      nivel_cadastral: "completo" | "falta_informacao" | "critico"
       status_atendimento:
         | "marcado"
         | "confirmado"
@@ -794,6 +810,7 @@ export const Constants = {
     Enums: {
       alcance_serie: ["este", "seguintes", "todos"],
       frequencia_recorrencia: ["semanal", "quinzenal", "mensal"],
+      nivel_cadastral: ["completo", "falta_informacao", "critico"],
       status_atendimento: [
         "marcado",
         "confirmado",

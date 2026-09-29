@@ -15,7 +15,9 @@ export default async function PacientePage({ params }: PageProps<"/pacientes/[id
   const [paciente, atendimentos, planos] = await Promise.all([
     supabase
       .from("pacientes")
-      .select("id, nome, responsavel, data_nascimento, cpf, celular, email, endereco, bairro, cidade, uf, cep, plano_id, ativo, plano:planos(nome, cor)")
+      .select(
+        "id, nome, responsavel, data_nascimento, cpf, celular, email, endereco, bairro, cidade, uf, cep, plano_id, ativo, nivel_cadastral, pendencias_cadastrais, plano:planos(nome, cor)",
+      )
       .eq("id", id)
       .maybeSingle(),
     supabase

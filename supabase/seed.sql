@@ -52,6 +52,19 @@ select
   (select id from planos order by nome offset (g % 6) limit 1)
 from generate_series(1, 48) as g;
 
+-- Cadastros variados (nível cadastral): 1 em cada 3 completo, 1 em 3 sem e-mail;
+-- o resto sem CPF, e-mail e endereço (crítico).
+update pacientes p
+   set cpf = case when n % 3 in (0, 1) then lpad((10000000000 + n)::text, 11, '0') end,
+       email = case when n % 3 = 0 then 'familia' || n || '@exemplo.com' end,
+       endereco = case when n % 3 in (0, 1) then 'Rua das Flores, ' || n end,
+       bairro = case when n % 3 in (0, 1) then 'Centro' end,
+       cidade = case when n % 3 in (0, 1) then 'Videira' end,
+       uf = case when n % 3 in (0, 1) then 'SC' end,
+       cep = case when n % 3 in (0, 1) then '89560-000' end
+  from (select id, row_number() over (order by nome) as n from pacientes) o
+ where o.id = p.id;
+
 -- Agenda: para cada profissional e dia útil, horários a cada 45 min (manhã e
 -- tarde, sem o almoço). Cerca de 60% dos horários ficam ocupados. Gerada numa
 -- tabela temporária e depois gravada em atendimentos + atendimento_profissionais.
