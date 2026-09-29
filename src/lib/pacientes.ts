@@ -28,3 +28,20 @@ export function formatarCpf(cpf: string): string {
   const d = cpf.replace(/\D/g, "");
   return d.length === 11 ? `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}` : cpf;
 }
+
+/** Nível do cadastro (calculado no banco a partir do que falta preencher). */
+export type NivelCadastral = "completo" | "falta_informacao" | "critico";
+
+export const NIVEIS_CADASTRAIS: {
+  valor: NivelCadastral;
+  rotulo: string;
+  descricao: string;
+  /** Classes: ponto/barra, fundo da linha e selo. */
+  cor: { marca: string; fundo: string; selo: string };
+}[] = [
+  { valor: "completo", rotulo: "Completo", descricao: "Nada faltando", cor: { marca: "bg-emerald-500", fundo: "bg-emerald-50", selo: "bg-emerald-100 text-emerald-800" } },
+  { valor: "falta_informacao", rotulo: "Falta informação", descricao: "Faltam 1 ou 2 itens", cor: { marca: "bg-amber-400", fundo: "bg-amber-50", selo: "bg-amber-100 text-amber-900" } },
+  { valor: "critico", rotulo: "Crítico", descricao: "Faltam 3 ou mais itens", cor: { marca: "bg-red-500", fundo: "bg-red-50", selo: "bg-red-100 text-red-800" } },
+];
+
+export const nivelCadastral = (valor: NivelCadastral) => NIVEIS_CADASTRAIS.find((n) => n.valor === valor)!;

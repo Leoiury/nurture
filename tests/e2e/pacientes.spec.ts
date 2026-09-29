@@ -71,3 +71,53 @@ test("lista de pacientes: cadastro rápido, edição da ficha e busca sem acento
   await page.getByLabel("Buscar paciente").fill(`Maria ${sufixo}`);
   await expect(resultado).toHaveCount(1);
 });
+
+test("visão Cadastro: cores por nível, filtro e nível atualizado ao completar o cadastro", async ({ page }) => {
+  const nome = `Cadastro Teste ${Date.now()}`;
+  await page.goto("/pacientes?visao=cadastro");
+  const niveis = page.getByRole("radiogroup", { name: "Nível do cadastro" });
+  const lista = page.getByRole("list", { name: "Pacientes por nível do cadastro" });
+  await expect(lista.locator('[data-nivel="completo"]').first()).toBeVisible();
+
+  for (const [rotulo, nivel] of [
+    ["Crítico", "critico"],
+    ["Completo", "completo"],
+  ] as const) {
+    await niveis.getByRole("radio", { name: new RegExp(`^${rotulo}`) }).click();
+    await expect(lista.locator("li").first()).toHaveAttribute("data-nivel", nivel);
+    expect(await lista.locator(`li:not([data-nivel="${nivel}"])`).count()).toBe(0);
+  }
+
+  // Paciente novo só com o nome: crítico, com tudo o que falta listado.
+  await page.getByRole("button", { name: "Novo paciente" }).click();
+  await page.getByLabel("Nome do novo paciente").fill(nome);
+  await page.getByRole("button", { name: "Cadastrar e abrir ficha" }).click();
+  const info = page.getByRole("region", { name: "Informações do paciente" });
+  await expect(info).toContainText("Cadastro: crítico");
+  await expect(info).toContainText("Falta: responsável, nascimento, CPF, celular, endereço, plano");
+
+  // Preenchendo tudo, fica completo.
+  await page.getByRole("button", { name: "Editar", exact: true }).click();
+  const edicao = page.getByRole("dialog", { name: "Editar paciente" });
+  const campos: [string, string][] = [
+    ["Responsável", "Maria Teste"],
+    ["Nascimento", "2018-05-10"],
+    ["CPF", "12345678901"],
+    ["Celular", "(49) 99999-0000"],
+    ["E-mail", "familia@exemplo.com"],
+    ["Endereço", "Rua A, 10"],
+    ["Bairro", "Centro"],
+    ["Cidade", "Videira"],
+    ["UF", "SC"],
+    ["CEP", "89560-000"],
+  ];
+  for (const [rotulo, valor] of campos) await edicao.getByLabel(rotulo, { exact: true }).fill(valor);
+  await edicao.getByLabel("Plano").selectOption({ label: "Unimed" });
+  await edicao.getByRole("button", { name: "Salvar" }).click();
+  await expect(edicao).toBeHidden();
+  await expect(info).toContainText("Cadastro: completo");
+
+  await page.goto("/pacientes?visao=cadastro");
+  await page.getByLabel("Buscar paciente").fill(nome);
+  await expect(lista.locator("li")).toHaveAttribute("data-nivel", "completo");
+});

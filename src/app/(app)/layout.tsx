@@ -12,9 +12,10 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
   return (
     // Altura fixa da janela: as páginas ocupam o espaço restante (a agenda se ajusta a ele).
     <div className="flex h-dvh flex-col">
-      <header data-cabecalho-app className="flex shrink-0 items-center justify-between gap-4 border-b border-border bg-surface px-4 py-2 sm:px-6">
-        <div className="flex items-center gap-6">
-          <Link href="/agenda" className="text-lg font-semibold tracking-tight">
+      <header data-cabecalho-app className="flex shrink-0 items-center justify-between gap-3 border-b border-border bg-surface px-4 py-2 sm:gap-4 sm:px-6">
+        <div className="flex min-w-0 items-center gap-3 sm:gap-6">
+          {/* No celular, o nome some para o menu caber ("Agenda" leva ao mesmo lugar). */}
+          <Link href="/agenda" className="hidden text-lg font-semibold tracking-tight sm:inline">
             Nurture
           </Link>
           <NavPrincipal />

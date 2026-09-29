@@ -3,7 +3,7 @@
 // Informações e plano do paciente, com edição num painel lateral.
 
 import { useEffect, useState, type ReactNode } from "react";
-import { formatarCpf, idade } from "@/lib/pacientes";
+import { formatarCpf, idade, nivelCadastral, type NivelCadastral } from "@/lib/pacientes";
 import { atualizarPaciente, type DadosDoPaciente } from "../actions";
 
 type Paciente = {
@@ -21,6 +21,8 @@ type Paciente = {
   cep: string | null;
   plano_id: string | null;
   ativo: boolean;
+  nivel_cadastral: NivelCadastral;
+  pendencias_cadastrais: string[];
   plano: { nome: string; cor: string } | null;
 };
 
@@ -53,7 +55,16 @@ export function FichaDoPaciente({ paciente: p, planos }: { paciente: Paciente; p
 
       <div className="grid gap-4 md:grid-cols-[2fr_1fr]">
         <section className="rounded-3xl bg-surface p-5 shadow-sm ring-1 ring-black/5" aria-label="Informações do paciente">
-          <h2 className="mb-3 font-semibold">Informações</h2>
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <h2 className="font-semibold">Informações</h2>
+            <span
+              className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${nivelCadastral(p.nivel_cadastral).cor.selo}`}
+              title={p.pendencias_cadastrais.length ? `Falta: ${p.pendencias_cadastrais.join(", ")}` : undefined}
+            >
+              Cadastro: {nivelCadastral(p.nivel_cadastral).rotulo.toLowerCase()}
+            </span>
+            {p.pendencias_cadastrais.length > 0 && <span className="text-xs text-muted">Falta: {p.pendencias_cadastrais.join(", ")}</span>}
+          </div>
           <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-sm">
             <Item rotulo="Responsável">{p.responsavel}</Item>
             <Item rotulo="Celular">
