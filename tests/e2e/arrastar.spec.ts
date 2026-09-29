@@ -24,10 +24,22 @@ test("arrastar o card muda horário e profissional, e dá para desfazer", async 
   // Arrasta ~1h para baixo e uma coluna para a direita.
   const x0 = caixa.x + 10;
   const y0 = caixa.y + 6;
-  await page.mouse.move(x0, y0);
-  await page.mouse.down();
-  for (let i = 1; i <= 10; i++) await page.mouse.move(x0 + (larguraColuna * i) / 10, y0 + (umaHora * i) / 10);
-  await page.mouse.up();
+  const arrastar = async () => {
+    await page.mouse.move(x0, y0);
+    await page.mouse.down();
+    for (let i = 1; i <= 10; i++) await page.mouse.move(x0 + (larguraColuna * i) / 10, y0 + (umaHora * i) / 10);
+    await page.mouse.up();
+  };
+
+  // Sem Shift/Ctrl: não move, não abre o card, só explica.
+  await arrastar();
+  await expect(page.getByRole("status")).toContainText("segure Shift ou Ctrl enquanto arrasta");
+  await expect(card).toHaveAttribute("aria-label", rotuloOriginal);
+  await expect(page.getByRole("dialog", { name: "Detalhes do atendimento" })).toHaveCount(0);
+
+  await page.keyboard.down("Shift");
+  await arrastar();
+  await page.keyboard.up("Shift");
 
   const aviso = page.getByRole("status").filter({ hasText: "Movido para" });
   await expect(aviso).toBeVisible();

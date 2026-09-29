@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { horarioLivre } from "./ajudantes";
 
 // Rodam contra o seed fictício (supabase/seed.sql), que preenche a semana atual.
 
@@ -185,28 +186,20 @@ test("abre rolada até o dia de hoje", async ({ page }) => {
   expect(Math.abs(distancia - 40)).toBeLessThan(4);
 });
 
-test("clicar num horário vazio abre o formulário preenchido", async ({ page }) => {
+test("Shift + clique num horário vazio abre o formulário preenchido", async ({ page }) => {
   await abrirAgenda(page);
-  const coluna = page.locator("section").first().locator(".cursor-pointer").first();
   const primeiroProfissional = await page.locator(".sticky.top-0 > div[title]").first().getAttribute("title");
-  // Um ponto perto do topo da coluna (08:00–08:15), fora de qualquer card? Procura um espaço livre.
-  const caixa = (await coluna.boundingBox())!;
-  let aberto = false;
-  for (let y = 4; y < caixa.height && !aberto; y += 12) {
-    const alvo = await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.closest("button[data-atendimento], button") === null, {
-      x: caixa.x + caixa.width / 2,
-      y: caixa.y + y,
-    });
-    if (!alvo) continue;
-    await page.mouse.move(caixa.x + caixa.width / 2, caixa.y + y);
-    const previa = coluna.getByText(/^\+ \d\d:\d\d$/);
-    if (!(await previa.isVisible())) continue;
-    const hora = (await previa.innerText()).slice(2);
-    await page.mouse.click(caixa.x + caixa.width / 2, caixa.y + y);
-    const painel = page.getByRole("dialog", { name: "Novo atendimento" });
-    await expect(painel.getByLabel("Início")).toHaveValue(hora);
-    await expect(painel.getByRole("button", { name: /^Remover / })).toHaveAccessibleName(`Remover ${primeiroProfissional!.split(" · ")[0]}`);
-    aberto = true;
-  }
-  expect(aberto).toBe(true);
+  const { x, y, hora } = await horarioLivre(page);
+
+  // Sem a tecla: só uma dica, nada é aberto.
+  await page.mouse.click(x, y);
+  await expect(page.getByRole("status")).toContainText("segure Shift ou Ctrl");
+  await expect(page.getByRole("dialog", { name: "Novo atendimento" })).toHaveCount(0);
+
+  await page.keyboard.down("Shift");
+  await page.mouse.click(x, y);
+  await page.keyboard.up("Shift");
+  const painel = page.getByRole("dialog", { name: "Novo atendimento" });
+  await expect(painel.getByLabel("Início")).toHaveValue(hora);
+  await expect(painel.getByRole("button", { name: /^Remover / })).toHaveAccessibleName(`Remover ${primeiroProfissional!.split(" · ")[0]}`);
 });
