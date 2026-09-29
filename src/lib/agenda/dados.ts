@@ -27,6 +27,11 @@ export type AtendimentoAgenda = {
   plano: { nome: string; cor: string } | null;
   tipo: string | null;
   recorrenciaId: string | null;
+  pacienteId: string | null;
+  /** Veio da importação do sistema anterior (tem id_legado). */
+  importado: boolean;
+  /** Divergência com um atendimento do outro sistema (texto para o card). */
+  divergencia?: string;
   /** Só no planejamento: como o atendimento difere da agenda real. */
   rascunho?: "novo" | "alterado" | "desmarcado";
 };
@@ -62,7 +67,7 @@ export async function carregarDiasEspeciais(primeiroDia: string, ultimoDia: stri
 }
 
 const SELECAO_DA_AGENDA =
-  "id, inicio, fim, status, recorrencia_id, profissionais:atendimento_profissionais(profissional:profissionais(id, nome)), paciente:pacientes(nome), plano:planos(nome, cor), tipo:tipos_atendimento(nome)";
+  "id, id_legado, paciente_id, inicio, fim, status, recorrencia_id, profissionais:atendimento_profissionais(profissional:profissionais(id, nome)), paciente:pacientes(nome), plano:planos(nome, cor), tipo:tipos_atendimento(nome)";
 
 type LinhaDaAgenda = {
   id: string;
@@ -70,6 +75,8 @@ type LinhaDaAgenda = {
   fim: string;
   status: Status;
   recorrencia_id: string | null;
+  id_legado: number | null;
+  paciente_id: string | null;
   profissionais: { profissional: { id: string; nome: string } }[];
   paciente: { nome: string } | null;
   plano: { nome: string; cor: string } | null;
@@ -92,6 +99,8 @@ function paraAgenda(a: LinhaDaAgenda): AtendimentoAgenda {
     plano: a.plano,
     tipo: a.tipo?.nome ?? null,
     recorrenciaId: a.recorrencia_id,
+    pacienteId: a.paciente_id,
+    importado: a.id_legado !== null,
   };
 }
 

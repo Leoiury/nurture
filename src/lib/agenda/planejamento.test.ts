@@ -22,6 +22,8 @@ function atendimento(id: string, data: string, inicio: string, extra: Partial<At
     plano: null,
     tipo: null,
     recorrenciaId: null,
+    pacienteId: `p-${id}`,
+    importado: false,
     ...extra,
   };
 }

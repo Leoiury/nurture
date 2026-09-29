@@ -3,6 +3,7 @@
 // Visão lado a lado: a semana inteira numa tela. Cada dia é um bloco horizontal
 // com uma subcoluna por profissional; o eixo de horários é comum a todos os dias.
 
+import type { Divergencia } from "@/lib/agenda/divergencias";
 import Link from "next/link";
 import { useMemo } from "react";
 import type { AtendimentoAgenda, ProfissionalAgenda } from "@/lib/agenda/dados";
@@ -53,9 +54,11 @@ type Props = {
   especiais: Record<string, DiaEspecial[]>;
   /** Clique num horário vazio: novo atendimento já preenchido. */
   aoCriarEm: (novo: NovoNoHorario) => void;
+  /** Divergências (importado × app) por coluna "dia|profissional". */
+  divergencias: Map<string, Divergencia[]>;
 };
 
-export function VisaoLadoALado({ dias, hoje, colunas, visiveis, porColuna, compactar, expandidos, aoExpandir, aoAbrir, sufixoUrl, alturaVisivel, especiais, aoCriarEm }: Props) {
+export function VisaoLadoALado({ dias, hoje, colunas, visiveis, porColuna, compactar, expandidos, aoExpandir, aoAbrir, sufixoUrl, alturaVisivel, especiais, aoCriarEm, divergencias }: Props) {
   const px = escalaParaCaber(alturaVisivel && alturaVisivel - ALTURA_CABECALHO - 8, ESCALA);
   const segmentos = useMemo(
     () =>
@@ -159,6 +162,7 @@ export function VisaoLadoALado({ dias, hoje, colunas, visiveis, porColuna, compa
                     px={px}
                     aoExpandir={(s) => aoExpandir(ESCOPO, s)}
                     aoCriar={aoCriarEm}
+                    divergencias={divergencias.get(`${dia}|${p.id}`)}
                     compacta
                     className="relative min-w-0 flex-1 px-px"
                   >
@@ -207,8 +211,9 @@ function CardCompacto({ atendimento: a, top, altura, profissionalId, aoAbrir }: 
         e.stopPropagation(); // não abrir também o "novo atendimento" da coluna
         if (!cliqueSuprimido()) aoAbrir(); // depois de arrastar, o clique não abre o card
       }}
-      title={descricao}
-      aria-label={descricao}
+      title={a.divergencia ? `${descricao} · ${a.divergencia}` : descricao}
+      aria-label={a.divergencia ? `${descricao} · ${a.divergencia}` : descricao}
+      data-divergencia={a.divergencia ? "" : undefined}
       data-atendimento={a.id}
       className={`pointer-events-auto absolute overflow-hidden rounded-md text-left text-foreground transition hover:z-10 hover:shadow-md focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-[var(--accent)] ${
         desmarcado ? "opacity-50" : sendoArrastado ? "opacity-30" : ""
@@ -222,6 +227,7 @@ function CardCompacto({ atendimento: a, top, altura, profissionalId, aoAbrir }: 
         boxShadow: `inset 3px 0 0 ${cor}`,
       }}
     >
+      {a.divergencia && <span className="absolute right-0.5 bottom-0.5 size-1.5 rounded-full bg-red-600" aria-hidden />}
       <span className={`block truncate pt-0.5 pr-0.5 pl-[6px] text-[11px] leading-tight font-medium ${desmarcado ? "line-through" : ""}`}>
         {a.paciente?.split(" ")[0] ?? "—"}
       </span>

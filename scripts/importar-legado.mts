@@ -1,5 +1,9 @@
 // Importa os dados do sistema anterior (relatórios .xlsx em dados/) para o Supabase.
 //
+// ATENÇÃO: usado na carga inicial. Para a agenda, use a tela Configurações →
+// Importar agenda: ela respeita os atendimentos modificados no app, e este script
+// os sobrescreveria.
+//
 // Uso:  npm run importar:legado            (grava no banco)
 //       npm run importar:legado -- --dry   (só mostra o que seria importado)
 //

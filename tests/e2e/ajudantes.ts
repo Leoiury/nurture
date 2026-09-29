@@ -10,7 +10,9 @@ export function diaDaSemanaAtual(indice: number): string {
 
 export const painelNovo = (page: Page) => page.getByRole("dialog", { name: "Novo atendimento" });
 export const painelDetalhes = (page: Page) => page.getByRole("dialog", { name: "Detalhes do atendimento" });
-export const cardDoPaciente = (page: Page, nome: string) => page.locator(`section button[aria-label*="${nome}"]`);
+// O paciente vem logo depois do horário ("09:00 – 09:45 · Nome · ..."): o texto de
+// divergência de outro card pode citar o mesmo nome, mas não nessa posição.
+export const cardDoPaciente = (page: Page, nome: string) => page.locator(`section button[aria-label*=" · ${nome} · "]`);
 
 export async function abrirAgenda(page: Page) {
   await page.goto("/agenda");

@@ -73,6 +73,7 @@ export type Database = {
           fim: string
           id: string
           id_legado: number | null
+          importado_em: string | null
           inicio: string
           motivo_desmarcacao: string | null
           motivo_exclusao: string | null
@@ -92,6 +93,7 @@ export type Database = {
           fim: string
           id?: string
           id_legado?: number | null
+          importado_em?: string | null
           inicio: string
           motivo_desmarcacao?: string | null
           motivo_exclusao?: string | null
@@ -111,6 +113,7 @@ export type Database = {
           fim?: string
           id?: string
           id_legado?: number | null
+          importado_em?: string | null
           inicio?: string
           motivo_desmarcacao?: string | null
           motivo_exclusao?: string | null
@@ -214,6 +217,32 @@ export type Database = {
             columns: ["atendimento_id"]
             isOneToOne: false
             referencedRelation: "atendimentos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      convenios_legado: {
+        Row: {
+          criado_em: string
+          nome: string
+          plano_id: string | null
+        }
+        Insert: {
+          criado_em?: string
+          nome: string
+          plano_id?: string | null
+        }
+        Update: {
+          criado_em?: string
+          nome?: string
+          plano_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "convenios_legado_plano_id_fkey"
+            columns: ["plano_id"]
+            isOneToOne: false
+            referencedRelation: "planos"
             referencedColumns: ["id"]
           },
         ]
@@ -656,6 +685,14 @@ export type Database = {
       formatar_periodo: {
         Args: { fim: string; inicio: string }
         Returns: string
+      }
+      importar_agenda_legado: {
+        Args: { p_linhas: Json; p_simular?: boolean }
+        Returns: Json
+      }
+      modificado_no_app: {
+        Args: { p_id: string; p_importado_em: string }
+        Returns: boolean
       }
       mover_atendimento: {
         Args: {
