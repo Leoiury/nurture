@@ -282,7 +282,7 @@ export async function buscarHorariosLivres(b: BuscaDeHorarios): Promise<{ sugest
     ocupacaoDoPaciente,
     agora: { data: agora.data, minutos: agora.minutos },
     // Com vários profissionais alternativos, menos por profissional para caber na tela.
-    limitePorDia: grupos.length > 1 ? 3 : 8,
+    limitePorPeriodo: grupos.length > 1 ? 2 : 4,
   });
   return {
     sugestoes: livres.slice(0, 80).map((l) => ({ data: l.data, hora: formatarHora(l.inicio), profissionalIds: l.profissionalIds })),

@@ -26,8 +26,8 @@ type Busca = {
   /** Não sugerir antes deste instante (data de hoje + minutos agora). */
   agora?: { data: string; minutos: number };
   expediente?: Intervalo[];
-  /** Máximo de sugestões por dia (por grupo). */
-  limitePorDia?: number;
+  /** Máximo de sugestões por período do expediente (manhã, tarde), por dia e grupo. */
+  limitePorPeriodo?: number;
 };
 
 const livreEm = (ocupados: Ocupacao[] | undefined, data: string, ini: number, fim: number) =>
@@ -40,15 +40,15 @@ const livreEm = (ocupados: Ocupacao[] | undefined, data: string, ini: number, fi
  */
 export function horariosLivres(b: Busca): HorarioLivre[] {
   const expediente = b.expediente ?? EXPEDIENTE_PADRAO;
-  const limite = b.limitePorDia ?? 8;
+  const limite = b.limitePorPeriodo ?? 4;
   const resultado: HorarioLivre[] = [];
 
   for (const data of b.dias) {
     for (const grupo of b.grupos) {
-      let noDia = 0;
       for (const bloco of expediente) {
+        let noPeriodo = 0;
         let t = bloco.inicio;
-        while (t + b.duracao <= bloco.fim && noDia < limite) {
+        while (t + b.duracao <= bloco.fim && noPeriodo < limite) {
           const passou = b.agora && (data < b.agora.data || (data === b.agora.data && t < b.agora.minutos));
           const livre =
             !passou &&
@@ -56,7 +56,7 @@ export function horariosLivres(b: Busca): HorarioLivre[] {
             livreEm(b.ocupacaoDoPaciente, data, t, t + b.duracao);
           if (livre) {
             resultado.push({ data, inicio: t, profissionalIds: grupo });
-            noDia++;
+            noPeriodo++;
             t += b.duracao;
             t = Math.ceil(t / 15) * 15;
           } else {

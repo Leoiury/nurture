@@ -15,6 +15,15 @@ test("buscar horários livres por tipo e escolher uma sugestão", async ({ page 
   const sugestoes = busca.getByRole("list", { name: "Sugestões de horário" }).getByRole("button");
   await expect(sugestoes.first()).toBeVisible();
 
+  // Cada dia separa manhã (antes das 12h) e tarde.
+  const primeiroDia = busca.getByRole("list", { name: "Sugestões de horário" }).getByRole("listitem").first();
+  const manha = primeiroDia.getByRole("group", { name: "Manhã" });
+  const tarde = primeiroDia.getByRole("group", { name: "Tarde" });
+  await expect(manha).toBeVisible();
+  await expect(tarde).toBeVisible();
+  for (const texto of await manha.getByRole("button").allInnerTexts()) expect(Number(texto.slice(0, 2))).toBeLessThan(12);
+  for (const texto of await tarde.getByRole("button").allInnerTexts()) expect(Number(texto.slice(0, 2))).toBeGreaterThanOrEqual(12);
+
   // Sem profissional escolhido: só fonoaudiólogos (no seed, Bruno A. e Fábio N.).
   for (const texto of await sugestoes.allInnerTexts()) expect(texto).toMatch(/· (Bruno A\.|Fábio N\.)/);
 

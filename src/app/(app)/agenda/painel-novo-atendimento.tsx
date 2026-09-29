@@ -749,6 +749,13 @@ type BuscaProps = {
   aoEscolher: (s: HorarioSugerido) => void;
 };
 
+/** Turnos da lista de horários livres: manhã até 12:00, tarde depois. */
+const PERIODOS = [
+  { rotulo: "Manhã", ate: 12 * 60 },
+  { rotulo: "Tarde", ate: 24 * 60 },
+];
+const horaEmMinutos = (hora: string) => Number(hora.slice(0, 2)) * 60 + Number(hora.slice(3, 5));
+
 /** Busca de horários livres (depois de definidos tipo e duração). */
 function BuscaDeHorariosLivres({ pronta, criterio, nomeDoProfissional, escolhido, aoEscolher }: BuscaProps) {
   const [estado, setEstado] = useState<
@@ -793,25 +800,34 @@ function BuscaDeHorariosLivres({ pronta, criterio, nomeDoProfissional, escolhido
           ) : (
             <ul className="flex flex-col gap-2" aria-label="Sugestões de horário">
               {[...porDia].map(([dia, lista]) => (
-                <li key={dia} className="flex flex-col gap-1">
-                  <span className="text-xs font-medium text-muted capitalize">{dataCurta(dia)}</span>
-                  <div className="flex flex-wrap gap-1">
-                    {lista.map((s) => {
-                      const ativo = s.data === escolhido.data && s.hora === escolhido.hora;
-                      return (
-                        <button
-                          key={`${s.hora}${s.profissionalIds.join()}`}
-                          type="button"
-                          onClick={() => aoEscolher(s)}
-                          aria-pressed={ativo}
-                          className={`rounded-lg px-2 py-1 text-xs tabular-nums ${ativo ? "bg-accent text-white" : "bg-surface ring-1 ring-black/10 hover:ring-accent"}`}
-                        >
-                          {s.hora}
-                          {alternativas && ` · ${s.profissionalIds.map(nomeDoProfissional).join(", ")}`}
-                        </button>
-                      );
-                    })}
-                  </div>
+                <li key={dia} aria-label={dataCurta(dia)} className="flex flex-col gap-1.5 rounded-xl bg-surface px-3 py-2 ring-1 ring-black/5">
+                  <span className="text-xs font-semibold first-letter:uppercase">{dataCurta(dia)}</span>
+                  {PERIODOS.map(({ rotulo, ate }, i) => {
+                    const doPeriodo = lista.filter((s) => horaEmMinutos(s.hora) < ate && (i === 0 || horaEmMinutos(s.hora) >= PERIODOS[i - 1].ate));
+                    return (
+                      <div key={rotulo} role="group" aria-label={rotulo} className="grid grid-cols-[3.25rem_1fr] items-start gap-2">
+                        <span className="pt-1 text-[11px] font-medium tracking-wide text-muted uppercase">{rotulo}</span>
+                        <div className="flex flex-wrap gap-1">
+                          {doPeriodo.length === 0 && <span className="pt-1 text-xs text-muted">—</span>}
+                          {doPeriodo.map((s) => {
+                            const ativo = s.data === escolhido.data && s.hora === escolhido.hora;
+                            return (
+                              <button
+                                key={`${s.hora}${s.profissionalIds.join()}`}
+                                type="button"
+                                onClick={() => aoEscolher(s)}
+                                aria-pressed={ativo}
+                                className={`rounded-lg px-2 py-1 text-xs tabular-nums ${ativo ? "bg-accent text-white" : "bg-background ring-1 ring-black/10 hover:ring-accent"}`}
+                              >
+                                {s.hora}
+                                {alternativas && ` · ${s.profissionalIds.map(nomeDoProfissional).join(", ")}`}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </li>
               ))}
             </ul>

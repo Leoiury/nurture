@@ -9,7 +9,7 @@ describe("horariosLivres", () => {
   const dia = "2026-10-01";
 
   it("dia vazio: sequência de horários no expediente, pulando o almoço", () => {
-    const r = horariosLivres({ dias: [dia], duracao: 60, grupos: [["ana"]], ocupacao: new Map(), limitePorDia: 20 });
+    const r = horariosLivres({ dias: [dia], duracao: 60, grupos: [["ana"]], ocupacao: new Map(), limitePorPeriodo: 20 });
     expect(horas(r)).toEqual(["08:00", "09:00", "10:00", "11:00", "13:00", "14:00", "15:00", "16:00", "17:00"]);
   });
 
@@ -48,8 +48,19 @@ describe("horariosLivres", () => {
       grupos: [["ana"]],
       ocupacao: new Map(),
       agora: { data: dia, minutos: h("16:10") },
-      limitePorDia: 3,
+      limitePorPeriodo: 2,
     });
-    expect(r.map((x) => `${x.data} ${horas([x])[0]}`)).toEqual(["2026-10-01 16:15", "2026-10-02 08:00", "2026-10-02 09:00", "2026-10-02 10:00"]);
+    expect(r.map((x) => `${x.data} ${horas([x])[0]}`)).toEqual([
+      "2026-10-01 16:15",
+      "2026-10-02 08:00",
+      "2026-10-02 09:00",
+      "2026-10-02 13:00",
+      "2026-10-02 14:00",
+    ]);
+  });
+
+  it("o limite vale por período: a tarde aparece mesmo com a manhã livre", () => {
+    const r = horariosLivres({ dias: [dia], duracao: 30, grupos: [["ana"]], ocupacao: new Map(), limitePorPeriodo: 1 });
+    expect(horas(r)).toEqual(["08:00", "13:00"]);
   });
 });

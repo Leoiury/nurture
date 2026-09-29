@@ -71,11 +71,15 @@ export async function abrirAtendimento(page: Page, nome: string) {
  */
 export async function horarioLivre(page: Page): Promise<{ x: number; y: number; hora: string }> {
   const coluna = page.locator("section").first().locator("[data-coluna]").first();
+  // A agenda abre rolada até hoje: o primeiro dia da semana pode estar fora da tela.
+  await coluna.scrollIntoViewIfNeeded();
   const caixa = (await coluna.boundingBox())!;
   const x = caixa.x + caixa.width / 2;
+  const alturaDaTela = page.viewportSize()!.height;
   await page.keyboard.down("Shift");
   try {
-    for (let y = caixa.y + 4; y < caixa.y + caixa.height; y += 12) {
+    // Só a parte visível da coluna (fora da tela não há o que clicar).
+    for (let y = Math.max(caixa.y, 0) + 4; y < Math.min(caixa.y + caixa.height, alturaDaTela); y += 12) {
       const livre = await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.closest("button") === null, { x, y });
       if (!livre) continue;
       await page.mouse.move(x, y);
