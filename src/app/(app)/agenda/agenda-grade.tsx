@@ -7,6 +7,8 @@ import { semExpediente, type DiaEspecial } from "@/lib/agenda/feriados";
 import type { Segmento } from "@/lib/agenda/layout";
 import { formatarHora, nomeCurtoDoDia } from "@/lib/agenda/tempo";
 import { sufixoDaVisao, type Visao } from "@/lib/agenda/visao";
+import { lerIdNovo, quando as quandoFormatado, type Operacao } from "@/lib/agenda/planejamento";
+import { ProvedorDeAcoes } from "./acoes-da-agenda";
 import { mover } from "./actions";
 import { ProvedorDeArraste, type AlvoDoArraste } from "./arraste";
 import { agruparPorColuna, nomeAbreviado, useAlturaDoElemento, useModoFoco } from "./comum";
@@ -14,6 +16,7 @@ import type { NovoNoHorario } from "./coluna-clicavel";
 import { MenuLateral } from "./menu-lateral";
 import { PainelAtendimento } from "./painel-atendimento";
 import { PainelNovoAtendimento, type DadosEdicao } from "./painel-novo-atendimento";
+import { FaixaDoPlanejamento, PainelDoNovo, usePlanejamento } from "./planejamento";
 import { VisaoEmpilhada } from "./visao-empilhada";
 import { VisaoLadoALado } from "./visao-lado-a-lado";
 
@@ -32,9 +35,16 @@ type Props = {
   navegacao: ReactNode;
   /** A mesma navegação em coluna, para o menu lateral no modo foco (quando a barra some). */
   navegacaoNoMenu: ReactNode;
+  /**
+   * Planejamento (só ADMs): rascunho salvo e os atendimentos reais em que ele se
+   * baseia (a semana + os citados). Ausente: agenda real.
+   */
+  planejamento?: { operacoes: Operacao[]; base: AtendimentoAgenda[]; urlSair: string };
+  /** Fora do planejamento, para ADMs: endereço do planejamento nesta semana/dia. */
+  urlDoPlanejamento?: string;
 };
 
-export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais, atendimentos, especiais, navegacao, navegacaoNoMenu }: Props) {
+export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais, atendimentos, especiais, navegacao, navegacaoNoMenu, planejamento, urlDoPlanejamento }: Props) {
   // Profissionais sem atendimentos no período começam ocultos (podem ser exibidos no menu).
   const [ocultos, setOcultos] = useState<Set<string>>(
     () => new Set(profissionais.filter((p) => !atendimentos.some((a) => a.profissionalIds.includes(p.id))).map((p) => p.id)),
@@ -58,10 +68,13 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
     setDadosDoServidor(atendimentos);
     setAjustes({});
   }
-  const atendimentosAtuais = useMemo(
-    () => (Object.keys(ajustes).length ? atendimentos.map((a) => (ajustes[a.id] ? { ...a, ...ajustes[a.id] } : a)) : atendimentos),
-    [atendimentos, ajustes],
-  );
+  const nomePorId = useMemo(() => new Map(profissionais.map((p) => [p.id, p.nome])), [profissionais]);
+  const plano = usePlanejamento(planejamento?.operacoes ?? null, planejamento?.base ?? atendimentos, nomePorId, (texto) => setAviso({ texto }));
+  const atendimentosAtuais = useMemo(() => {
+    // No planejamento: a agenda simulada (real + rascunho), só nos dias exibidos.
+    if (plano.ativo) return plano.simulados.filter((a) => dias.includes(a.data));
+    return Object.keys(ajustes).length ? atendimentos.map((a) => (ajustes[a.id] ? { ...a, ...ajustes[a.id] } : a)) : atendimentos;
+  }, [plano.ativo, plano.simulados, dias, atendimentos, ajustes]);
 
   useEffect(() => {
     if (!aviso) return;
@@ -85,13 +98,23 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
     return [...m].sort(([a], [b]) => a.localeCompare(b));
   }, [atendimentos]);
 
-  const nomePorId = useMemo(() => new Map(profissionais.map((p) => [p.id, p.nome])), [profissionais]);
-
   /** Card solto em outro horário/coluna: move na hora e oferece desfazer. */
   async function soltar(a: AtendimentoAgenda, de: string, alvo: AlvoDoArraste) {
     // Soltar na coluna de outro profissional do mesmo atendimento conjunto: só muda o horário.
     const para = alvo.profissionalId !== de && a.profissionalIds.includes(alvo.profissionalId) ? de : alvo.profissionalId;
     if (alvo.dia === a.data && alvo.minuto === a.inicio && para === de) return;
+
+    if (plano.ativo) {
+      const antes = plano.mover(a, de, para, alvo);
+      setAviso({
+        texto: `Movido no planejamento para ${quandoFormatado(alvo.dia, alvo.minuto)}` + (para !== de ? ` · ${nomeAbreviado(nomePorId.get(para) ?? "")}` : ""),
+        desfazer: () => {
+          plano.definir(antes);
+          setAviso(null);
+        },
+      });
+      return;
+    }
 
     const duracao = a.fim - a.inicio;
     const ids = para === de ? a.profissionalIds : [...a.profissionalIds.filter((id) => id !== de), para];
@@ -148,7 +171,7 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
   // A visão lado a lado só faz sentido para a semana; um dia usa a empilhada.
   const visaoEfetiva: Visao = modo === "dia" && visao === "lado" ? "empilhada" : visao;
   const ladoALado = visaoEfetiva === "lado";
-  const sufixoUrl = sufixoDaVisao(visao);
+  const sufixoUrl = sufixoDaVisao(visao, plano.ativo);
   // Ao abrir a semana atual, rola até o dia de hoje (nas visões empilhadas).
   useEffect(() => {
     if (ladoALado || modo !== "semana") return;
@@ -160,9 +183,11 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
 
   const propsVisao = { dias, hoje, colunas, visiveis, porColuna, compactar, expandidos, aoExpandir: expandirSegmento, aoAbrir: setSelecionado, sufixoUrl, alturaVisivel, especiais, aoCriarEm: setCriando };
 
-  return (
+  const grade = (
     <ProvedorDeArraste aoSoltar={(a, de, alvo) => void soltar(a, de, alvo)} aoDica={(texto) => setAviso({ texto })}>
     <div className="flex min-h-0 flex-1 flex-col gap-3">
+      {plano.ativo && planejamento && <FaixaDoPlanejamento planejamento={plano} urlSair={planejamento.urlSair} aoAviso={(texto) => setAviso({ texto })} />}
+
       {/* Barra: some no modo foco (via CSS, para valer já na primeira pintura). */}
       <div data-barra-agenda className="flex shrink-0 flex-wrap items-center gap-3">
         <button
@@ -181,6 +206,17 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
         {/* Largura mínima: sem espaço, a navegação desce para a linha de baixo em vez de transbordar. */}
         <div className="min-w-[18rem] flex-1">{navegacao}</div>
 
+        {urlDoPlanejamento && (
+          <Link
+            href={urlDoPlanejamento}
+            title="Planejar mudanças na agenda sem alterar a agenda real"
+            className="inline-flex h-9 items-center gap-1.5 rounded-full bg-surface px-3 text-sm text-muted shadow-sm ring-1 ring-black/5 transition hover:text-foreground hover:shadow"
+          >
+            <IconePlanejamento />
+            Planejamento
+          </Link>
+        )}
+
         <button
           type="button"
           onClick={() => setFoco(!foco)}
@@ -198,7 +234,9 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
         ref={quadro}
         // Sinaliza que a altura já foi medida e a escala ajustada (usado pelos testes).
         data-altura-medida={alturaVisivel ? "" : undefined}
-        className={`relative min-h-[320px] flex-1 overflow-auto rounded-3xl bg-surface shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_-12px_rgba(0,0,0,0.08)] ring-1 ring-black/[0.04] ${
+        className={`relative min-h-[320px] flex-1 overflow-auto rounded-3xl bg-surface shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_-12px_rgba(0,0,0,0.08)] ${
+          plano.ativo ? "ring-2 ring-amber-300" : "ring-1 ring-black/[0.04]"
+        } ${
           // Encaixe por dia só quando cada dia cabe na tela (na ampliada ele atrapalharia a rolagem).
           visaoEfetiva === "empilhada" ? "snap-y snap-proximity" : ""
         }`}
@@ -302,16 +340,24 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
         }
       />
 
-      {selecionado && (
-        <PainelAtendimento
-          key={selecionado}
-          id={selecionado}
-          aoFechar={() => setSelecionado(null)}
-          aoEditar={(dados) => {
-            setSelecionado(null);
-            setEditando(dados);
-          }}
-        />
+      {selecionado && plano.ativo && lerIdNovo(selecionado) ? (
+        <PainelDoNovo key={selecionado} planejamento={plano} id={selecionado} aoFechar={() => setSelecionado(null)} />
+      ) : (
+        selecionado && (
+          <PainelAtendimento
+            key={selecionado}
+            id={selecionado}
+            aoFechar={() => setSelecionado(null)}
+            aoEditar={(dados) => {
+              setSelecionado(null);
+              // No planejamento, o formulário parte de como o atendimento está no rascunho.
+              const s = plano.ativo ? plano.simulados.find((x) => x.id === dados.id) : undefined;
+              setEditando(
+                s ? { ...dados, data: s.data, hora: formatarHora(s.inicio), duracaoMin: s.fim - s.inicio, profissionais: s.profissionalIds } : dados,
+              );
+            }}
+          />
+        )
       )}
       {criando && (
         <PainelNovoAtendimento
@@ -337,6 +383,15 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
       )}
     </div>
     </ProvedorDeArraste>
+  );
+  return plano.ativo ? <ProvedorDeAcoes value={plano.acoes}>{grade}</ProvedorDeAcoes> : grade;
+}
+
+function IconePlanejamento() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden>
+      <path d="M2.5 13.5 5 13l7.6-7.6a1.4 1.4 0 0 0-2-2L3 11l-.5 2.5ZM9.5 4.5l2 2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   );
 }
 

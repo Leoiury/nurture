@@ -4,6 +4,7 @@
 // observações e edição.
 
 import { revalidatePath } from "next/cache";
+import type { ArgsEditar } from "@/lib/agenda/planejamento";
 import { instanteNoFuso } from "@/lib/agenda/tempo";
 import type { Database } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
@@ -97,7 +98,8 @@ export type Edicao = {
   valor: number | null;
 };
 
-export async function editar(e: Edicao): Promise<Resultado> {
+/** Valida e monta os argumentos de editar_atendimentos (também usado pelo planejamento). */
+export async function argsDeEdicao(e: Edicao): Promise<{ ok: true; args: ArgsEditar } | { ok: false; erro: string }> {
   if (!e.pacienteId) return { ok: false, erro: "Escolha o paciente." };
   if (e.profissionais.length === 0) return { ok: false, erro: "Escolha ao menos um profissional." };
   if (!/^\d{4}-\d{2}-\d{2}$/.test(e.data) || !/^\d{2}:\d{2}$/.test(e.hora)) return { ok: false, erro: "Informe data e horário." };
@@ -109,20 +111,28 @@ export async function editar(e: Edicao): Promise<Resultado> {
   } catch {
     return { ok: false, erro: "Data inválida." };
   }
+  return {
+    ok: true,
+    args: {
+      p_id: e.id,
+      p_alcance: e.alcance,
+      p_paciente_id: e.pacienteId,
+      p_profissionais: e.profissionais,
+      p_data: e.data,
+      p_hora: e.hora,
+      p_duracao_min: e.duracaoMin,
+      p_plano_id: e.planoId ?? undefined,
+      p_tipo_id: e.tipoId ?? undefined,
+      p_valor: e.valor ?? undefined,
+    },
+  };
+}
 
+export async function editar(e: Edicao): Promise<Resultado> {
+  const preparado = await argsDeEdicao(e);
+  if (!preparado.ok) return preparado;
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc("editar_atendimentos", {
-    p_id: e.id,
-    p_alcance: e.alcance,
-    p_paciente_id: e.pacienteId,
-    p_profissionais: e.profissionais,
-    p_data: e.data,
-    p_hora: e.hora,
-    p_duracao_min: e.duracaoMin,
-    p_plano_id: e.planoId ?? undefined,
-    p_tipo_id: e.tipoId ?? undefined,
-    p_valor: e.valor ?? undefined,
-  });
+  const { data, error } = await supabase.rpc("editar_atendimentos", preparado.args);
   return concluir(error, data ?? 0);
 }
 

@@ -31,7 +31,7 @@ export const DICA_MARCAR = "Para marcar neste horário, segure Shift ou Ctrl e c
 
 export function ColunaClicavel({ dia, profissionalId, segmentos, px, aoExpandir, aoCriar, compacta, className = "", children }: Props) {
   const [previa, setPrevia] = useState<number | null>(null);
-  const { estado: arraste, registrarColuna, modificador, dica } = useArraste();
+  const { estado: arraste, registrarColuna, modificador, dica, cliqueSuprimido } = useArraste();
   const chave = `${dia}|${profissionalId}`;
   // Toque em andamento sobre um horário vazio (segurando para marcar).
   const [segurando, setSegurando] = useState(false);
@@ -108,6 +108,8 @@ export function ColunaClicavel({ dia, profissionalId, segmentos, px, aoExpandir,
       }}
       onMouseLeave={() => !toque.current && setPrevia(null)}
       onClick={(e) => {
+        // Soltar um card arrastado dispara um clique aqui (ancestral comum): não é marcação.
+        if (cliqueSuprimido()) return;
         const p = posicao(e);
         if (!p) return;
         if (p.segmento.compacto) return aoExpandir(p.segmento);

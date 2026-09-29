@@ -20,6 +20,7 @@ import {
   horasExpandidas,
   nomeAbreviado,
   type Posicionado,
+  MARCA_DO_RASCUNHO,
 } from "./comum";
 import { useArraste } from "./arraste";
 import { ColunaClicavel, type NovoNoHorario } from "./coluna-clicavel";
@@ -211,7 +212,8 @@ function CardCompacto({ atendimento: a, top, altura, profissionalId, aoAbrir }: 
       data-atendimento={a.id}
       className={`pointer-events-auto absolute overflow-hidden rounded-md text-left text-foreground transition hover:z-10 hover:shadow-md focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-[var(--accent)] ${
         desmarcado ? "opacity-50" : sendoArrastado ? "opacity-30" : ""
-      } ${a.status === "faltou" ? "ring-2 ring-[var(--danger)]" : ""}`}
+      } ${a.status === "faltou" ? "ring-2 ring-[var(--danger)]" : ""} ${a.rascunho ? MARCA_DO_RASCUNHO : ""}`}
+      data-rascunho={a.rascunho}
       style={{
         top: top + 1,
         height: Math.max(altura - 2, 12),

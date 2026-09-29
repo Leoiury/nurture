@@ -24,6 +24,9 @@ export type AtendimentoAgenda = {
   paciente: string | null;
   plano: { nome: string; cor: string } | null;
   tipo: string | null;
+  recorrenciaId: string | null;
+  /** Só no planejamento: como o atendimento difere da agenda real. */
+  rascunho?: "novo" | "alterado" | "desmarcado";
 };
 
 /**
@@ -56,6 +59,40 @@ export async function carregarDiasEspeciais(primeiroDia: string, ultimoDia: stri
   return Object.fromEntries(diasEspeciais(primeiroDia, ultimoDia, data));
 }
 
+const SELECAO_DA_AGENDA =
+  "id, inicio, fim, status, recorrencia_id, profissionais:atendimento_profissionais(profissional:profissionais(id, nome)), paciente:pacientes(nome), plano:planos(nome, cor), tipo:tipos_atendimento(nome)";
+
+type LinhaDaAgenda = {
+  id: string;
+  inicio: string;
+  fim: string;
+  status: Status;
+  recorrencia_id: string | null;
+  profissionais: { profissional: { id: string; nome: string } }[];
+  paciente: { nome: string } | null;
+  plano: { nome: string; cor: string } | null;
+  tipo: { nome: string } | null;
+};
+
+function paraAgenda(a: LinhaDaAgenda): AtendimentoAgenda {
+  const inicio = partesNoFuso(a.inicio);
+  const fim = partesNoFuso(a.fim);
+  return {
+    id: a.id,
+    profissionalIds: a.profissionais.map((p) => p.profissional.id),
+    profissionalNomes: a.profissionais.map((p) => p.profissional.nome),
+    data: inicio.data,
+    inicio: inicio.minutos,
+    // Atendimento que atravessa a meia-noite é cortado no fim do dia.
+    fim: fim.data === inicio.data ? fim.minutos : 24 * 60,
+    status: a.status,
+    paciente: a.paciente?.nome ?? null,
+    plano: a.plano,
+    tipo: a.tipo?.nome ?? null,
+    recorrenciaId: a.recorrencia_id,
+  };
+}
+
 /** Profissionais ativos, atendimentos e dias especiais entre as datas (inclusive). */
 export async function carregarAgenda(primeiroDia: string, ultimoDia: string) {
   const supabase = await createClient();
@@ -65,9 +102,7 @@ export async function carregarAgenda(primeiroDia: string, ultimoDia: string) {
     comNovaTentativa(() =>
       supabase
         .from("atendimentos")
-        .select(
-          "id, inicio, fim, status, profissionais:atendimento_profissionais(profissional:profissionais(id, nome)), paciente:pacientes(nome), plano:planos(nome, cor), tipo:tipos_atendimento(nome)",
-        )
+        .select(SELECAO_DA_AGENDA)
         .is("excluido_em", null)
         .gte("inicio", inicioDoDiaISO(primeiroDia))
         .lt("inicio", inicioDoDiaISO(somarDias(ultimoDia, 1)))
@@ -81,22 +116,23 @@ export async function carregarAgenda(primeiroDia: string, ultimoDia: string) {
   return {
     especiais,
     profissionais: profissionais.data satisfies ProfissionalAgenda[],
-    atendimentos: atendimentos.data.map((a): AtendimentoAgenda => {
-      const inicio = partesNoFuso(a.inicio);
-      const fim = partesNoFuso(a.fim);
-      return {
-        id: a.id,
-        profissionalIds: a.profissionais.map((p) => p.profissional.id),
-        profissionalNomes: a.profissionais.map((p) => p.profissional.nome),
-        data: inicio.data,
-        inicio: inicio.minutos,
-        // Atendimento que atravessa a meia-noite é cortado no fim do dia.
-        fim: fim.data === inicio.data ? fim.minutos : 24 * 60,
-        status: a.status,
-        paciente: a.paciente?.nome ?? null,
-        plano: a.plano,
-        tipo: a.tipo?.nome ?? null,
-      };
-    }),
+    atendimentos: atendimentos.data.map(paraAgenda),
   };
+}
+
+/**
+ * Atendimentos citados por um planejamento que podem estar fora do período
+ * exibido: os próprios e, para alterações em série, os demais da mesma série
+ * (movidos de outra semana, eles podem cair na semana exibida).
+ */
+export async function carregarAtendimentosCitados(ids: string[]): Promise<AtendimentoAgenda[]> {
+  if (ids.length === 0) return [];
+  const supabase = await createClient();
+  const citados = await supabase.from("atendimentos").select("recorrencia_id").in("id", ids);
+  if (citados.error) throw citados.error;
+  const series = [...new Set(citados.data.map((c) => c.recorrencia_id).filter((r): r is string => !!r))];
+  const filtro = series.length ? `id.in.(${ids.join(",")}),recorrencia_id.in.(${series.join(",")})` : `id.in.(${ids.join(",")})`;
+  const { data, error } = await supabase.from("atendimentos").select(SELECAO_DA_AGENDA).is("excluido_em", null).or(filtro);
+  if (error) throw error;
+  return data.map(paraAgenda);
 }

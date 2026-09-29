@@ -19,10 +19,10 @@ import { hoje as dataDeHoje, nomeCurtoDoDia, partesNoFuso } from "@/lib/agenda/t
 import { lerValor } from "@/lib/agenda/valores";
 import { atendeOTipo, tipoSugerido } from "@/lib/agenda/tipos";
 import { paraBusca } from "@/lib/pacientes";
-import { editar, type Alcance } from "./actions";
+import { useAcoesDaAgenda } from "./acoes-da-agenda";
+import type { Alcance } from "./actions";
 import {
   buscarHorariosLivres,
-  criarAtendimentos,
   criarPaciente,
   diasEspeciaisNoPeriodo,
   opcoesDoFormulario,
@@ -71,6 +71,7 @@ const formatoData = new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2
 const dataCurta = (d: string) => `${nomeCurtoDoDia(d)} ${formatoData.format(new Date(`${d}T12:00:00Z`))}`;
 
 export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
+  const acoes = useAcoesDaAgenda();
   const [opcoes, setOpcoes] = useState<OpcoesDoFormulario | null>(null);
   const [erroCarga, setErroCarga] = useState<string | null>(null);
 
@@ -220,9 +221,16 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
     if (valorNumero !== null && Number.isNaN(valorNumero)) return setErro("Valor inválido.");
     setSalvando(true);
     const comuns = { pacienteId: pacienteId ?? "", profissionais, data, hora, duracaoMin: duracao, planoId, tipoId, valor: valorNumero };
+    // Como o card aparece (usado pelo planejamento, que simula antes de gravar).
+    const plano = opcoes?.planos.find((p) => p.id === planoId);
+    const exibicao = {
+      paciente: opcoes?.pacientes.find((p) => p.id === pacienteId)?.nome ?? busca,
+      plano: plano ? { nome: plano.nome, cor: plano.cor } : null,
+      tipo: opcoes?.tipos.find((t) => t.id === tipoId)?.nome ?? null,
+    };
     const resultado = await (edicao
-      ? editar({ ...comuns, id: edicao.id, alcance })
-      : criarAtendimentos({ ...comuns, serie, status, observacao: observacao.trim() })
+      ? acoes.editar({ ...comuns, id: edicao.id, alcance }, exibicao)
+      : acoes.criar({ ...comuns, serie, status, observacao: observacao.trim() }, exibicao)
     ).catch(() => ({ ok: false as const, erro: "Falha de conexão ao salvar." }));
     setSalvando(false);
     if (!resultado.ok) return setErro(resultado.erro);
@@ -249,6 +257,11 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
           </button>
         </div>
 
+        {acoes.planejamento && (
+          <p className="shrink-0 border-b border-amber-200 bg-amber-50 px-5 py-2 text-xs text-amber-900">
+            No planejamento: salvar só altera o rascunho. Avisos de conflito e horários livres ainda consideram a agenda real.
+          </p>
+        )}
         {erroCarga && <p className="p-5 text-sm text-danger">{erroCarga}</p>}
         {!opcoes && !erroCarga && <p className="p-5 text-sm text-muted">Carregando…</p>}
 

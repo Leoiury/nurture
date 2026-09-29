@@ -12,13 +12,12 @@ import { FUSO, partesNoFuso, formatarHora } from "@/lib/agenda/tempo";
 import {
   adicionarObservacao,
   alterarStatus,
-  desmarcar,
   detalhesAtendimento,
-  excluir,
   type Alcance,
   type DetalhesAtendimento,
   type Resultado,
 } from "./actions";
+import { useAcoesDaAgenda } from "./acoes-da-agenda";
 import type { DadosEdicao } from "./painel-novo-atendimento";
 
 const ROTULO_STATUS: Record<Status, string> = {
@@ -72,6 +71,8 @@ type Props = {
 type Modo = "ver" | "desmarcar" | "excluir";
 
 export function PainelAtendimento({ id, aoFechar, aoEditar, mostrarLinkDoPaciente = true }: Props) {
+  const acoes = useAcoesDaAgenda();
+  const pendencias = acoes.pendencias?.(id) ?? null;
   const [dados, setDados] = useState<DetalhesAtendimento | null>(null);
   const [erroCarga, setErroCarga] = useState<string | null>(null);
   const [versao, setVersao] = useState(0);
@@ -166,6 +167,28 @@ export function PainelAtendimento({ id, aoFechar, aoEditar, mostrarLinkDoPacient
 
         {a && dados && (
           <div className="flex flex-1 flex-col gap-6 overflow-y-auto px-5 py-4 text-sm">
+            {/* No planejamento: o painel mostra a agenda real; as mudanças do rascunho ficam aqui. */}
+            {pendencias && (
+              <section aria-label="Alterações no planejamento" className="flex flex-col gap-2 rounded-xl bg-amber-50 px-3 py-2.5 text-amber-900 ring-1 ring-amber-200">
+                <p className="text-xs font-semibold tracking-wide uppercase">No planejamento</p>
+                <ul className="flex list-disc flex-col gap-1 pl-4">
+                  {pendencias.descricoes.map((d, i) => (
+                    <li key={i}>{d}</li>
+                  ))}
+                </ul>
+                <button
+                  type="button"
+                  onClick={() => {
+                    pendencias.desfazer();
+                    aoFechar();
+                  }}
+                  className="self-start text-xs font-medium underline underline-offset-2"
+                >
+                  Desfazer no planejamento
+                </button>
+              </section>
+            )}
+
             {/* Ações */}
             {modo === "ver" && (
               <section className="flex flex-col gap-3">
@@ -173,7 +196,13 @@ export function PainelAtendimento({ id, aoFechar, aoEditar, mostrarLinkDoPacient
                   <button type="button" onClick={editar} className={botaoPrimario}>
                     Editar
                   </button>
-                  {a.status === "desmarcado" ? (
+                  {acoes.planejamento ? (
+                    a.status !== "desmarcado" && (
+                      <button type="button" onClick={() => setModo("desmarcar")} className={botaoSecundario}>
+                        Desmarcar
+                      </button>
+                    )
+                  ) : a.status === "desmarcado" ? (
                     <button
                       type="button"
                       disabled={trabalhando}
@@ -188,7 +217,7 @@ export function PainelAtendimento({ id, aoFechar, aoEditar, mostrarLinkDoPacient
                     </button>
                   )}
                 </div>
-                {a.status !== "desmarcado" && (
+                {a.status !== "desmarcado" && !acoes.planejamento && (
                   <div role="radiogroup" aria-label="Status" className="flex gap-0.5 rounded-full bg-black/[0.04] p-1">
                     {STATUS_RAPIDOS.map((s) => (
                       <button
@@ -217,8 +246,9 @@ export function PainelAtendimento({ id, aoFechar, aoEditar, mostrarLinkDoPacient
                 aoCancelar={() => setModo("ver")}
                 aoConfirmar={(alcance, motivo) =>
                   executar(
-                    () => desmarcar(a.id, alcance, motivo),
+                    () => acoes.desmarcar(a.id, alcance, motivo),
                     (r) => {
+                      if (acoes.planejamento) return aoFechar(); // a grade mostra o resultado
                       setAviso(r.quantidade && r.quantidade > 1 ? `${r.quantidade} atendimentos desmarcados.` : "Atendimento desmarcado.");
                       setModo("ver");
                       recarregar();
@@ -233,7 +263,7 @@ export function PainelAtendimento({ id, aoFechar, aoEditar, mostrarLinkDoPacient
                 serie={dados.serie}
                 trabalhando={trabalhando}
                 aoCancelar={() => setModo("ver")}
-                aoConfirmar={(alcance, motivo) => executar(() => excluir(a.id, alcance, motivo), aoFechar)}
+                aoConfirmar={(alcance, motivo) => executar(() => acoes.excluir(a.id, alcance, motivo), aoFechar)}
               />
             )}
 
@@ -276,8 +306,8 @@ export function PainelAtendimento({ id, aoFechar, aoEditar, mostrarLinkDoPacient
               )}
             </dl>
 
-            {/* Observações */}
-            <section className="flex flex-col gap-2">
+            {/* Observações (não fazem parte do planejamento) */}
+            <section className={`flex flex-col gap-2 ${acoes.planejamento ? "hidden" : ""}`}>
               <h3 className="font-semibold">Observações</h3>
               <form
                 className="flex gap-2"
