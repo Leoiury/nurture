@@ -52,10 +52,11 @@ select
   (select id from planos order by nome offset (g % 6) limit 1)
 from generate_series(1, 48) as g;
 
--- Cadastros variados (nível cadastral): 1 em cada 3 completo, 1 em 3 sem e-mail;
--- o resto sem CPF, e-mail e endereço (crítico).
+-- Cadastros variados (nível cadastral): 1 em cada 3 completo, 1 em 3 sem CPF;
+-- o resto sem CPF, endereço e responsável (crítico).
 update pacientes p
-   set cpf = case when n % 3 in (0, 1) then lpad((10000000000 + n)::text, 11, '0') end,
+   set cpf = case when n % 3 = 0 then lpad((10000000000 + n)::text, 11, '0') end,
+       responsavel = case when n % 3 = 2 then null else p.responsavel end,
        email = case when n % 3 = 0 then 'familia' || n || '@exemplo.com' end,
        endereco = case when n % 3 in (0, 1) then 'Rua das Flores, ' || n end,
        bairro = case when n % 3 in (0, 1) then 'Centro' end,

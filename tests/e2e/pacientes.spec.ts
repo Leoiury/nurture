@@ -94,7 +94,7 @@ test("visão Cadastro: cores por nível, filtro e nível atualizado ao completar
   await page.getByRole("button", { name: "Cadastrar e abrir ficha" }).click();
   const info = page.getByRole("region", { name: "Informações do paciente" });
   await expect(info).toContainText("Cadastro: crítico");
-  await expect(info).toContainText("Falta: responsável, nascimento, CPF, celular, e-mail, endereço, plano");
+  await expect(info).toContainText("Falta: responsável, nascimento, CPF, celular, endereço, plano");
 
   // Preenchendo tudo, fica completo.
   await page.getByRole("button", { name: "Editar", exact: true }).click();

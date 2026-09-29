@@ -1,6 +1,6 @@
 -- 1. Nível do cadastro dos pacientes (para a visão "Cadastro" em Pacientes).
 --
--- Itens avaliados: responsável, nascimento, CPF, celular, e-mail, endereço
+-- Itens avaliados: responsável, nascimento, CPF, celular, endereço
 -- (rua, bairro, cidade, UF e CEP) e plano. Nada faltando: completo; faltam 1 ou
 -- 2: falta informação; 3 ou mais: crítico. Um gatilho mantém o nível e a lista
 -- do que falta sempre atualizados.
@@ -21,7 +21,6 @@ begin
   if new.data_nascimento is null then faltando := array_append(faltando, 'nascimento'); end if;
   if coalesce(trim(new.cpf), vazio) = vazio then faltando := array_append(faltando, 'CPF'); end if;
   if coalesce(trim(new.celular), vazio) = vazio then faltando := array_append(faltando, 'celular'); end if;
-  if coalesce(trim(new.email), vazio) = vazio then faltando := array_append(faltando, 'e-mail'); end if;
   if coalesce(trim(new.endereco), vazio) = vazio or coalesce(trim(new.bairro), vazio) = vazio
      or coalesce(trim(new.cidade), vazio) = vazio or coalesce(trim(new.uf), vazio) = vazio
      or coalesce(trim(new.cep), vazio) = vazio then
