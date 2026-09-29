@@ -54,7 +54,7 @@ test("painel do atendimento mostra dados e leva à página do paciente", async (
   await abrirAgenda(page);
   await cards(page).first().click();
   const painel = page.getByRole("dialog", { name: "Detalhes do atendimento" });
-  await expect(painel.getByRole("button", { name: /Ver página do paciente/ })).toBeVisible();
+  await expect(painel.getByRole("link", { name: "Ver página do paciente" })).toHaveAttribute("href", /^\/pacientes\/[0-9a-f-]{36}$/);
   await expect(painel.getByText("Histórico")).toHaveCount(0);
   await expect(painel.getByText("Profissional")).toBeVisible();
   await page.keyboard.press("Escape");

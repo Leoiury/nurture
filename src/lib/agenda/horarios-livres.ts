@@ -10,23 +10,6 @@ export const EXPEDIENTE_PADRAO: Intervalo[] = [
   { inicio: 13 * 60, fim: 18 * 60 },
 ];
 
-/** Tipo de atendimento → especialidades que o realizam (ABA é feita por psicólogos na clínica). */
-const COMPATIBILIDADE: [RegExp, RegExp][] = [
-  // "psicólog", não só "psic": neuropsicopedagoga não faz sessão de psicologia.
-  [/psic/i, /psic[óo]log/i],
-  [/\baba\b/i, /psic[óo]log/i],
-  [/fono/i, /fono|estagi/i],
-  [/pedag/i, /pedag|neuro/i],
-  [/nutri/i, /nutri/i],
-];
-
-/** Profissionais que podem fazer o tipo (sem regra conhecida para o tipo: todos). */
-export function profissionaisCompativeis<P extends { id: string; especialidade: string | null }>(tipoNome: string | null, profissionais: P[]): P[] {
-  const regras = tipoNome ? COMPATIBILIDADE.filter(([tipo]) => tipo.test(tipoNome)).map(([, esp]) => esp) : [];
-  if (!regras.length) return profissionais;
-  return profissionais.filter((p) => p.especialidade && regras.some((r) => r.test(p.especialidade!)));
-}
-
 export type Ocupacao = Intervalo & { data: string };
 
 export type HorarioLivre = { data: string; inicio: number; profissionalIds: string[] };

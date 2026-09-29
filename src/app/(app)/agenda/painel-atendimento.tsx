@@ -3,8 +3,10 @@
 // Painel lateral de um atendimento: detalhes, status rápido, editar, desmarcar,
 // excluir e observações.
 
+import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
 import type { Status } from "@/lib/agenda/dados";
+import { idade } from "@/lib/pacientes";
 import { ROTULO_FREQUENCIA } from "@/lib/agenda/recorrencia";
 import { FUSO, partesNoFuso, formatarHora } from "@/lib/agenda/tempo";
 import {
@@ -59,29 +61,17 @@ function plural(n: number, singular: string, pluralTexto: string): string {
   return `${n} ${n === 1 ? singular : pluralTexto}`;
 }
 
-function idade(nascimento: string): string {
-  const [a, m, d] = nascimento.split("-").map(Number);
-  const hoje = new Date();
-  let anos = hoje.getFullYear() - a;
-  let meses = hoje.getMonth() + 1 - m;
-  if (hoje.getDate() < d) meses--;
-  if (meses < 0) {
-    anos--;
-    meses += 12;
-  }
-  if (anos === 0) return plural(meses, "mês", "meses");
-  return plural(anos, "ano", "anos") + (meses ? ` e ${plural(meses, "mês", "meses")}` : "");
-}
-
 type Props = {
   id: string;
   aoFechar: () => void;
   aoEditar: (dados: DadosEdicao) => void;
+  /** Falso quando o painel já está na página do paciente. */
+  mostrarLinkDoPaciente?: boolean;
 };
 
 type Modo = "ver" | "desmarcar" | "excluir";
 
-export function PainelAtendimento({ id, aoFechar, aoEditar }: Props) {
+export function PainelAtendimento({ id, aoFechar, aoEditar, mostrarLinkDoPaciente = true }: Props) {
   const [dados, setDados] = useState<DetalhesAtendimento | null>(null);
   const [erroCarga, setErroCarga] = useState<string | null>(null);
   const [versao, setVersao] = useState(0);
@@ -349,16 +339,15 @@ export function PainelAtendimento({ id, aoFechar, aoEditar }: Props) {
                   {p.email && <Linha rotulo="E-mail">{p.email}</Linha>}
                   <Linha rotulo="Plano padrão">{p.plano?.nome ?? "—"}</Linha>
                 </dl>
-                {/* A página do paciente (com o histórico completo) vem numa próxima etapa. */}
-                <button
-                  type="button"
-                  disabled
-                  title="Em breve"
-                  className="flex items-center justify-between rounded-xl border border-border px-4 py-3 text-sm font-medium text-muted disabled:cursor-not-allowed"
-                >
-                  Ver página do paciente
-                  <span className="text-xs font-normal">em breve</span>
-                </button>
+                {mostrarLinkDoPaciente && (
+                  <Link
+                    href={`/pacientes/${p.id}`}
+                    className="flex items-center justify-between rounded-xl border border-border px-4 py-3 text-sm font-medium hover:border-accent hover:text-accent"
+                  >
+                    Ver página do paciente
+                    <span aria-hidden>→</span>
+                  </Link>
+                )}
               </section>
             )}
 

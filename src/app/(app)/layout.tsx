@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { sair } from "@/lib/auth/actions";
 import { createClient } from "@/lib/supabase/server";
+import { NavPrincipal } from "./nav-principal";
 
 export default async function AppLayout({ children }: LayoutProps<"/">) {
   const supabase = await createClient();
@@ -16,18 +17,14 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
           <Link href="/agenda" className="text-lg font-semibold tracking-tight">
             Nurture
           </Link>
-          <nav className="text-sm">
-            <Link href="/agenda" className="font-medium text-accent">
-              Agenda
-            </Link>
-          </nav>
+          <NavPrincipal />
         </div>
         <div className="flex items-center gap-3 text-sm">
           <span className="hidden text-muted sm:inline">{data.claims.email}</span>
           {/* Configurações são pouco usadas: só um ícone discreto. */}
           <Link
             href="/configuracoes/planos"
-            title="Configurações: planos, feriados e recessos"
+            title="Configurações: planos, tipos de atendimento, feriados e recessos"
             aria-label="Configurações"
             className="rounded-md p-1.5 text-muted/70 hover:bg-background hover:text-foreground"
           >

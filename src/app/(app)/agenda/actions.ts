@@ -52,6 +52,7 @@ export type DetalhesAtendimento = Awaited<ReturnType<typeof detalhesAtendimento>
 function concluir(error: { message: string } | null, quantidade?: number): Resultado {
   if (error) return { ok: false, erro: error.message };
   revalidatePath("/agenda");
+  revalidatePath("/pacientes", "layout"); // histórico na página do paciente
   return { ok: true, quantidade };
 }
 

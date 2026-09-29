@@ -498,6 +498,36 @@ export type Database = {
         }
         Relationships: []
       }
+      tipos_atendimento_profissionais: {
+        Row: {
+          profissional_id: string
+          tipo_id: string
+        }
+        Insert: {
+          profissional_id: string
+          tipo_id: string
+        }
+        Update: {
+          profissional_id?: string
+          tipo_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tipos_atendimento_profissionais_profissional_id_fkey"
+            columns: ["profissional_id"]
+            isOneToOne: false
+            referencedRelation: "profissionais"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tipos_atendimento_profissionais_tipo_id_fkey"
+            columns: ["tipo_id"]
+            isOneToOne: false
+            referencedRelation: "tipos_atendimento"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never

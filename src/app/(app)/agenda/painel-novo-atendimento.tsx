@@ -2,7 +2,7 @@
 
 // Painel (sheet) para lançar um novo atendimento — avulso ou em série — ou editar
 // um existente. Padrões automáticos (sempre editáveis): o plano vem do paciente;
-// duração e valor vêm do plano; o tipo vem da especialidade do primeiro profissional.
+// duração e valor vêm do plano; o tipo vem do primeiro profissional (tipos que ele atende).
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ROTULO_TIPO_DIA, semExpediente, type DiaEspecial } from "@/lib/agenda/feriados";
@@ -17,6 +17,8 @@ import {
 } from "@/lib/agenda/recorrencia";
 import { hoje as dataDeHoje, nomeCurtoDoDia, partesNoFuso } from "@/lib/agenda/tempo";
 import { lerValor } from "@/lib/agenda/valores";
+import { atendeOTipo, tipoSugerido } from "@/lib/agenda/tipos";
+import { paraBusca } from "@/lib/pacientes";
 import { editar, type Alcance } from "./actions";
 import {
   buscarHorariosLivres,
@@ -65,19 +67,6 @@ const STATUS_INICIAIS = [
   { valor: "atendido", rotulo: "Atendido" },
 ] as const;
 
-// Especialidade → palavra que aparece no nome do tipo de atendimento.
-const TIPO_POR_ESPECIALIDADE: [RegExp, string][] = [
-  [/psic/i, "psicologia"],
-  [/fono|estagi/i, "fono"],
-  [/pedag|neuro/i, "pedag"],
-  [/nutri/i, "nutri"],
-];
-
-function tipoSugerido(especialidade: string | null, tipos: OpcoesDoFormulario["tipos"]): string | null {
-  const palavra = TIPO_POR_ESPECIALIDADE.find(([re]) => especialidade && re.test(especialidade))?.[1];
-  return (palavra && tipos.find((t) => t.nome.toLowerCase().includes(palavra))?.id) || null;
-}
-
 const formatoData = new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit", timeZone: "UTC" });
 const dataCurta = (d: string) => `${nomeCurtoDoDia(d)} ${formatoData.format(new Date(`${d}T12:00:00Z`))}`;
 
@@ -121,7 +110,7 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
         setOpcoes(o);
         // Aberto a partir de uma coluna (profissional já escolhido): sugere o tipo.
         if (!edicao && inicial?.profissionalId) {
-          setTipoId((atual) => atual ?? tipoSugerido(o.profissionais.find((p) => p.id === inicial.profissionalId)?.especialidade ?? null, o.tipos));
+          setTipoId((atual) => atual ?? tipoSugerido(o.profissionais.find((p) => p.id === inicial.profissionalId), o.tipos));
         }
       })
       .catch((e: Error) => {
@@ -197,9 +186,9 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
   const paciente = opcoes?.pacientes.find((p) => p.id === pacienteId) ?? null;
   const sugestoes = useMemo(() => {
     if (!opcoes || paciente) return [];
-    const termo = busca.trim().toLowerCase();
+    const termo = paraBusca(busca);
     if (termo.length < 2) return [];
-    return opcoes.pacientes.filter((p) => p.nome.toLowerCase().includes(termo)).slice(0, 8);
+    return opcoes.pacientes.filter((p) => paraBusca(p.nome).includes(termo)).slice(0, 8);
   }, [opcoes, paciente, busca]);
 
   function escolherPlano(id: string | null) {
@@ -220,7 +209,7 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
   function adicionarProfissional(id: string) {
     if (!id || profissionais.includes(id)) return;
     if (profissionais.length === 0 && !tipoId && opcoes) {
-      setTipoId(tipoSugerido(opcoes.profissionais.find((p) => p.id === id)?.especialidade ?? null, opcoes.tipos));
+      setTipoId(tipoSugerido(opcoes.profissionais.find((p) => p.id === id), opcoes.tipos));
     }
     setProfissionais([...profissionais, id]);
   }
@@ -440,6 +429,17 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
                   </Campo>
                 )}
               </div>
+              {(() => {
+                // Só avisa: a clínica pode ter exceções (ex.: cobrir um colega).
+                const tipo = opcoes.tipos.find((t) => t.id === tipoId);
+                const fora = tipo ? profissionais.filter((id) => !atendeOTipo(tipo, id)) : [];
+                return fora.length > 0 ? (
+                  <p className="-mt-2 text-xs text-muted">
+                    {fora.map((id) => nomeAbreviado(opcoes.profissionais.find((p) => p.id === id)?.nome ?? "")).join(", ")}{" "}
+                    {fora.length === 1 ? "não está" : "não estão"} entre quem atende “{tipo!.nome}”.
+                  </p>
+                ) : null;
+              })()}
 
               <BuscaDeHorariosLivres
                 pronta={!!tipoId && duracao > 0}

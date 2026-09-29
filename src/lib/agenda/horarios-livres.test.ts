@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { horariosLivres, profissionaisCompativeis, type Ocupacao } from "./horarios-livres";
+import { horariosLivres, type Ocupacao } from "./horarios-livres";
 
 const h = (hora: string) => Number(hora.slice(0, 2)) * 60 + Number(hora.slice(3));
 const horas = (lista: { inicio: number }[]) =>
@@ -51,28 +51,5 @@ describe("horariosLivres", () => {
       limitePorDia: 3,
     });
     expect(r.map((x) => `${x.data} ${horas([x])[0]}`)).toEqual(["2026-10-01 16:15", "2026-10-02 08:00", "2026-10-02 09:00", "2026-10-02 10:00"]);
-  });
-});
-
-describe("profissionaisCompativeis", () => {
-  const profs = [
-    { id: "1", especialidade: "Psicóloga" },
-    { id: "2", especialidade: "Fonoaudióloga" },
-    { id: "3", especialidade: "Estagiária de Fono" },
-    { id: "4", especialidade: "Neuropsicopedagoga" },
-    { id: "5", especialidade: null },
-  ];
-  const ids = (tipo: string | null) => profissionaisCompativeis(tipo, profs).map((p) => p.id);
-
-  it("filtra pela especialidade do tipo", () => {
-    expect(ids("Sessão Fonoaudiologia")).toEqual(["2", "3"]);
-    expect(ids("Sessão Psicologia")).toEqual(["1"]); // neuropsicopedagoga não entra
-    expect(ids("Sessão ABA")).toEqual(["1"]);
-    expect(ids("Atendimento Pedagógico")).toEqual(["4"]);
-  });
-
-  it("tipo sem regra conhecida ou vazio: todos", () => {
-    expect(ids("Reunião")).toHaveLength(5);
-    expect(ids(null)).toHaveLength(5);
   });
 });

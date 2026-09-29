@@ -5,8 +5,9 @@
 import { revalidatePath } from "next/cache";
 import { carregarDiasEspeciais } from "@/lib/agenda/dados";
 import { semExpediente } from "@/lib/agenda/feriados";
-import { horariosLivres, profissionaisCompativeis, type Ocupacao } from "@/lib/agenda/horarios-livres";
+import { horariosLivres, type Ocupacao } from "@/lib/agenda/horarios-livres";
 import { MAXIMO_DE_SESSOES, candidatasDaSerie, datasDaSerie, datasSemBloqueios, type FimDaSerie, type Frequencia } from "@/lib/agenda/recorrencia";
+import { profissionaisDoTipo, type TipoComProfissionais } from "@/lib/agenda/tipos";
 import { FUSO, diaDaSemana, ehDataValida, formatarHora, inicioDoDiaISO, instanteNoFuso, partesNoFuso, somarDias } from "@/lib/agenda/tempo";
 import type { Database } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
@@ -21,10 +22,15 @@ export async function opcoesDoFormulario() {
     supabase.from("profissionais").select("id, nome, especialidade").eq("ativo", true).order("nome"),
     // Todos os planos: os inativos só aparecem quando já estão no atendimento/paciente.
     supabase.from("planos").select("id, nome, cor, duracao_padrao_min, valor_padrao, ativo").order("nome"),
-    supabase.from("tipos_atendimento").select("id, nome").eq("ativo", true).order("nome"),
+    supabase.from("tipos_atendimento").select("id, nome, vinculos:tipos_atendimento_profissionais(profissional_id)").eq("ativo", true).order("nome"),
   ]);
   for (const r of [pacientes, profissionais, planos, tipos]) if (r.error) throw new Error("Não foi possível carregar o formulário.");
-  return { pacientes: pacientes.data!, profissionais: profissionais.data!, planos: planos.data!, tipos: tipos.data! };
+  const tiposComProfissionais: TipoComProfissionais[] = tipos.data!.map((t) => ({
+    id: t.id,
+    nome: t.nome,
+    profissionais: t.vinculos.map((v) => v.profissional_id),
+  }));
+  return { pacientes: pacientes.data!, profissionais: profissionais.data!, planos: planos.data!, tipos: tiposComProfissionais };
 }
 
 export type OpcoesDoFormulario = Awaited<ReturnType<typeof opcoesDoFormulario>>;
@@ -215,12 +221,12 @@ export async function buscarHorariosLivres(b: BuscaDeHorarios): Promise<{ sugest
   if (b.profissionais.length) {
     grupos = [b.profissionais];
   } else {
-    const [profs, tipo] = await Promise.all([
-      supabase.from("profissionais").select("id, especialidade").eq("ativo", true),
-      b.tipoId ? supabase.from("tipos_atendimento").select("nome").eq("id", b.tipoId).single() : null,
+    const [profs, vinculos] = await Promise.all([
+      supabase.from("profissionais").select("id").eq("ativo", true),
+      b.tipoId ? supabase.from("tipos_atendimento_profissionais").select("profissional_id").eq("tipo_id", b.tipoId) : null,
     ]);
-    if (profs.error) throw new Error("Não foi possível buscar os profissionais.");
-    grupos = profissionaisCompativeis(tipo?.data?.nome ?? null, profs.data).map((p) => [p.id]);
+    if (profs.error || vinculos?.error) throw new Error("Não foi possível buscar os profissionais.");
+    grupos = profissionaisDoTipo(vinculos?.data.map((v) => v.profissional_id) ?? null, profs.data).map((p) => [p.id]);
   }
   if (!grupos.length) return { sugestoes: [], ate: fim };
 

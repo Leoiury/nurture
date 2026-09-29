@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 
 const ABAS = [
   { href: "/configuracoes/planos", rotulo: "Planos" },
+  { href: "/configuracoes/tipos", rotulo: "Tipos de atendimento" },
   { href: "/configuracoes/feriados", rotulo: "Feriados e recessos" },
 ] as const;
 
