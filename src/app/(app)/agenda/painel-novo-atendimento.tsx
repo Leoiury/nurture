@@ -16,7 +16,7 @@ import {
   type Frequencia,
 } from "@/lib/agenda/recorrencia";
 import { hoje as dataDeHoje, nomeCurtoDoDia, partesNoFuso } from "@/lib/agenda/tempo";
-import { lerValor } from "@/lib/agenda/valores";
+import { lerValor, valorSugerido } from "@/lib/agenda/valores";
 import { atendeOTipo, tipoSugerido } from "@/lib/agenda/tipos";
 import { paraBusca } from "@/lib/pacientes";
 import { useAcoesDaAgenda } from "./acoes-da-agenda";
@@ -87,6 +87,8 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
   const [planoId, setPlanoId] = useState<string | null>(edicao?.planoId ?? null);
   const [tipoId, setTipoId] = useState<string | null>(edicao?.tipoId ?? null);
   const [valor, setValor] = useState(edicao?.valor != null ? String(edicao.valor).replace(".", ",") : "");
+  // Digitado à mão (ou já gravado, na edição): trocar o tipo não o substitui.
+  const [valorDigitado, setValorDigitado] = useState(!!edicao);
   const [alcance, setAlcance] = useState<Alcance>("este");
   const [status, setStatus] = useState<(typeof STATUS_INICIAIS)[number]["valor"]>("marcado");
   const [observacao, setObservacao] = useState("");
@@ -192,13 +194,27 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
     return opcoes.pacientes.filter((p) => paraBusca(p.nome).includes(termo)).slice(0, 8);
   }, [opcoes, paciente, busca]);
 
+  /** Valor sugerido: o da área do tipo no plano; sem ele, o valor padrão do plano. */
+  function sugerirValor(idPlano: string | null, idTipo: string | null) {
+    const plano = opcoes?.planos.find((p) => p.id === idPlano);
+    const v = valorSugerido(plano, opcoes?.tipos.find((t) => t.id === idTipo)?.area);
+    setValor(v != null ? String(v).replace(".", ",") : "");
+    setValorDigitado(false);
+  }
+
   function escolherPlano(id: string | null) {
     setPlanoId(id);
     const plano = opcoes?.planos.find((p) => p.id === id);
     if (plano) {
       setDuracao(plano.duracao_padrao_min);
-      setValor(plano.valor_padrao != null ? String(plano.valor_padrao).replace(".", ",") : "");
+      sugerirValor(id, tipoId);
     }
+  }
+
+  /** Trocar o tipo atualiza o valor sugerido, a não ser que ele tenha sido digitado. */
+  function escolherTipo(id: string | null) {
+    setTipoId(id);
+    if (planoId && !valorDigitado) sugerirValor(planoId, id);
   }
 
   function escolherPaciente(id: string, nome: string, planoPadrao: string | null) {
@@ -210,7 +226,7 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
   function adicionarProfissional(id: string) {
     if (!id || profissionais.includes(id)) return;
     if (profissionais.length === 0 && !tipoId && opcoes) {
-      setTipoId(tipoSugerido(opcoes.profissionais.find((p) => p.id === id), opcoes.tipos));
+      escolherTipo(tipoSugerido(opcoes.profissionais.find((p) => p.id === id), opcoes.tipos));
     }
     setProfissionais([...profissionais, id]);
   }
@@ -415,12 +431,22 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
                   </select>
                 </Campo>
                 <Campo rotulo="Valor (R$)" id="campo-valor">
-                  <input id="campo-valor" inputMode="decimal" value={valor} onChange={(e) => setValor(e.target.value)} placeholder="—" className={entrada} />
+                  <input
+                    id="campo-valor"
+                    inputMode="decimal"
+                    value={valor}
+                    onChange={(e) => {
+                      setValor(e.target.value);
+                      setValorDigitado(true);
+                    }}
+                    placeholder="—"
+                    className={entrada}
+                  />
                 </Campo>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <Campo rotulo="Tipo" id="campo-tipo">
-                  <select id="campo-tipo" value={tipoId ?? ""} onChange={(e) => setTipoId(e.target.value || null)} className={entrada}>
+                  <select id="campo-tipo" value={tipoId ?? ""} onChange={(e) => escolherTipo(e.target.value || null)} className={entrada}>
                     <option value="">—</option>
                     {opcoes.tipos.map((t) => (
                       <option key={t.id} value={t.id}>
@@ -749,6 +775,13 @@ type BuscaProps = {
   aoEscolher: (s: HorarioSugerido) => void;
 };
 
+/** Turnos da lista de horários livres: manhã até 12:00, tarde depois. */
+const PERIODOS = [
+  { rotulo: "Manhã", ate: 12 * 60 },
+  { rotulo: "Tarde", ate: 24 * 60 },
+];
+const horaEmMinutos = (hora: string) => Number(hora.slice(0, 2)) * 60 + Number(hora.slice(3, 5));
+
 /** Busca de horários livres (depois de definidos tipo e duração). */
 function BuscaDeHorariosLivres({ pronta, criterio, nomeDoProfissional, escolhido, aoEscolher }: BuscaProps) {
   const [estado, setEstado] = useState<
@@ -793,25 +826,34 @@ function BuscaDeHorariosLivres({ pronta, criterio, nomeDoProfissional, escolhido
           ) : (
             <ul className="flex flex-col gap-2" aria-label="Sugestões de horário">
               {[...porDia].map(([dia, lista]) => (
-                <li key={dia} className="flex flex-col gap-1">
-                  <span className="text-xs font-medium text-muted capitalize">{dataCurta(dia)}</span>
-                  <div className="flex flex-wrap gap-1">
-                    {lista.map((s) => {
-                      const ativo = s.data === escolhido.data && s.hora === escolhido.hora;
-                      return (
-                        <button
-                          key={`${s.hora}${s.profissionalIds.join()}`}
-                          type="button"
-                          onClick={() => aoEscolher(s)}
-                          aria-pressed={ativo}
-                          className={`rounded-lg px-2 py-1 text-xs tabular-nums ${ativo ? "bg-accent text-white" : "bg-surface ring-1 ring-black/10 hover:ring-accent"}`}
-                        >
-                          {s.hora}
-                          {alternativas && ` · ${s.profissionalIds.map(nomeDoProfissional).join(", ")}`}
-                        </button>
-                      );
-                    })}
-                  </div>
+                <li key={dia} aria-label={dataCurta(dia)} className="flex flex-col gap-1.5 rounded-xl bg-surface px-3 py-2 ring-1 ring-black/5">
+                  <span className="text-xs font-semibold first-letter:uppercase">{dataCurta(dia)}</span>
+                  {PERIODOS.map(({ rotulo, ate }, i) => {
+                    const doPeriodo = lista.filter((s) => horaEmMinutos(s.hora) < ate && (i === 0 || horaEmMinutos(s.hora) >= PERIODOS[i - 1].ate));
+                    return (
+                      <div key={rotulo} role="group" aria-label={rotulo} className="grid grid-cols-[3.25rem_1fr] items-start gap-2">
+                        <span className="pt-1 text-[11px] font-medium tracking-wide text-muted uppercase">{rotulo}</span>
+                        <div className="flex flex-wrap gap-1">
+                          {doPeriodo.length === 0 && <span className="pt-1 text-xs text-muted">—</span>}
+                          {doPeriodo.map((s) => {
+                            const ativo = s.data === escolhido.data && s.hora === escolhido.hora;
+                            return (
+                              <button
+                                key={`${s.hora}${s.profissionalIds.join()}`}
+                                type="button"
+                                onClick={() => aoEscolher(s)}
+                                aria-pressed={ativo}
+                                className={`rounded-lg px-2 py-1 text-xs tabular-nums ${ativo ? "bg-accent text-white" : "bg-background ring-1 ring-black/10 hover:ring-accent"}`}
+                              >
+                                {s.hora}
+                                {alternativas && ` · ${s.profissionalIds.map(nomeDoProfissional).join(", ")}`}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </li>
               ))}
             </ul>

@@ -14,12 +14,13 @@ insert into planos (nome, cor, duracao_padrao_min, valor_padrao) values
   ('Unimed', '#2E7D5B', 45, 120),
   ('Unimed - Reembolso', '#4A90D9', 45, 200);
 
-insert into tipos_atendimento (nome) values
-  ('Sessão Psicologia'),
-  ('Sessão Fonoaudiologia'),
-  ('Sessão ABA'),
-  ('Atendimento Pedagógico'),
-  ('Consulta Nutricional');
+-- area: qual valor do plano o tipo usa (o seed roda depois das migrations).
+insert into tipos_atendimento (nome, area) values
+  ('Sessão Psicologia', 'psicologia'),
+  ('Sessão Fonoaudiologia', 'fonoaudiologia'),
+  ('Sessão ABA', 'psicologia'),
+  ('Atendimento Pedagógico', 'psicopedagogia'),
+  ('Consulta Nutricional', 'nutricao');
 
 insert into profissionais (nome, especialidade, nome_legado) values
   ('Ana Beatriz Costa', 'Psicóloga', null),

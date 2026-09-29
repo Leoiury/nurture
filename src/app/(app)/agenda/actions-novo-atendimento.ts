@@ -22,14 +22,18 @@ export async function opcoesDoFormulario() {
     supabase.from("pacientes").select("id, nome, responsavel, plano_id").eq("ativo", true).order("nome"),
     supabase.from("profissionais").select("id, nome, especialidade").eq("ativo", true).order("nome"),
     // Todos os planos: os inativos só aparecem quando já estão no atendimento/paciente.
-    supabase.from("planos").select("id, nome, cor, duracao_padrao_min, valor_padrao, ativo").order("nome"),
-    supabase.from("tipos_atendimento").select("id, nome, vinculos:tipos_atendimento_profissionais(profissional_id)").eq("ativo", true).order("nome"),
+    supabase
+      .from("planos")
+      .select("id, nome, cor, duracao_padrao_min, valor_padrao, valor_fonoaudiologia, valor_psicologia, valor_nutricao, valor_psicopedagogia, ativo")
+      .order("nome"),
+    supabase.from("tipos_atendimento").select("id, nome, area, vinculos:tipos_atendimento_profissionais(profissional_id)").eq("ativo", true).order("nome"),
   ]);
   for (const r of [pacientes, profissionais, planos, tipos]) if (r.error) throw new Error("Não foi possível carregar o formulário.");
   const tiposComProfissionais: TipoComProfissionais[] = tipos.data!.map((t) => ({
     id: t.id,
     nome: t.nome,
     profissionais: t.vinculos.map((v) => v.profissional_id),
+    area: t.area,
   }));
   return { pacientes: pacientes.data!, profissionais: profissionais.data!, planos: planos.data!, tipos: tiposComProfissionais };
 }
@@ -282,7 +286,7 @@ export async function buscarHorariosLivres(b: BuscaDeHorarios): Promise<{ sugest
     ocupacaoDoPaciente,
     agora: { data: agora.data, minutos: agora.minutos },
     // Com vários profissionais alternativos, menos por profissional para caber na tela.
-    limitePorDia: grupos.length > 1 ? 3 : 8,
+    limitePorPeriodo: grupos.length > 1 ? 2 : 4,
   });
   return {
     sugestoes: livres.slice(0, 80).map((l) => ({ data: l.data, hora: formatarHora(l.inicio), profissionalIds: l.profissionalIds })),

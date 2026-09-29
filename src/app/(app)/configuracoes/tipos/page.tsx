@@ -9,7 +9,7 @@ export default async function TiposPage() {
   const [tipos, profissionais] = await Promise.all([
     supabase
       .from("tipos_atendimento")
-      .select("id, nome, ativo, atendimentos(count), vinculos:tipos_atendimento_profissionais(profissional_id)")
+      .select("id, nome, ativo, area, atendimentos(count), vinculos:tipos_atendimento_profissionais(profissional_id)")
       .order("ativo", { ascending: false })
       .order("nome"),
     supabase.from("profissionais").select("id, nome, especialidade").eq("ativo", true).order("nome"),
@@ -20,6 +20,7 @@ export default async function TiposPage() {
     id: t.id,
     nome: t.nome,
     ativo: t.ativo,
+    area: t.area,
     atendimentos: t.atendimentos[0]?.count ?? 0,
     profissionais: t.vinculos.map((v) => v.profissional_id),
   }));

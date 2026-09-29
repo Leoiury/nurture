@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { PALETA_PLANOS } from "@/lib/agenda/cores";
-import { lerValor } from "@/lib/agenda/valores";
+import { AREAS, lerValor, type Area } from "@/lib/agenda/valores";
 import { excluirPlano, salvarPlano } from "./actions";
 
 export type PlanoDaLista = {
@@ -11,6 +11,7 @@ export type PlanoDaLista = {
   cor: string;
   duracaoMin: number;
   valor: number | null;
+  valoresPorArea: Record<Area, number | null>;
   ativo: boolean;
   atendimentos: number;
   pacientes: number;
@@ -78,6 +79,12 @@ function PainelDoPlano({ plano, aoFechar }: { plano: PlanoDaLista | null; aoFech
   const [cor, setCor] = useState(plano?.cor ?? PALETA_PLANOS[0].hex);
   const [duracao, setDuracao] = useState(plano?.duracaoMin ?? 45);
   const [valor, setValor] = useState(plano?.valor != null ? String(plano.valor).replace(".", ",") : "");
+  const [porArea, setPorArea] = useState<Record<Area, string>>(() =>
+    Object.fromEntries(AREAS.map(({ valor: a }) => [a, plano?.valoresPorArea[a] != null ? String(plano.valoresPorArea[a]).replace(".", ",") : ""])) as Record<
+      Area,
+      string
+    >,
+  );
   const [ativo, setAtivo] = useState(plano?.ativo ?? true);
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
@@ -103,7 +110,10 @@ function PainelDoPlano({ plano, aoFechar }: { plano: PlanoDaLista | null; aoFech
   function salvar() {
     const v = lerValor(valor);
     if (v !== null && Number.isNaN(v)) return setErro("Valor inválido.");
-    void executar(() => salvarPlano({ id: plano?.id, nome, cor, duracaoMin: duracao, valor: v, ativo }));
+    const valoresPorArea = Object.fromEntries(AREAS.map(({ valor: a }) => [a, lerValor(porArea[a])])) as Record<Area, number | null>;
+    const invalida = AREAS.find(({ valor: a }) => Number.isNaN(valoresPorArea[a]));
+    if (invalida) return setErro(`Valor de ${invalida.rotulo} inválido.`);
+    void executar(() => salvarPlano({ id: plano?.id, nome, cor, duracaoMin: duracao, valor: v, valoresPorArea, ativo }));
   }
 
   return (
@@ -200,6 +210,26 @@ function PainelDoPlano({ plano, aoFechar }: { plano: PlanoDaLista | null; aoFech
               <span className="text-xs font-semibold tracking-wide text-muted uppercase">Valor padrão (R$)</span>
               <input value={valor} onChange={(e) => setValor(e.target.value)} inputMode="decimal" placeholder="Opcional" className={`${entrada} w-48`} />
             </label>
+
+            <fieldset className="flex flex-col gap-2">
+              <legend className="mb-1.5 text-xs font-semibold tracking-wide text-muted uppercase">Valor por área (R$)</legend>
+              <div className="grid grid-cols-2 gap-2">
+                {AREAS.map(({ valor: a, rotulo }) => (
+                  <label key={a} className="flex flex-col gap-1">
+                    <span className="text-xs text-muted">{rotulo}</span>
+                    <input
+                      value={porArea[a]}
+                      onChange={(e) => setPorArea({ ...porArea, [a]: e.target.value })}
+                      inputMode="decimal"
+                      placeholder={valor.trim() ? `Padrão: ${valor}` : "Opcional"}
+                      aria-label={`Valor de ${rotulo} (R$)`}
+                      className={`${entrada} w-full`}
+                    />
+                  </label>
+                ))}
+              </div>
+              <p className="text-xs text-muted">Usado quando o tipo do atendimento é dessa área (veja em Tipos de atendimento). Vazio: vale o valor padrão.</p>
+            </fieldset>
 
             {plano && (
               <label className="flex cursor-pointer items-center gap-2">

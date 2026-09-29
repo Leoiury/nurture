@@ -55,3 +55,12 @@ test("tipo em uso não pode ser excluído, só desativado", async ({ page }) => 
   await expect(edicao.getByRole("checkbox", { name: /Ana Beatriz Costa/ })).toBeChecked();
   await expect(edicao.getByRole("checkbox", { name: /Carla Mendes/ })).not.toBeChecked();
 });
+
+test("o tipo diz qual valor do plano usar", async ({ page }) => {
+  await page.goto("/configuracoes/tipos");
+  const lista = page.getByRole("list", { name: "Tipos de atendimento" });
+  await expect(lista.getByRole("button", { name: /Sessão Psicologia/ })).toContainText("valor psicologia");
+  await expect(lista.getByRole("button", { name: /Reuniões e Visitas/ })).toContainText("valor padrão");
+  await lista.getByRole("button", { name: /Atendimento Pedagógico/ }).click();
+  await expect(page.getByRole("dialog", { name: "Editar tipo" }).getByLabel("Valor do plano")).toHaveValue("psicopedagogia");
+});

@@ -8,7 +8,9 @@ export default async function PlanosPage() {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("planos")
-    .select("id, nome, cor, duracao_padrao_min, valor_padrao, ativo, atendimentos(count), pacientes(count)")
+    .select(
+      "id, nome, cor, duracao_padrao_min, valor_padrao, valor_fonoaudiologia, valor_psicologia, valor_nutricao, valor_psicopedagogia, ativo, atendimentos(count), pacientes(count)",
+    )
     .order("ativo", { ascending: false })
     .order("nome");
   if (error) throw error;
@@ -19,6 +21,12 @@ export default async function PlanosPage() {
     cor: p.cor,
     duracaoMin: p.duracao_padrao_min,
     valor: p.valor_padrao,
+    valoresPorArea: {
+      fonoaudiologia: p.valor_fonoaudiologia,
+      psicologia: p.valor_psicologia,
+      nutricao: p.valor_nutricao,
+      psicopedagogia: p.valor_psicopedagogia,
+    },
     ativo: p.ativo,
     atendimentos: p.atendimentos[0]?.count ?? 0,
     pacientes: p.pacientes[0]?.count ?? 0,
@@ -27,7 +35,7 @@ export default async function PlanosPage() {
   return (
     <div className="flex flex-col gap-4">
       <p className="text-sm text-muted">
-        O plano define a cor do card na agenda e sugere a duração e o valor ao marcar um atendimento. Mudar esses padrões vale para os
+        O plano define a cor do card na agenda e sugere a duração e o valor ao marcar um atendimento (o valor da área do tipo, se houver; senão, o valor padrão). Mudar esses padrões vale para os
         novos atendimentos; os já marcados não mudam.
       </p>
       <ListaDePlanos planos={planos} />
