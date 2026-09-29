@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { AREAS, type Area } from "@/lib/agenda/valores";
 import { nomeAbreviado } from "../../agenda/comum";
 import { excluirTipo, salvarTipo } from "./actions";
 
@@ -8,6 +9,8 @@ export type TipoDaLista = {
   id: string;
   nome: string;
   ativo: boolean;
+  /** Qual valor do plano o tipo usa; null = o valor padrão. */
+  area: string | null;
   atendimentos: number;
   /** Quem atende; vazio = qualquer profissional. */
   profissionais: string[];
@@ -50,7 +53,9 @@ export function ListaDeTipos({ tipos, profissionais }: { tipos: TipoDaLista[]; p
                   {t.nome}
                   {!t.ativo && <span className="ml-2 rounded-full bg-black/5 px-2 py-px text-[11px] font-normal text-muted">inativo</span>}
                 </span>
-                <span className="block truncate text-muted">{quemAtende(t)}</span>
+                <span className="block truncate text-muted">
+                  {quemAtende(t)} · valor {AREAS.find((a) => a.valor === t.area)?.rotulo.toLowerCase() ?? "padrão"}
+                </span>
               </span>
               <span className="hidden text-right text-xs text-muted sm:block">{plural(t.atendimentos, "atendimento", "atendimentos")}</span>
             </button>
@@ -77,6 +82,7 @@ const entrada =
 function PainelDoTipo({ tipo, profissionais, aoFechar }: { tipo: TipoDaLista | null; profissionais: Profissional[]; aoFechar: () => void }) {
   const [nome, setNome] = useState(tipo?.nome ?? "");
   const [ativo, setAtivo] = useState(tipo?.ativo ?? true);
+  const [area, setArea] = useState<Area | null>((tipo?.area as Area | null) ?? null);
   // Guarda também vínculos com profissionais inativos (não aparecem aqui, mas não se perdem ao salvar).
   const [escolhidos, setEscolhidos] = useState<string[]>(tipo?.profissionais ?? []);
   const [salvando, setSalvando] = useState(false);
@@ -122,13 +128,26 @@ function PainelDoTipo({ tipo, profissionais, aoFechar }: { tipo: TipoDaLista | n
           className="flex min-h-0 flex-1 flex-col"
           onSubmit={(e) => {
             e.preventDefault();
-            void executar(() => salvarTipo({ id: tipo?.id, nome, ativo, profissionais: escolhidos }));
+            void executar(() => salvarTipo({ id: tipo?.id, nome, ativo, area, profissionais: escolhidos }));
           }}
         >
           <div className="flex flex-1 flex-col gap-5 overflow-y-auto px-5 py-4 text-sm">
             <label className="flex flex-col gap-1.5">
               <span className="text-xs font-semibold tracking-wide text-muted uppercase">Nome</span>
               <input value={nome} onChange={(e) => setNome(e.target.value)} className={`${entrada} w-full`} placeholder="Ex.: Avaliação Psicológica" />
+            </label>
+
+            <label className="flex flex-col gap-1.5">
+              <span className="text-xs font-semibold tracking-wide text-muted uppercase">Valor do plano</span>
+              <select value={area ?? ""} onChange={(e) => setArea((e.target.value || null) as Area | null)} className={`${entrada} w-full`}>
+                <option value="">Valor padrão do plano</option>
+                {AREAS.map((a) => (
+                  <option key={a.valor} value={a.valor}>
+                    Valor de {a.rotulo}
+                  </option>
+                ))}
+              </select>
+              <span className="text-xs text-muted">Ao marcar, sugere o valor desta área no plano do paciente; se o plano não tiver, o valor padrão.</span>
             </label>
 
             <fieldset className="flex flex-col gap-1">

@@ -408,7 +408,11 @@ export type Database = {
           duracao_padrao_min: number
           id: string
           nome: string
+          valor_fonoaudiologia: number | null
+          valor_nutricao: number | null
           valor_padrao: number | null
+          valor_psicologia: number | null
+          valor_psicopedagogia: number | null
         }
         Insert: {
           ativo?: boolean
@@ -418,7 +422,11 @@ export type Database = {
           duracao_padrao_min?: number
           id?: string
           nome: string
+          valor_fonoaudiologia?: number | null
+          valor_nutricao?: number | null
           valor_padrao?: number | null
+          valor_psicologia?: number | null
+          valor_psicopedagogia?: number | null
         }
         Update: {
           ativo?: boolean
@@ -428,7 +436,11 @@ export type Database = {
           duracao_padrao_min?: number
           id?: string
           nome?: string
+          valor_fonoaudiologia?: number | null
+          valor_nutricao?: number | null
           valor_padrao?: number | null
+          valor_psicologia?: number | null
+          valor_psicopedagogia?: number | null
         }
         Relationships: []
       }
@@ -497,6 +509,7 @@ export type Database = {
       }
       tipos_atendimento: {
         Row: {
+          area: string | null
           ativo: boolean
           atualizado_em: string
           criado_em: string
@@ -504,6 +517,7 @@ export type Database = {
           nome: string
         }
         Insert: {
+          area?: string | null
           ativo?: boolean
           atualizado_em?: string
           criado_em?: string
@@ -511,6 +525,7 @@ export type Database = {
           nome: string
         }
         Update: {
+          area?: string | null
           ativo?: boolean
           atualizado_em?: string
           criado_em?: string

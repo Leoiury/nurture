@@ -10,6 +10,7 @@ test("criar plano, usar no atendimento, desativar e excluir", async ({ page }) =
   await painel.getByRole("radio", { name: "Roxo" }).click();
   await painel.getByLabel("Duração em minutos").fill("60");
   await painel.getByLabel("Valor padrão (R$)").fill("95,50");
+  await painel.getByLabel("Valor de Psicologia (R$)").fill("130");
   await expect(painel.getByLabel("Prévia do card")).toContainText(nome);
   await painel.getByRole("button", { name: "Salvar" }).click();
   await expect(painel).toBeHidden();
@@ -22,6 +23,16 @@ test("criar plano, usar no atendimento, desativar e excluir", async ({ page }) =
   await painelNovo(page).getByLabel("Plano").selectOption({ label: nome });
   await expect(painelNovo(page).getByLabel("Duração em minutos")).toHaveValue("60");
   await expect(painelNovo(page).getByLabel("Valor (R$)")).toHaveValue("95,5");
+
+  // O tipo escolhe o valor da área; sem valor na área, fica o padrão.
+  await painelNovo(page).getByLabel("Tipo").selectOption({ label: "Sessão Psicologia" });
+  await expect(painelNovo(page).getByLabel("Valor (R$)")).toHaveValue("130");
+  await painelNovo(page).getByLabel("Tipo").selectOption({ label: "Sessão Fonoaudiologia" });
+  await expect(painelNovo(page).getByLabel("Valor (R$)")).toHaveValue("95,5");
+  // Valor digitado à mão não é trocado pelo tipo.
+  await painelNovo(page).getByLabel("Valor (R$)").fill("210");
+  await painelNovo(page).getByLabel("Tipo").selectOption({ label: "Sessão Psicologia" });
+  await expect(painelNovo(page).getByLabel("Valor (R$)")).toHaveValue("210");
   await page.keyboard.press("Escape");
 
   // Desativar e depois excluir (sem uso).

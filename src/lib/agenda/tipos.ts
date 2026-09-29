@@ -1,7 +1,7 @@
 // Tipos de atendimento: quem atende e qual tipo sugerir para um profissional.
 
 /** `profissionais`: ids vinculados ao tipo. Nenhum vinculado: qualquer profissional atende. */
-export type TipoComProfissionais = { id: string; nome: string; profissionais: string[] };
+export type TipoComProfissionais = { id: string; nome: string; profissionais: string[]; /** Qual valor do plano o tipo usa. */ area?: string | null };
 
 export function atendeOTipo(tipo: Pick<TipoComProfissionais, "profissionais">, profissionalId: string): boolean {
   return tipo.profissionais.length === 0 || tipo.profissionais.includes(profissionalId);

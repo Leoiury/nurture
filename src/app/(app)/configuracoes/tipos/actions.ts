@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { AREAS, type Area } from "@/lib/agenda/valores";
 import { createClient } from "@/lib/supabase/server";
 
 type Resultado = { ok: true } | { ok: false; erro: string };
@@ -9,6 +10,8 @@ export type DadosDoTipo = {
   id?: string; // ausente: novo tipo
   nome: string;
   ativo: boolean;
+  /** Qual valor do plano o tipo usa; null = o valor padrão. */
+  area: Area | null;
   /** Quem atende; vazio = qualquer profissional. */
   profissionais: string[];
 };
@@ -23,7 +26,8 @@ export async function salvarTipo(t: DadosDoTipo): Promise<Resultado> {
   if (!nome) return { ok: false, erro: "Informe o nome." };
 
   const supabase = await createClient();
-  const dados = { nome, ativo: t.ativo };
+  if (t.area && !AREAS.some((a) => a.valor === t.area)) return { ok: false, erro: "Área inválida." };
+  const dados = { nome, ativo: t.ativo, area: t.area };
   const { data, error } = t.id
     ? await supabase.from("tipos_atendimento").update(dados).eq("id", t.id).select("id").single()
     : await supabase.from("tipos_atendimento").insert(dados).select("id").single();

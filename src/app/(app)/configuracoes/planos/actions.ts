@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { PALETA_PLANOS } from "@/lib/agenda/cores";
+import type { Area } from "@/lib/agenda/valores";
 import { createClient } from "@/lib/supabase/server";
 
 type Resultado = { ok: true } | { ok: false; erro: string };
@@ -12,6 +13,8 @@ export type DadosDoPlano = {
   cor: string;
   duracaoMin: number;
   valor: number | null;
+  /** Valor por área do tipo de atendimento (vazio = usa o valor padrão). */
+  valoresPorArea: Record<Area, number | null>;
   ativo: boolean;
 };
 
@@ -26,9 +29,21 @@ export async function salvarPlano(p: DadosDoPlano): Promise<Resultado> {
   if (!PALETA_PLANOS.some((c) => c.hex.toLowerCase() === p.cor.toLowerCase())) return { ok: false, erro: "Escolha uma cor da paleta." };
   if (!(Number.isInteger(p.duracaoMin) && p.duracaoMin >= 5 && p.duracaoMin <= 720)) return { ok: false, erro: "Duração inválida." };
   if (p.valor !== null && !(p.valor >= 0)) return { ok: false, erro: "Valor inválido." };
+  const porArea = p.valoresPorArea;
+  if (Object.values(porArea).some((v) => v !== null && !(v >= 0))) return { ok: false, erro: "Valor por área inválido." };
 
   const supabase = await createClient();
-  const dados = { nome, cor: p.cor, duracao_padrao_min: p.duracaoMin, valor_padrao: p.valor, ativo: p.ativo };
+  const dados = {
+    nome,
+    cor: p.cor,
+    duracao_padrao_min: p.duracaoMin,
+    valor_padrao: p.valor,
+    valor_fonoaudiologia: porArea.fonoaudiologia,
+    valor_psicologia: porArea.psicologia,
+    valor_nutricao: porArea.nutricao,
+    valor_psicopedagogia: porArea.psicopedagogia,
+    ativo: p.ativo,
+  };
   const { error } = p.id ? await supabase.from("planos").update(dados).eq("id", p.id) : await supabase.from("planos").insert(dados);
   if (error) return { ok: false, erro: error.code === "23505" ? "Já existe um plano com esse nome." : "Não foi possível salvar." };
   revalidar();

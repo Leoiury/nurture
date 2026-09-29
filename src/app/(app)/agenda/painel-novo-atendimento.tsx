@@ -16,7 +16,7 @@ import {
   type Frequencia,
 } from "@/lib/agenda/recorrencia";
 import { hoje as dataDeHoje, nomeCurtoDoDia, partesNoFuso } from "@/lib/agenda/tempo";
-import { lerValor } from "@/lib/agenda/valores";
+import { lerValor, valorSugerido } from "@/lib/agenda/valores";
 import { atendeOTipo, tipoSugerido } from "@/lib/agenda/tipos";
 import { paraBusca } from "@/lib/pacientes";
 import { useAcoesDaAgenda } from "./acoes-da-agenda";
@@ -87,6 +87,8 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
   const [planoId, setPlanoId] = useState<string | null>(edicao?.planoId ?? null);
   const [tipoId, setTipoId] = useState<string | null>(edicao?.tipoId ?? null);
   const [valor, setValor] = useState(edicao?.valor != null ? String(edicao.valor).replace(".", ",") : "");
+  // Digitado à mão (ou já gravado, na edição): trocar o tipo não o substitui.
+  const [valorDigitado, setValorDigitado] = useState(!!edicao);
   const [alcance, setAlcance] = useState<Alcance>("este");
   const [status, setStatus] = useState<(typeof STATUS_INICIAIS)[number]["valor"]>("marcado");
   const [observacao, setObservacao] = useState("");
@@ -192,13 +194,27 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
     return opcoes.pacientes.filter((p) => paraBusca(p.nome).includes(termo)).slice(0, 8);
   }, [opcoes, paciente, busca]);
 
+  /** Valor sugerido: o da área do tipo no plano; sem ele, o valor padrão do plano. */
+  function sugerirValor(idPlano: string | null, idTipo: string | null) {
+    const plano = opcoes?.planos.find((p) => p.id === idPlano);
+    const v = valorSugerido(plano, opcoes?.tipos.find((t) => t.id === idTipo)?.area);
+    setValor(v != null ? String(v).replace(".", ",") : "");
+    setValorDigitado(false);
+  }
+
   function escolherPlano(id: string | null) {
     setPlanoId(id);
     const plano = opcoes?.planos.find((p) => p.id === id);
     if (plano) {
       setDuracao(plano.duracao_padrao_min);
-      setValor(plano.valor_padrao != null ? String(plano.valor_padrao).replace(".", ",") : "");
+      sugerirValor(id, tipoId);
     }
+  }
+
+  /** Trocar o tipo atualiza o valor sugerido, a não ser que ele tenha sido digitado. */
+  function escolherTipo(id: string | null) {
+    setTipoId(id);
+    if (planoId && !valorDigitado) sugerirValor(planoId, id);
   }
 
   function escolherPaciente(id: string, nome: string, planoPadrao: string | null) {
@@ -210,7 +226,7 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
   function adicionarProfissional(id: string) {
     if (!id || profissionais.includes(id)) return;
     if (profissionais.length === 0 && !tipoId && opcoes) {
-      setTipoId(tipoSugerido(opcoes.profissionais.find((p) => p.id === id), opcoes.tipos));
+      escolherTipo(tipoSugerido(opcoes.profissionais.find((p) => p.id === id), opcoes.tipos));
     }
     setProfissionais([...profissionais, id]);
   }
@@ -415,12 +431,22 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
                   </select>
                 </Campo>
                 <Campo rotulo="Valor (R$)" id="campo-valor">
-                  <input id="campo-valor" inputMode="decimal" value={valor} onChange={(e) => setValor(e.target.value)} placeholder="—" className={entrada} />
+                  <input
+                    id="campo-valor"
+                    inputMode="decimal"
+                    value={valor}
+                    onChange={(e) => {
+                      setValor(e.target.value);
+                      setValorDigitado(true);
+                    }}
+                    placeholder="—"
+                    className={entrada}
+                  />
                 </Campo>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <Campo rotulo="Tipo" id="campo-tipo">
-                  <select id="campo-tipo" value={tipoId ?? ""} onChange={(e) => setTipoId(e.target.value || null)} className={entrada}>
+                  <select id="campo-tipo" value={tipoId ?? ""} onChange={(e) => escolherTipo(e.target.value || null)} className={entrada}>
                     <option value="">—</option>
                     {opcoes.tipos.map((t) => (
                       <option key={t.id} value={t.id}>
