@@ -64,3 +64,52 @@ export async function abrirAtendimento(page: Page, nome: string) {
   await cardDoPaciente(page, nome).dispatchEvent("click");
   await expect(painelDetalhes(page).getByRole("heading", { name: nome })).toBeVisible();
 }
+
+/**
+ * Um ponto livre (sem card) na primeira coluna da agenda e o horário que ele marca.
+ * Usa a prévia que aparece com Shift pressionado; solta o Shift no fim.
+ */
+export async function horarioLivre(page: Page): Promise<{ x: number; y: number; hora: string }> {
+  const coluna = page.locator("section").first().locator("[data-coluna]").first();
+  const caixa = (await coluna.boundingBox())!;
+  const x = caixa.x + caixa.width / 2;
+  await page.keyboard.down("Shift");
+  try {
+    for (let y = caixa.y + 4; y < caixa.y + caixa.height; y += 12) {
+      const livre = await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.closest("button") === null, { x, y });
+      if (!livre) continue;
+      await page.mouse.move(x, y);
+      const previa = coluna.getByText(/^\+ \d\d:\d\d$/);
+      if (await previa.isVisible()) return { x, y, hora: (await previa.innerText()).slice(2) };
+    }
+  } finally {
+    await page.keyboard.up("Shift");
+  }
+  throw new Error("Nenhum horário livre na primeira coluna.");
+}
+
+/** Simula um toque (dedo) no ponto: pointerdown, espera `segurarMs` e solta (com o clique, se curto). */
+export async function tocar(page: Page, x: number, y: number, segurarMs: number, moverPara?: { x: number; y: number }, seletor?: string) {
+  await page.evaluate(
+    async ({ x, y, segurarMs, moverPara, seletor }) => {
+      // Com seletor, toca aquele elemento (outro card pode estar por cima no mesmo ponto).
+      const alvo = (seletor ? document.querySelector(seletor) : document.elementFromPoint(x, y))!;
+      const base = { bubbles: true, cancelable: true, pointerType: "touch", pointerId: 7, isPrimary: true };
+      alvo.dispatchEvent(new PointerEvent("pointerdown", { ...base, clientX: x, clientY: y }));
+      await new Promise((r) => setTimeout(r, segurarMs));
+      const fim = moverPara ?? { x, y };
+      if (moverPara) {
+        for (let i = 1; i <= 5; i++) {
+          const px = x + ((fim.x - x) * i) / 5;
+          const py = y + ((fim.y - y) * i) / 5;
+          alvo.dispatchEvent(new PointerEvent("pointermove", { ...base, clientX: px, clientY: py }));
+          await new Promise((r) => setTimeout(r, 20));
+        }
+      }
+      alvo.dispatchEvent(new PointerEvent("pointerup", { ...base, clientX: fim.x, clientY: fim.y }));
+      // O navegador só dispara o clique se o dedo não deslizou.
+      if (!moverPara) alvo.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, clientX: x, clientY: y }));
+    },
+    { x, y, segurarMs, moverPara, seletor },
+  );
+}

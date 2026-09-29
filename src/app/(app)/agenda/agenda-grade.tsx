@@ -161,7 +161,7 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
   const propsVisao = { dias, hoje, colunas, visiveis, porColuna, compactar, expandidos, aoExpandir: expandirSegmento, aoAbrir: setSelecionado, sufixoUrl, alturaVisivel, especiais, aoCriarEm: setCriando };
 
   return (
-    <ProvedorDeArraste aoSoltar={(a, de, alvo) => void soltar(a, de, alvo)}>
+    <ProvedorDeArraste aoSoltar={(a, de, alvo) => void soltar(a, de, alvo)} aoDica={(texto) => setAviso({ texto })}>
     <div className="flex min-h-0 flex-1 flex-col gap-3">
       {/* Barra: some no modo foco (via CSS, para valer já na primeira pintura). */}
       <div data-barra-agenda className="flex shrink-0 flex-wrap items-center gap-3">
