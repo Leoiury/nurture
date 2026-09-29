@@ -33,7 +33,7 @@ test("arrastar o card muda horário e profissional, e dá para desfazer", async 
 
   // Sem Shift/Ctrl: não move, não abre o card, só explica.
   await arrastar();
-  await expect(page.getByRole("status")).toContainText("segure Shift ou Ctrl enquanto arrasta");
+  await expect(page.getByRole("status")).toContainText("segure Shift enquanto arrasta");
   await expect(card).toHaveAttribute("aria-label", rotuloOriginal);
   await expect(page.getByRole("dialog", { name: "Detalhes do atendimento" })).toHaveCount(0);
 

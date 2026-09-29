@@ -43,7 +43,7 @@ html:not([data-foco]) [data-botao-flutuante] {
   display: none;
 }
 
-/* Agenda: com Shift/Ctrl pressionado, os cards podem ser arrastados. */
+/* Agenda: com Shift pressionado, os cards podem ser arrastados. */
 body[data-modificador] [data-atendimento] {
   cursor: grab;
 }

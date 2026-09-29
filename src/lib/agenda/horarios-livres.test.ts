@@ -15,7 +15,7 @@ describe("horariosLivres", () => {
 
   it("evita atendimentos existentes e retoma no próximo múltiplo de 15 min", () => {
     const ocupacao = new Map<string, Ocupacao[]>([["ana", [{ data: dia, inicio: h("08:30"), fim: h("09:15") }]]]);
-    const r = horariosLivres({ dias: [dia], duracao: 45, grupos: [["ana"]], ocupacao, expediente: [{ inicio: h("08:00"), fim: h("11:00") }] });
+    const r = horariosLivres({ dias: [dia], duracao: 45, grupos: [["ana"]], ocupacao, expedienteDo: () => [{ inicio: h("08:00"), fim: h("11:00") }] });
     expect(horas(r)).toEqual(["09:15", "10:00"]);
   });
 
@@ -24,7 +24,7 @@ describe("horariosLivres", () => {
       ["ana", [{ data: dia, inicio: h("08:00"), fim: h("09:00") }]],
       ["bruno", [{ data: dia, inicio: h("09:00"), fim: h("10:00") }]],
     ]);
-    const r = horariosLivres({ dias: [dia], duracao: 60, grupos: [["ana", "bruno"]], ocupacao, expediente: [{ inicio: h("08:00"), fim: h("12:00") }] });
+    const r = horariosLivres({ dias: [dia], duracao: 60, grupos: [["ana", "bruno"]], ocupacao, expedienteDo: () => [{ inicio: h("08:00"), fim: h("12:00") }] });
     expect(horas(r)).toEqual(["10:00", "11:00"]);
   });
 
@@ -36,7 +36,7 @@ describe("horariosLivres", () => {
       grupos: [["ana"], ["bruno"]],
       ocupacao,
       ocupacaoDoPaciente: [{ data: dia, inicio: h("10:00"), fim: h("11:00") }],
-      expediente: [{ inicio: h("08:00"), fim: h("11:00") }],
+      expedienteDo: () => [{ inicio: h("08:00"), fim: h("11:00") }],
     });
     expect(r.map((x) => `${horas([x])[0]} ${x.profissionalIds[0]}`)).toEqual(["08:00 bruno", "09:00 ana", "09:00 bruno"]);
   });
@@ -57,6 +57,30 @@ describe("horariosLivres", () => {
       "2026-10-02 13:00",
       "2026-10-02 14:00",
     ]);
+  });
+
+  it("respeita a escala de cada profissional do grupo", () => {
+    const r = horariosLivres({
+      dias: [dia],
+      duracao: 60,
+      grupos: [["estagiaria"]],
+      ocupacao: new Map(),
+      limitePorPeriodo: 10,
+      expedienteDo: () => [{ inicio: h("13:00"), fim: h("16:00") }],
+    });
+    expect(horas(r)).toEqual(["13:00", "14:00", "15:00"]);
+  });
+
+  it("turno contínuo (sem almoço): o limite da manhã não impede a tarde", () => {
+    const r = horariosLivres({
+      dias: [dia],
+      duracao: 60,
+      grupos: [["ana"]],
+      ocupacao: new Map(),
+      limitePorPeriodo: 1,
+      expedienteDo: () => [{ inicio: h("08:00"), fim: h("18:00") }],
+    });
+    expect(horas(r)).toEqual(["08:00", "12:00"]);
   });
 
   it("o limite vale por período: a tarde aparece mesmo com a manhã livre", () => {

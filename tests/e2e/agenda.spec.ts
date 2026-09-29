@@ -193,7 +193,12 @@ test("Shift + clique num horário vazio abre o formulário preenchido", async ({
 
   // Sem a tecla: só uma dica, nada é aberto.
   await page.mouse.click(x, y);
-  await expect(page.getByRole("status")).toContainText("segure Shift ou Ctrl");
+  await expect(page.getByRole("status")).toContainText("segure Shift e clique");
+  await expect(page.getByRole("dialog", { name: "Novo atendimento" })).toHaveCount(0);
+  // Ctrl não libera (só Shift).
+  await page.keyboard.down("Control");
+  await page.mouse.click(x, y);
+  await page.keyboard.up("Control");
   await expect(page.getByRole("dialog", { name: "Novo atendimento" })).toHaveCount(0);
 
   await page.keyboard.down("Shift");

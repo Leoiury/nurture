@@ -1,7 +1,9 @@
 import "server-only";
 import type { Database } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
+import { escalaDasJornadas, escalaDoDia, type Escala, type Intervalo } from "./escala";
 import { diasEspeciais, type DiaEspecial } from "./feriados";
+import { mapearPeriodo, type MapaDoPeriodo } from "./ocupacao";
 import { inicioDoDiaISO, partesNoFuso, somarDias } from "./tempo";
 
 export type Status = Database["public"]["Enums"]["status_atendimento"];
@@ -135,4 +137,61 @@ export async function carregarAtendimentosCitados(ids: string[]): Promise<Atendi
   const { data, error } = await supabase.from("atendimentos").select(SELECAO_DA_AGENDA).is("excluido_em", null).or(filtro);
   if (error) throw error;
   return data.map(paraAgenda);
+}
+
+/** Escala de cada profissional (null: sem escala cadastrada, vale o expediente padrão). */
+export async function carregarEscalas(profissionalIds: string[]): Promise<Map<string, Escala | null>> {
+  const escalas = new Map<string, Escala | null>(profissionalIds.map((id) => [id, null]));
+  if (profissionalIds.length === 0) return escalas;
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("jornadas").select("profissional_id, dia_semana, hora_inicio, hora_fim").in("profissional_id", profissionalIds);
+  if (error) throw error;
+  for (const id of profissionalIds) escalas.set(id, escalaDasJornadas(data.filter((j) => j.profissional_id === id)));
+  return escalas;
+}
+
+/**
+ * Mapa de ocupação (escala, ocupado, livre, não otimizado) de cada profissional
+ * entre as datas (inclusive), na agenda real.
+ */
+export async function carregarMapaDeOcupacao(profissionalIds: string[], primeiroDia: string, ultimoDia: string): Promise<Map<string, MapaDoPeriodo>> {
+  const supabase = await createClient();
+  const [escalas, especiais, atendimentos] = await Promise.all([
+    carregarEscalas(profissionalIds),
+    carregarDiasEspeciais(primeiroDia, ultimoDia),
+    supabase
+      .from("atendimentos")
+      .select("inicio, fim, ap:atendimento_profissionais!inner(profissional_id)")
+      .in("ap.profissional_id", profissionalIds)
+      .is("excluido_em", null)
+      .neq("status", "desmarcado")
+      .gte("inicio", inicioDoDiaISO(primeiroDia))
+      .lt("inicio", inicioDoDiaISO(somarDias(ultimoDia, 1))),
+  ]);
+  if (atendimentos.error) throw atendimentos.error;
+
+  // Atendimentos por profissional e dia, em minutos.
+  const porProfissionalEDia = new Map<string, Intervalo[]>();
+  for (const a of atendimentos.data) {
+    const ini = partesNoFuso(a.inicio);
+    const fim = partesNoFuso(a.fim);
+    const intervalo = { inicio: ini.minutos, fim: fim.data === ini.data ? fim.minutos : 24 * 60 };
+    for (const { profissional_id } of a.ap) {
+      const chave = `${profissional_id}|${ini.data}`;
+      porProfissionalEDia.set(chave, [...(porProfissionalEDia.get(chave) ?? []), intervalo]);
+    }
+  }
+
+  const dias: string[] = [];
+  for (let d = primeiroDia; d <= ultimoDia; d = somarDias(d, 1)) dias.push(d);
+  return new Map(
+    profissionalIds.map((id) => [
+      id,
+      mapearPeriodo(
+        dias,
+        (d) => escalaDoDia(escalas.get(id) ?? null, d, especiais[d]),
+        (d) => porProfissionalEDia.get(`${id}|${d}`) ?? [],
+      ),
+    ]),
+  );
 }

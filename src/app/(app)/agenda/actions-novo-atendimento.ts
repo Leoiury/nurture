@@ -3,12 +3,13 @@
 // Ações do painel "Novo atendimento".
 
 import { revalidatePath } from "next/cache";
-import { carregarDiasEspeciais } from "@/lib/agenda/dados";
+import { carregarDiasEspeciais, carregarEscalas } from "@/lib/agenda/dados";
+import { escalaDoDia, intersecao } from "@/lib/agenda/escala";
 import { semExpediente } from "@/lib/agenda/feriados";
 import { horariosLivres, type Ocupacao } from "@/lib/agenda/horarios-livres";
 import { MAXIMO_DE_SESSOES, candidatasDaSerie, datasDaSerie, datasSemBloqueios, type FimDaSerie, type Frequencia } from "@/lib/agenda/recorrencia";
 import { profissionaisDoTipo, type TipoComProfissionais } from "@/lib/agenda/tipos";
-import { FUSO, diaDaSemana, ehDataValida, formatarHora, inicioDoDiaISO, instanteNoFuso, partesNoFuso, somarDias } from "@/lib/agenda/tempo";
+import { FUSO, ehDataValida, formatarHora, inicioDoDiaISO, instanteNoFuso, partesNoFuso, somarDias } from "@/lib/agenda/tempo";
 import type { ArgsCriar } from "@/lib/agenda/planejamento";
 import type { Database } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
@@ -227,7 +228,7 @@ export type HorarioSugerido = { data: string; hora: string; profissionalIds: str
 
 const DIAS_DE_BUSCA = 14;
 
-/** Próximos horários livres (2 semanas, dias úteis sem feriados/recessos, expediente padrão). */
+/** Próximos horários livres (2 semanas, na escala de cada profissional, sem feriados/recessos). */
 export async function buscarHorariosLivres(b: BuscaDeHorarios): Promise<{ sugestoes: HorarioSugerido[]; ate: string }> {
   if (!(b.duracaoMin > 0)) return { sugestoes: [], ate: b.dataInicial };
   const agora = partesNoFuso(new Date());
@@ -249,8 +250,9 @@ export async function buscarHorariosLivres(b: BuscaDeHorarios): Promise<{ sugest
   }
   if (!grupos.length) return { sugestoes: [], ate: fim };
 
-  const [especiais, atendimentos] = await Promise.all([
+  const [especiais, escalas, atendimentos] = await Promise.all([
     carregarDiasEspeciais(inicio, fim),
+    carregarEscalas([...new Set(grupos.flat())]),
     supabase
       .from("atendimentos")
       .select("id, inicio, fim, paciente_id, profissionais:atendimento_profissionais(profissional_id)")
@@ -261,11 +263,12 @@ export async function buscarHorariosLivres(b: BuscaDeHorarios): Promise<{ sugest
   ]);
   if (atendimentos.error) throw new Error("Não foi possível buscar os horários.");
 
+  // A escala de cada um decide os dias (fim de semana só para quem trabalha nele).
   const dias: string[] = [];
-  for (let d = inicio; d <= fim; d = somarDias(d, 1)) {
-    const semana = diaDaSemana(d);
-    if (semana >= 1 && semana <= 5 && !semExpediente(especiais[d])) dias.push(d);
-  }
+  for (let d = inicio; d <= fim; d = somarDias(d, 1)) if (!semExpediente(especiais[d])) dias.push(d);
+  // Um grupo trabalha junto só onde a escala de todos coincide.
+  const expedienteDo = (grupo: string[], data: string) =>
+    grupo.map((id) => escalaDoDia(escalas.get(id) ?? null, data, especiais[data])).reduce((a, b) => intersecao(a, b));
 
   const ocupacao = new Map<string, Ocupacao[]>();
   const ocupacaoDoPaciente: Ocupacao[] = [];
@@ -284,6 +287,7 @@ export async function buscarHorariosLivres(b: BuscaDeHorarios): Promise<{ sugest
     grupos,
     ocupacao,
     ocupacaoDoPaciente,
+    expedienteDo,
     agora: { data: agora.data, minutos: agora.minutos },
     // Com vários profissionais alternativos, menos por profissional para caber na tela.
     limitePorPeriodo: grupos.length > 1 ? 2 : 4,

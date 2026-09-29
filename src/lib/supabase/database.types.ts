@@ -613,6 +613,10 @@ export type Database = {
         }
         Returns: string[]
       }
+      definir_escala: {
+        Args: { p_intervalos: Json; p_profissional: string }
+        Returns: number
+      }
       desmarcar_atendimentos: {
         Args: {
           p_alcance: Database["public"]["Enums"]["alcance_serie"]
