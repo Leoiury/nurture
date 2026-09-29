@@ -4,14 +4,12 @@ import { carregarAgenda, carregarAtendimentosCitados } from "@/lib/agenda/dados"
 import type { Operacao } from "@/lib/agenda/planejamento";
 import { ehDataValida, hoje, inicioDaSemana, somarDias } from "@/lib/agenda/tempo";
 import { lerVisao, sufixoDaVisao, type Visao } from "@/lib/agenda/visao";
+import { ehAdm as usuarioEhAdm } from "@/lib/auth/usuario";
 import { createClient } from "@/lib/supabase/server";
 import { AgendaGrade } from "./agenda-grade";
 import { Navegacao } from "./navegacao";
 
 export const metadata: Metadata = { title: "Agenda · Nurture" };
-
-/** ADM: perfil direcao ou dev (mesma regra do banco, função eh_adm). */
-const PERFIS_ADM = ["direcao", "dev"];
 
 export default async function AgendaPage({ searchParams }: PageProps<"/agenda">) {
   const params = await searchParams;
@@ -23,9 +21,7 @@ export default async function AgendaPage({ searchParams }: PageProps<"/agenda">)
   const segunda = inicioDaSemana(referencia);
 
   const supabase = await createClient();
-  const { data: sessao } = await supabase.auth.getClaims();
-  const perfil = (sessao?.claims.app_metadata as { perfil?: string } | undefined)?.perfil;
-  const ehAdm = !!perfil && PERFIS_ADM.includes(perfil);
+  const ehAdm = await usuarioEhAdm();
   const noPlanejamento = params.planejamento === "1";
   if (noPlanejamento && !ehAdm) redirect("/agenda");
 

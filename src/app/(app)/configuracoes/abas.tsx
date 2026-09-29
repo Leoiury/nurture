@@ -8,6 +8,7 @@ const ABAS = [
   { href: "/configuracoes/tipos", rotulo: "Tipos de atendimento" },
   { href: "/configuracoes/feriados", rotulo: "Feriados e recessos" },
   { href: "/configuracoes/importar", rotulo: "Importar agenda" },
+  { href: "/configuracoes/usuarios", rotulo: "Usuários" },
 ] as const;
 
 export function AbasDeConfiguracao() {

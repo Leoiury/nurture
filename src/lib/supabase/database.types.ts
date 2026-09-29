@@ -608,6 +608,47 @@ export type Database = {
           },
         ]
       }
+      usuarios: {
+        Row: {
+          ativo: boolean
+          atualizado_em: string
+          criado_em: string
+          email: string
+          id: string
+          nome: string
+          perfil: Database["public"]["Enums"]["perfil_usuario"]
+          profissional_id: string | null
+        }
+        Insert: {
+          ativo?: boolean
+          atualizado_em?: string
+          criado_em?: string
+          email: string
+          id: string
+          nome: string
+          perfil?: Database["public"]["Enums"]["perfil_usuario"]
+          profissional_id?: string | null
+        }
+        Update: {
+          ativo?: boolean
+          atualizado_em?: string
+          criado_em?: string
+          email?: string
+          id?: string
+          nome?: string
+          perfil?: Database["public"]["Enums"]["perfil_usuario"]
+          profissional_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "usuarios_profissional_id_fkey"
+            columns: ["profissional_id"]
+            isOneToOne: false
+            referencedRelation: "profissionais"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -712,6 +753,7 @@ export type Database = {
       alcance_serie: "este" | "seguintes" | "todos"
       frequencia_recorrencia: "semanal" | "quinzenal" | "mensal"
       nivel_cadastral: "completo" | "falta_informacao" | "critico"
+      perfil_usuario: "adm" | "limitado"
       status_atendimento:
         | "marcado"
         | "confirmado"
@@ -852,6 +894,7 @@ export const Constants = {
       alcance_serie: ["este", "seguintes", "todos"],
       frequencia_recorrencia: ["semanal", "quinzenal", "mensal"],
       nivel_cadastral: ["completo", "falta_informacao", "critico"],
+      perfil_usuario: ["adm", "limitado"],
       status_atendimento: [
         "marcado",
         "confirmado",

@@ -6,7 +6,7 @@ import { PainelDoProfissional, type ProfissionalEditavel } from "./painel-do-pro
 
 export type ProfissionalDaLista = ProfissionalEditavel;
 
-export function ListaDeProfissionais({ profissionais }: { profissionais: ProfissionalDaLista[] }) {
+export function ListaDeProfissionais({ profissionais, podeEditar }: { profissionais: ProfissionalDaLista[]; podeEditar: boolean }) {
   const [criando, setCriando] = useState(false);
   const [inativos, setInativos] = useState(false);
   const totalInativos = profissionais.filter((p) => !p.ativo).length;
@@ -16,9 +16,11 @@ export function ListaDeProfissionais({ profissionais }: { profissionais: Profiss
     <>
       <header className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold tracking-tight">Profissionais</h1>
-        <button type="button" onClick={() => setCriando(true)} className="rounded-full bg-accent px-4 py-2 text-sm font-medium text-white hover:brightness-110">
+        {podeEditar && (
+          <button type="button" onClick={() => setCriando(true)} className="rounded-full bg-accent px-4 py-2 text-sm font-medium text-white hover:brightness-110">
           Novo profissional
         </button>
+        )}
       </header>
 
       {totalInativos > 0 && (

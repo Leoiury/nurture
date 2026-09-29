@@ -1,16 +1,11 @@
 import type { Metadata } from "next";
-import { createClient } from "@/lib/supabase/server";
+import { ehAdm } from "@/lib/auth/usuario";
 import { ImportarAgenda } from "./importar-agenda";
 
 export const metadata: Metadata = { title: "Importar agenda · Nurture" };
 
 export default async function ImportarPage() {
-  const supabase = await createClient();
-  const { data } = await supabase.auth.getClaims();
-  const perfil = (data?.claims.app_metadata as { perfil?: string } | undefined)?.perfil;
-  if (perfil !== "direcao" && perfil !== "dev") {
-    return <p className="text-sm text-muted">Apenas a direção pode importar a agenda.</p>;
-  }
+  if (!(await ehAdm())) return <p className="text-sm text-muted">Apenas a direção pode importar a agenda.</p>;
   return (
     <div className="flex flex-col gap-4">
       <p className="text-sm text-muted">
