@@ -3,6 +3,7 @@
 // Visão empilhada: colunas = profissionais; os dias ficam um abaixo do outro,
 // cada um com suas próprias horas.
 
+import type { Divergencia } from "@/lib/agenda/divergencias";
 import Link from "next/link";
 import { useMemo } from "react";
 import type { AtendimentoAgenda, ProfissionalAgenda } from "@/lib/agenda/dados";
@@ -62,9 +63,11 @@ type Props = {
   especiais: Record<string, DiaEspecial[]>;
   /** Clique num horário vazio: novo atendimento já preenchido. */
   aoCriarEm: (novo: NovoNoHorario) => void;
+  /** Divergências (importado × app) por coluna "dia|profissional". */
+  divergencias: Map<string, Divergencia[]>;
 };
 
-export function VisaoEmpilhada({ modo, dias, hoje, colunas, visiveis, porColuna, compactar, expandidos, aoExpandir, aoAbrir, sufixoUrl, alturaVisivel, ampliada, especiais, aoCriarEm }: Props) {
+export function VisaoEmpilhada({ modo, dias, hoje, colunas, visiveis, porColuna, compactar, expandidos, aoExpandir, aoAbrir, sufixoUrl, alturaVisivel, ampliada, especiais, aoCriarEm, divergencias }: Props) {
   const px = ampliada
     ? PX_AMPLIADA
     : escalaParaCaber(alturaVisivel && alturaVisivel - ALTURA_CABECALHO_PROF - ALTURA_CABECALHO_DIA - 8, ESCALA);
@@ -114,6 +117,7 @@ export function VisaoEmpilhada({ modo, dias, hoje, colunas, visiveis, porColuna,
           ampliada={ampliada}
           especiais={especiais[dia]}
           aoCriarEm={aoCriarEm}
+          divergencias={divergencias}
         />
       ))}
     </div>
@@ -135,9 +139,11 @@ type DiaProps = {
   ampliada: boolean;
   especiais: DiaEspecial[] | undefined;
   aoCriarEm: (novo: NovoNoHorario) => void;
+  /** Divergências (importado × app) por coluna "dia|profissional". */
+  divergencias: Map<string, Divergencia[]>;
 };
 
-function Dia({ dia, ehHoje, modo, px, segmentos, colunas, porColuna, total, aoExpandir, aoAbrir, sufixoUrl, ampliada, especiais, aoCriarEm }: DiaProps) {
+function Dia({ dia, ehHoje, modo, px, segmentos, colunas, porColuna, total, aoExpandir, aoAbrir, sufixoUrl, ampliada, especiais, aoCriarEm, divergencias }: DiaProps) {
   const altura = segmentos.reduce((soma, s) => soma + alturaDoSegmento(s, px), 0);
   const titulo = nomeLongoDoDia(dia);
 
@@ -207,6 +213,7 @@ function Dia({ dia, ehHoje, modo, px, segmentos, colunas, porColuna, total, aoEx
                 px={px}
                 aoExpandir={aoExpandir}
                 aoCriar={aoCriarEm}
+                divergencias={divergencias.get(`${dia}|${p.id}`)}
                 className="relative min-w-0 flex-1 px-1"
               >
                 <div className="relative h-full">
@@ -292,8 +299,9 @@ function Card({ atendimento: a, modo, top, altura, ampliada, profissionalId, aoA
         e.stopPropagation(); // não abrir também o "novo atendimento" da coluna
         if (!cliqueSuprimido()) aoAbrir(); // depois de arrastar, o clique não abre o card
       }}
-      title={descricao}
-      aria-label={descricao}
+      title={a.divergencia ? `${descricao} · ${a.divergencia}` : descricao}
+      aria-label={a.divergencia ? `${descricao} · ${a.divergencia}` : descricao}
+      data-divergencia={a.divergencia ? "" : undefined}
       data-atendimento={a.id}
       className={`pointer-events-auto absolute overflow-hidden rounded-xl text-left text-foreground ring-1 ring-black/[0.04] transition hover:z-10 hover:-translate-y-px hover:shadow-md focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-[var(--accent)] ${
         desmarcado ? "opacity-50" : sendoArrastado ? "opacity-30" : ""
@@ -307,6 +315,7 @@ function Card({ atendimento: a, modo, top, altura, ampliada, profissionalId, aoA
       }}
     >
       <span className="absolute inset-y-1 left-1 w-1 rounded-full" style={{ background: cor }} aria-hidden />
+      {a.divergencia && <span className="absolute right-1 bottom-1 size-2 rounded-full bg-red-600 ring-2 ring-white" aria-hidden />}
       {/* Atendimento conjunto: mais de um profissional (o card aparece em cada coluna). */}
       {a.profissionalIds.length > 1 && (
         <span className="absolute top-1 right-1 rounded-full bg-black/10 px-1.5 text-[10px] leading-4 font-semibold" aria-hidden>

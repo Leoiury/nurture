@@ -7,6 +7,7 @@ import { semExpediente, type DiaEspecial } from "@/lib/agenda/feriados";
 import type { Segmento } from "@/lib/agenda/layout";
 import { formatarHora, nomeCurtoDoDia } from "@/lib/agenda/tempo";
 import { sufixoDaVisao, type Visao } from "@/lib/agenda/visao";
+import { encontrarDivergencias, textosDasDivergencias, type Divergencia } from "@/lib/agenda/divergencias";
 import { lerIdNovo, quando as quandoFormatado, type Operacao } from "@/lib/agenda/planejamento";
 import { ProvedorDeAcoes } from "./acoes-da-agenda";
 import { mover } from "./actions";
@@ -85,11 +86,22 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
   const alturaVisivel = useAlturaDoElemento(quadro);
 
   const colunas = profissionais.filter((p) => !ocultos.has(p.id));
-  const visiveis = useMemo(
-    // Visível se ao menos um dos profissionais estiver visível (aparece só nas colunas visíveis).
-    () => atendimentosAtuais.filter((a) => a.profissionalIds.some((id) => !ocultos.has(id)) && (mostrarDesmarcados || a.status !== "desmarcado")),
-    [atendimentosAtuais, ocultos, mostrarDesmarcados],
-  );
+  // Divergências entre o importado do sistema anterior e o marcado no app (linha vermelha).
+  const divergencias = useMemo(() => encontrarDivergencias(atendimentosAtuais), [atendimentosAtuais]);
+  const divergenciasPorColuna = useMemo(() => {
+    const m = new Map<string, Divergencia[]>();
+    for (const d of divergencias) m.set(d.coluna, [...(m.get(d.coluna) ?? []), d]);
+    return m;
+  }, [divergencias]);
+  const visiveis = useMemo(() => {
+    const textos = textosDasDivergencias(divergencias, new Map(atendimentosAtuais.map((a) => [a.id, a])));
+    return (
+      atendimentosAtuais
+        // Visível se ao menos um dos profissionais estiver visível (aparece só nas colunas visíveis).
+        .filter((a) => a.profissionalIds.some((id) => !ocultos.has(id)) && (mostrarDesmarcados || a.status !== "desmarcado"))
+        .map((a) => (textos.has(a.id) ? { ...a, divergencia: textos.get(a.id) } : a))
+    );
+  }, [atendimentosAtuais, ocultos, mostrarDesmarcados, divergencias]);
   const porColuna = useMemo(() => agruparPorColuna(visiveis), [visiveis]);
 
   const planos = useMemo(() => {
@@ -181,7 +193,7 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const propsVisao = { dias, hoje, colunas, visiveis, porColuna, compactar, expandidos, aoExpandir: expandirSegmento, aoAbrir: setSelecionado, sufixoUrl, alturaVisivel, especiais, aoCriarEm: setCriando };
+  const propsVisao = { dias, hoje, colunas, visiveis, porColuna, compactar, expandidos, aoExpandir: expandirSegmento, aoAbrir: setSelecionado, sufixoUrl, alturaVisivel, especiais, aoCriarEm: setCriando, divergencias: divergenciasPorColuna };
 
   const grade = (
     <ProvedorDeArraste aoSoltar={(a, de, alvo) => void soltar(a, de, alvo)} aoDica={(texto) => setAviso({ texto })}>

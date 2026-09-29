@@ -9,7 +9,9 @@
 import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import { encaixar, minutosNaPosicao, posicaoY, type Segmento } from "@/lib/agenda/layout";
 import { formatarHora } from "@/lib/agenda/tempo";
+import type { Divergencia } from "@/lib/agenda/divergencias";
 import { TEMPO_DE_TOQUE_LONGO, TOLERANCIA_DO_TOQUE, comModificador, useArraste } from "./arraste";
+import { LinhasDeDivergencia } from "./linhas-de-divergencia";
 
 export type NovoNoHorario = { data: string; hora: string; profissionalId: string };
 
@@ -22,6 +24,8 @@ type Props = {
   aoCriar: (novo: NovoNoHorario) => void;
   /** Visão compacta (lado a lado): prévia sem texto. */
   compacta?: boolean;
+  /** Divergências (importado × app) desta coluna: linha vermelha entre os cards. */
+  divergencias?: Divergencia[];
   className?: string;
   children: ReactNode;
 };
@@ -29,7 +33,7 @@ type Props = {
 const DURACAO_DA_PREVIA = 45;
 export const DICA_MARCAR = "Para marcar neste horário, segure Shift e clique.";
 
-export function ColunaClicavel({ dia, profissionalId, segmentos, px, aoExpandir, aoCriar, compacta, className = "", children }: Props) {
+export function ColunaClicavel({ dia, profissionalId, segmentos, px, aoExpandir, aoCriar, compacta, divergencias, className = "", children }: Props) {
   const [previa, setPrevia] = useState<number | null>(null);
   const { estado: arraste, registrarColuna, modificador, dica, cliqueSuprimido } = useArraste();
   const chave = `${dia}|${profissionalId}`;
@@ -143,6 +147,7 @@ export function ColunaClicavel({ dia, profissionalId, segmentos, px, aoExpandir,
         </div>
       )}
       {children}
+      {divergencias && divergencias.length > 0 && <LinhasDeDivergencia divergencias={divergencias} />}
     </div>
   );
 }

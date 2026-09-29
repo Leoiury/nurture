@@ -86,6 +86,8 @@ export function simular(base: AtendimentoAgenda[], operacoes: Operacao[], nomePo
           plano: op.exibicao.plano,
           tipo: op.exibicao.tipo,
           recorrenciaId: args.p_frequencia ? `novo:${op.chave}` : null,
+          pacienteId: args.p_paciente_id,
+          importado: false,
           rascunho: "novo",
         });
       });
@@ -109,6 +111,7 @@ export function simular(base: AtendimentoAgenda[], operacoes: Operacao[], nomePo
       for (const a of doAlcance(lista, alvo, args.p_alcance)) {
         Object.assign(a, {
           data: somarDias(a.data, deslocamento),
+          pacienteId: args.p_paciente_id,
           inicio,
           fim: Math.min(inicio + args.p_duracao_min, 24 * 60),
           profissionalIds: args.p_profissionais,
