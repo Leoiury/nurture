@@ -9,6 +9,7 @@ import { horariosLivres, type Ocupacao } from "@/lib/agenda/horarios-livres";
 import { MAXIMO_DE_SESSOES, candidatasDaSerie, datasDaSerie, datasSemBloqueios, type FimDaSerie, type Frequencia } from "@/lib/agenda/recorrencia";
 import { profissionaisDoTipo, type TipoComProfissionais } from "@/lib/agenda/tipos";
 import { FUSO, diaDaSemana, ehDataValida, formatarHora, inicioDoDiaISO, instanteNoFuso, partesNoFuso, somarDias } from "@/lib/agenda/tempo";
+import type { ArgsCriar } from "@/lib/agenda/planejamento";
 import type { Database } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
 
@@ -140,7 +141,11 @@ export type NovoAtendimento = Agendamento & {
 
 export type ResultadoCriacao = { ok: true; quantidade: number } | { ok: false; erro: string };
 
-export async function criarAtendimentos(novo: NovoAtendimento): Promise<ResultadoCriacao> {
+/**
+ * Valida e monta os argumentos de criar_atendimentos (datas da série já calculadas).
+ * Usado ao salvar e pelo planejamento, que guarda os argumentos para aplicar depois.
+ */
+export async function argsDeCriacao(novo: NovoAtendimento): Promise<{ ok: true; args: ArgsCriar } | { ok: false; erro: string }> {
   if (!novo.pacienteId) return { ok: false, erro: "Escolha o paciente." };
   if (novo.profissionais.length === 0) return { ok: false, erro: "Escolha ao menos um profissional." };
   if (!/^\d{4}-\d{2}-\d{2}$/.test(novo.data) || !/^\d{2}:\d{2}$/.test(novo.hora)) return { ok: false, erro: "Informe data e horário." };
@@ -156,21 +161,31 @@ export async function criarAtendimentos(novo: NovoAtendimento): Promise<Resultad
   if (lista.length === 0) return { ok: false, erro: "A repetição não gera nenhuma data: confira a data final." };
   if (lista.length > MAXIMO_DE_SESSOES) return { ok: false, erro: `Uma série pode ter no máximo ${MAXIMO_DE_SESSOES} atendimentos.` };
 
+  return {
+    ok: true,
+    args: {
+      p_paciente_id: novo.pacienteId,
+      p_profissionais: novo.profissionais,
+      p_plano_id: novo.planoId ?? undefined,
+      p_tipo_id: novo.tipoId ?? undefined,
+      p_valor: novo.valor ?? undefined,
+      p_status: novo.status,
+      p_inicios: lista,
+      p_duracao_min: novo.duracaoMin,
+      p_observacao: novo.observacao || undefined,
+      p_frequencia: novo.serie?.frequencia,
+      p_data_fim: novo.serie?.fim.tipo === "data" ? novo.serie.fim.ate : undefined,
+      p_sessoes: novo.serie?.fim.tipo === "sessoes" ? novo.serie.fim.quantidade : undefined,
+    },
+  };
+}
+
+export async function criarAtendimentos(novo: NovoAtendimento): Promise<ResultadoCriacao> {
+  const preparado = await argsDeCriacao(novo);
+  if (!preparado.ok) return preparado;
+
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc("criar_atendimentos", {
-    p_paciente_id: novo.pacienteId,
-    p_profissionais: novo.profissionais,
-    p_plano_id: novo.planoId ?? undefined,
-    p_tipo_id: novo.tipoId ?? undefined,
-    p_valor: novo.valor ?? undefined,
-    p_status: novo.status,
-    p_inicios: lista,
-    p_duracao_min: novo.duracaoMin,
-    p_observacao: novo.observacao || undefined,
-    p_frequencia: novo.serie?.frequencia,
-    p_data_fim: novo.serie?.fim.tipo === "data" ? novo.serie.fim.ate : undefined,
-    p_sessoes: novo.serie?.fim.tipo === "sessoes" ? novo.serie.fim.quantidade : undefined,
-  });
+  const { data, error } = await supabase.rpc("criar_atendimentos", preparado.args);
   if (error) return { ok: false, erro: `Não foi possível salvar: ${error.message}` };
 
   revalidatePath("/agenda");

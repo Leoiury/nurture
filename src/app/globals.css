@@ -47,3 +47,8 @@ html:not([data-foco]) [data-botao-flutuante] {
 body[data-modificador] [data-atendimento] {
   cursor: grab;
 }
+
+/* Modo foco no planejamento: a faixa não fica sob os botões flutuantes dos cantos. */
+html[data-foco] [data-faixa-planejamento] {
+  margin-inline: 3rem;
+}

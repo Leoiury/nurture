@@ -15,7 +15,7 @@ import { sufixoDaVisao, type Visao } from "@/lib/agenda/visao";
  * visao: preservada em todos os links.
  * variante: "barra" (linha no topo da agenda) ou "menu" (em coluna, dentro do menu lateral).
  */
-type Props = { referencia: string; dia: string | null; hoje: string; visao: Visao; variante?: "barra" | "menu" };
+type Props = { referencia: string; dia: string | null; hoje: string; visao: Visao; planejamento?: boolean; variante?: "barra" | "menu" };
 
 const botao =
   "inline-flex h-9 min-w-9 items-center justify-center rounded-full bg-surface px-3 text-sm shadow-sm ring-1 ring-black/5 transition hover:shadow";
@@ -38,9 +38,9 @@ function linkMes(referencia: string, meses: number, sufixo: string): string {
   return linkSemana(semanasDoMes(mes)[0], mes, sufixo);
 }
 
-export function Navegacao({ referencia, dia, hoje, visao, variante = "barra" }: Props) {
+export function Navegacao({ referencia, dia, hoje, visao, planejamento = false, variante = "barra" }: Props) {
   const noMenu = variante === "menu";
-  const sufixo = sufixoDaVisao(visao);
+  const sufixo = sufixoDaVisao(visao, planejamento);
   const segunda = inicioDaSemana(referencia);
   const semanas = semanasDoMes(referencia);
   const semanaHoje = inicioDaSemana(hoje);

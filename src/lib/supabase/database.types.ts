@@ -378,6 +378,27 @@ export type Database = {
           },
         ]
       }
+      planejamento: {
+        Row: {
+          atualizado_em: string
+          criado_em: string
+          operacoes: Json
+          unico: boolean
+        }
+        Insert: {
+          atualizado_em?: string
+          criado_em?: string
+          operacoes?: Json
+          unico?: boolean
+        }
+        Update: {
+          atualizado_em?: string
+          criado_em?: string
+          operacoes?: Json
+          unico?: boolean
+        }
+        Relationships: []
+      }
       planos: {
         Row: {
           ativo: boolean
@@ -533,6 +554,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      aplicar_planejamento: { Args: { p_operacoes: Json }; Returns: number }
       atendimentos_ativos_no_periodo: {
         Args: { p_fim: string; p_inicio: string }
         Returns: string[]
@@ -588,6 +610,7 @@ export type Database = {
         }
         Returns: number
       }
+      eh_adm: { Args: never; Returns: boolean }
       excluir_atendimentos: {
         Args: {
           p_alcance: Database["public"]["Enums"]["alcance_serie"]
@@ -608,6 +631,10 @@ export type Database = {
           p_para_profissional?: string
         }
         Returns: undefined
+      }
+      planejamento_confere: {
+        Args: { p_esperado: Json; p_id: string }
+        Returns: boolean
       }
     }
     Enums: {

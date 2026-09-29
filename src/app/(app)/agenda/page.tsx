@@ -1,11 +1,17 @@
 import type { Metadata } from "next";
-import { carregarAgenda } from "@/lib/agenda/dados";
+import { redirect } from "next/navigation";
+import { carregarAgenda, carregarAtendimentosCitados } from "@/lib/agenda/dados";
+import type { Operacao } from "@/lib/agenda/planejamento";
 import { ehDataValida, hoje, inicioDaSemana, somarDias } from "@/lib/agenda/tempo";
+import { lerVisao, sufixoDaVisao, type Visao } from "@/lib/agenda/visao";
+import { createClient } from "@/lib/supabase/server";
 import { AgendaGrade } from "./agenda-grade";
-import { lerVisao, type Visao } from "@/lib/agenda/visao";
 import { Navegacao } from "./navegacao";
 
 export const metadata: Metadata = { title: "Agenda · Nurture" };
+
+/** ADM: perfil direcao ou dev (mesma regra do banco, função eh_adm). */
+const PERFIS_ADM = ["direcao", "dev"];
 
 export default async function AgendaPage({ searchParams }: PageProps<"/agenda">) {
   const params = await searchParams;
@@ -16,8 +22,30 @@ export default async function AgendaPage({ searchParams }: PageProps<"/agenda">)
   const referencia = dia ?? semanaParam ?? dataHoje;
   const segunda = inicioDaSemana(referencia);
 
+  const supabase = await createClient();
+  const { data: sessao } = await supabase.auth.getClaims();
+  const perfil = (sessao?.claims.app_metadata as { perfil?: string } | undefined)?.perfil;
+  const ehAdm = !!perfil && PERFIS_ADM.includes(perfil);
+  const noPlanejamento = params.planejamento === "1";
+  if (noPlanejamento && !ehAdm) redirect("/agenda");
+
   const semana = Array.from({ length: 7 }, (_, i) => somarDias(segunda, i));
-  const { profissionais, atendimentos, especiais } = await carregarAgenda(semana[0], semana[6]);
+  const [{ profissionais, atendimentos, especiais }, rascunho] = await Promise.all([
+    carregarAgenda(semana[0], semana[6]),
+    noPlanejamento ? supabase.from("planejamento").select("operacoes").maybeSingle() : null,
+  ]);
+  if (rascunho?.error) throw rascunho.error;
+  const operacoes = (rascunho?.data?.operacoes ?? []) as unknown as Operacao[];
+
+  // No planejamento, os atendimentos citados pelo rascunho podem estar em outra semana
+  // (movidos para esta, ou de uma série alterada): entram na base da simulação.
+  let base = atendimentos;
+  if (noPlanejamento) {
+    const citados = [...new Set(operacoes.flatMap((op) => (op.tipo === "criar" ? [] : [op.args.p_id])))];
+    const naSemana = new Set(atendimentos.map((a) => a.id));
+    const extras = (await carregarAtendimentosCitados(citados.filter((id) => !naSemana.has(id)))).filter((a) => !naSemana.has(a.id));
+    base = [...atendimentos, ...extras];
+  }
 
   // Colunas do profissional com mais atendimentos na semana para o com menos
   // (desmarcados não contam; empate em ordem alfabética). Mesmo na visão de um
@@ -35,11 +63,15 @@ export default async function AgendaPage({ searchParams }: PageProps<"/agenda">)
   const dias = dia ? [dia] : semana.filter((d, i) => i < 5 || atendimentos.some((a) => a.data === d));
 
   // A página atual em cada visão, para o seletor de visualização.
-  const base = dia ? `dia=${dia}` : semanaParam ? `semana=${semanaParam}` : "";
+  const periodo = dia ? `dia=${dia}` : semanaParam ? `semana=${semanaParam}` : "";
+  const url = (v: Visao, planejamento: boolean) => {
+    const q = `${periodo}${sufixoDaVisao(v, planejamento)}`.replace(/^&/, "");
+    return `/agenda${q ? `?${q}` : ""}`;
+  };
   const urlDaVisao: Record<Visao, string> = {
-    empilhada: `/agenda${base ? `?${base}` : ""}`,
-    ampliada: `/agenda?${base ? `${base}&` : ""}visao=ampliada`,
-    lado: `/agenda?${base ? `${base}&` : ""}visao=lado`,
+    empilhada: url("empilhada", noPlanejamento),
+    ampliada: url("ampliada", noPlanejamento),
+    lado: url("lado", noPlanejamento),
   };
 
   return (
@@ -54,8 +86,10 @@ export default async function AgendaPage({ searchParams }: PageProps<"/agenda">)
         profissionais={profissionaisOrdenados}
         atendimentos={dia ? atendimentos.filter((a) => a.data === dia) : atendimentos}
         especiais={especiais}
-        navegacao={<Navegacao referencia={referencia} dia={dia} hoje={dataHoje} visao={visao} />}
-        navegacaoNoMenu={<Navegacao referencia={referencia} dia={dia} hoje={dataHoje} visao={visao} variante="menu" />}
+        planejamento={noPlanejamento ? { operacoes, base, urlSair: url(visao, false) } : undefined}
+        urlDoPlanejamento={ehAdm && !noPlanejamento ? url(visao, true) : undefined}
+        navegacao={<Navegacao referencia={referencia} dia={dia} hoje={dataHoje} visao={visao} planejamento={noPlanejamento} />}
+        navegacaoNoMenu={<Navegacao referencia={referencia} dia={dia} hoje={dataHoje} visao={visao} planejamento={noPlanejamento} variante="menu" />}
       />
     </div>
   );

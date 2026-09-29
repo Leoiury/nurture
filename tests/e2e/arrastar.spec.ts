@@ -44,6 +44,8 @@ test("arrastar o card muda horário e profissional, e dá para desfazer", async 
   const aviso = page.getByRole("status").filter({ hasText: "Movido para" });
   await expect(aviso).toBeVisible();
   await expect(aviso).toContainText("13:00");
+  // Soltar com Shift não conta como Shift + clique na coluna (não abre "novo atendimento").
+  await expect(page.getByRole("dialog", { name: "Novo atendimento" })).toHaveCount(0);
   await expect(card).toHaveAttribute("aria-label", /^13:00/);
   // Mudou de coluna: o profissional não é mais o original.
   await expect(card).not.toHaveAttribute("aria-label", new RegExp(` · ${profissionalOriginal} · `));

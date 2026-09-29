@@ -161,3 +161,6 @@ export function useModoFoco(): [boolean, (ativo: boolean) => void] {
 
   return [foco, definir];
 }
+
+/** Card que difere da agenda real (planejamento): contorno tracejado âmbar. */
+export const MARCA_DO_RASCUNHO = "outline-2 outline-dashed -outline-offset-2 outline-amber-500";
