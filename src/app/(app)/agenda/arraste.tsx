@@ -4,7 +4,7 @@
 // registram com sua geometria e mostram onde o card vai cair (encaixe de 15 min).
 //
 // Proteção contra mudanças acidentais:
-// - mouse: só arrasta com Shift, Ctrl (ou ⌘) pressionado; sem a tecla, mostra uma dica;
+// - mouse: só arrasta com Shift pressionado; sem a tecla, mostra uma dica;
 // - toque: é preciso manter o dedo parado sobre o card por um instante; mexer o
 //   dedo antes disso é rolagem normal da tela.
 
@@ -37,7 +37,7 @@ type Contexto = {
   registrarColuna: (chave: string, geometria: Geometria | null) => void;
   /** true logo após soltar um arraste: o clique que o navegador dispara depois deve ser ignorado. */
   cliqueSuprimido: () => boolean;
-  /** Shift, Ctrl ou ⌘ pressionado agora (libera arrastar e marcar com o mouse). */
+  /** Shift pressionado agora (libera arrastar e marcar com o mouse). */
   modificador: boolean;
   /** Mensagem curta explicando o gesto certo. */
   dica: (texto: string) => void;
@@ -52,7 +52,7 @@ export function useArraste(): Contexto {
 }
 
 /** Tecla que libera mudanças com o mouse. */
-export const comModificador = (e: { shiftKey: boolean; ctrlKey: boolean; metaKey: boolean }) => e.shiftKey || e.ctrlKey || e.metaKey;
+export const comModificador = (e: { shiftKey: boolean }) => e.shiftKey;
 
 /** Distância mínima (px) para um clique virar arraste. */
 const LIMIAR = 6;
@@ -61,7 +61,7 @@ export const TOLERANCIA_DO_TOQUE = 10;
 /** Toque: tempo segurando para liberar o arraste / a marcação. */
 export const TEMPO_DE_TOQUE_LONGO = 450;
 
-export const DICA_ARRASTAR = "Para mover um atendimento, segure Shift ou Ctrl enquanto arrasta.";
+export const DICA_ARRASTAR = "Para mover um atendimento, segure Shift enquanto arrasta.";
 
 type Props = {
   children: ReactNode;

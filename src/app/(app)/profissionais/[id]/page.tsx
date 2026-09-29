@@ -1,24 +1,43 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { carregarEscalas, carregarMapaDeOcupacao } from "@/lib/agenda/dados";
+import { formatarDuracao } from "@/lib/agenda/ocupacao";
 import { FUSO, hoje, inicioDaSemana, inicioDoDiaISO, inicioDoMes, somarDias } from "@/lib/agenda/tempo";
 import { createClient } from "@/lib/supabase/server";
 import { CabecalhoDoProfissional } from "./cabecalho-do-profissional";
+import { EscalaDoProfissional } from "./escala-do-profissional";
 
 export const metadata: Metadata = { title: "Profissional · Nurture" };
 
 const quando = new Intl.DateTimeFormat("pt-BR", { timeZone: FUSO, weekday: "short", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 
-export default async function ProfissionalPage({ params }: PageProps<"/profissionais/[id]">) {
+type Periodo = "dia" | "semana" | "mes";
+const PERIODOS: [Periodo, string][] = [
+  ["dia", "Hoje"],
+  ["semana", "Esta semana"],
+  ["mes", "Este mês"],
+];
+
+export default async function ProfissionalPage({ params, searchParams }: PageProps<"/profissionais/[id]">) {
   const { id } = await params;
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
+  const { periodo: periodoParam } = await searchParams;
+  const periodo: Periodo = periodoParam === "dia" || periodoParam === "mes" ? periodoParam : "semana";
   const supabase = await createClient();
 
   // Números da agenda: últimos 90 dias e próximos 60.
   const dataHoje = hoje();
   const desde = somarDias(dataHoje, -90);
   const ate = somarDias(dataHoje, 60);
-  const [profissional, tipos, atendimentos] = await Promise.all([
+  // Período do mapa de ocupação.
+  const [periodoDe, periodoAte] =
+    periodo === "dia"
+      ? [dataHoje, dataHoje]
+      : periodo === "mes"
+        ? [inicioDoMes(dataHoje), somarDias(inicioDoMes(somarDias(inicioDoMes(dataHoje), 32)), -1)]
+        : [inicioDaSemana(dataHoje), somarDias(inicioDaSemana(dataHoje), 6)];
+  const [profissional, tipos, atendimentos, escalas, mapas] = await Promise.all([
     supabase.from("profissionais").select("id, nome, especialidade, registro, celular, email, ativo").eq("id", id).maybeSingle(),
     supabase.from("tipos_atendimento").select("id, nome, vinculos:tipos_atendimento_profissionais(profissional_id)").eq("ativo", true).order("nome"),
     supabase
@@ -30,7 +49,12 @@ export default async function ProfissionalPage({ params }: PageProps<"/profissio
       .lt("inicio", inicioDoDiaISO(ate))
       .order("inicio")
       .limit(3000),
+    carregarEscalas([id]),
+    carregarMapaDeOcupacao([id], periodoDe, periodoAte),
   ]);
+  const mapa = mapas.get(id)!;
+  const t = mapa.total;
+  const pct = (parte: number) => (t.escala ? ` (${Math.round((100 * parte) / t.escala)}%)` : "");
   if (profissional.error || tipos.error || atendimentos.error) throw new Error("Não foi possível carregar o profissional.");
   const p = profissional.data;
   if (!p) notFound();
@@ -111,6 +135,47 @@ export default async function ProfissionalPage({ params }: PageProps<"/profissio
           </Link>
         </section>
       </div>
+
+      <EscalaDoProfissional profissionalId={id} escala={escalas.get(id) ?? null} />
+
+      <section aria-label="Ocupação" className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="font-semibold">Ocupação</h2>
+          <nav aria-label="Período" className="flex gap-0.5 rounded-full bg-black/[0.04] p-1 text-sm">
+            {PERIODOS.map(([v, rotulo]) => (
+              <Link
+                key={v}
+                href={`/profissionais/${id}?periodo=${v}`}
+                aria-current={periodo === v ? "page" : undefined}
+                scroll={false}
+                className={`rounded-full px-3 py-1 ${periodo === v ? "bg-surface font-medium shadow-sm" : "text-muted hover:text-foreground"}`}
+              >
+                {rotulo}
+              </Link>
+            ))}
+          </nav>
+        </div>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {(
+            [
+              ["Na escala", formatarDuracao(t.escala), "Tempo de trabalho no período, sem feriados e recessos"],
+              ["Em atendimento", formatarDuracao(t.ocupado) + pct(t.ocupado - t.foraDaEscala), t.foraDaEscala ? `${formatarDuracao(t.foraDaEscala)} fora da escala` : ""],
+              ["Livre", formatarDuracao(t.livre) + pct(t.livre), "Na escala, sem atendimento"],
+              [
+                "Não otimizado",
+                formatarDuracao(t.naoOtimizado),
+                t.desperdicios ? `${t.desperdicios} intervalo${t.desperdicios === 1 ? "" : "s"} entre 5 e 30 min` : "Nenhum intervalo entre 5 e 30 min",
+              ],
+            ] as const
+          ).map(([rotulo, valor, detalhe]) => (
+            <div key={rotulo} className="rounded-2xl bg-surface px-4 py-3 shadow-sm ring-1 ring-black/5">
+              <p className="text-xs text-muted">{rotulo}</p>
+              <p className="text-xl font-semibold tabular-nums">{valor}</p>
+              {detalhe && <p className="text-[11px] text-muted">{detalhe}</p>}
+            </div>
+          ))}
+        </div>
+      </section>
 
       <section aria-label="Números da agenda" className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {numeros.map(([rotulo, valor]) => (

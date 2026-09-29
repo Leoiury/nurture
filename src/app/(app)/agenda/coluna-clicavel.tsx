@@ -2,7 +2,7 @@
 
 // Coluna de um profissional num dia: um horário vazio abre o formulário de novo
 // atendimento já preenchido (profissional, dia, horário). Para evitar marcações
-// acidentais: com o mouse, Shift/Ctrl + clique (a prévia aparece com a tecla
+// acidentais: com o mouse, Shift + clique (a prévia aparece com a tecla
 // pressionada); no toque, segurar o dedo sobre o horário. Clicar numa faixa
 // compactada a expande.
 
@@ -27,7 +27,7 @@ type Props = {
 };
 
 const DURACAO_DA_PREVIA = 45;
-export const DICA_MARCAR = "Para marcar neste horário, segure Shift ou Ctrl e clique.";
+export const DICA_MARCAR = "Para marcar neste horário, segure Shift e clique.";
 
 export function ColunaClicavel({ dia, profissionalId, segmentos, px, aoExpandir, aoCriar, compacta, className = "", children }: Props) {
   const [previa, setPrevia] = useState<number | null>(null);

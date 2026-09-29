@@ -859,8 +859,8 @@ function BuscaDeHorariosLivres({ pronta, criterio, nomeDoProfissional, escolhido
             </ul>
           )}
           <p className="text-[11px] text-muted">
-            Próximas 2 semanas, dias úteis, sem feriados e recessos. Expediente padrão (08–12 e 13–18) até as jornadas de cada
-            profissional serem cadastradas.
+            Próximas 2 semanas, na escala de cada profissional (sem escala cadastrada: seg–sex, 08–12 e 13–18), sem feriados e
+            recessos.
           </p>
         </>
       )}

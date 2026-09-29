@@ -30,6 +30,10 @@ insert into profissionais (nome, especialidade, nome_legado) values
   ('Elisa Fontes', 'Psicóloga', null),
   ('Fábio Nunes', 'Estagiário de Fono', null);
 
+-- Escala: o estagiário trabalha só seg, qua e sex à tarde; os demais seguem o expediente padrão.
+insert into jornadas (profissional_id, dia_semana, hora_inicio, hora_fim)
+select id, d, '13:00', '18:00' from profissionais, unnest(array[1, 3, 5]) as d where nome = 'Fábio Nunes';
+
 -- Quem atende cada tipo (o seed roda depois das migrations, que não viram estes dados).
 insert into tipos_atendimento_profissionais (tipo_id, profissional_id)
 select t.id, p.id
