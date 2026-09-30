@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import type { AtendimentoAgenda, ProfissionalAgenda } from "@/lib/agenda/dados";
+import type { AtendimentoAgenda, Lembretes, ProfissionalAgenda } from "@/lib/agenda/dados";
 import { semExpediente, type DiaEspecial } from "@/lib/agenda/feriados";
 import type { Segmento } from "@/lib/agenda/layout";
 import { formatarHora, nomeCurtoDoDia } from "@/lib/agenda/tempo";
@@ -16,6 +16,7 @@ import { agruparPorColuna, nomeAbreviado, useAlturaDoElemento, useModoFoco } fro
 import type { NovoNoHorario } from "./coluna-clicavel";
 import { MenuLateral } from "./menu-lateral";
 import { PainelAtendimento } from "./painel-atendimento";
+import { BotoesDeLembrete } from "./lembretes";
 import { PainelNovoAtendimento, type DadosEdicao } from "./painel-novo-atendimento";
 import { FaixaDoPlanejamento, PainelDoNovo, usePlanejamento } from "./planejamento";
 import { VisaoEmpilhada } from "./visao-empilhada";
@@ -32,6 +33,8 @@ type Props = {
   atendimentos: AtendimentoAgenda[];
   /** Feriados, pontos facultativos e recessos da semana, por dia (AAAA-MM-DD). */
   especiais: Record<string, DiaEspecial[]>;
+  /** Aniversários e datas comemorativas (próximos 15 dias e dias exibidos). */
+  lembretes: Lembretes;
   /** Navegação (mês/semana), exibida na barra acima da agenda. */
   navegacao: ReactNode;
   /** A mesma navegação em coluna, para o menu lateral no modo foco (quando a barra some). */
@@ -45,7 +48,7 @@ type Props = {
   urlDoPlanejamento?: string;
 };
 
-export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais, atendimentos, especiais, navegacao, navegacaoNoMenu, planejamento, urlDoPlanejamento }: Props) {
+export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais, atendimentos, especiais, lembretes, navegacao, navegacaoNoMenu, planejamento, urlDoPlanejamento }: Props) {
   // Profissionais sem atendimentos no período começam ocultos (podem ser exibidos no menu).
   const [ocultos, setOcultos] = useState<Set<string>>(
     () => new Set(profissionais.filter((p) => !atendimentos.some((a) => a.profissionalIds.includes(p.id))).map((p) => p.id)),
@@ -86,6 +89,14 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
   const alturaVisivel = useAlturaDoElemento(quadro);
 
   const colunas = profissionais.filter((p) => !ocultos.has(p.id));
+  // Aniversariantes ("dia|paciente") e datas comemorativas dos dias exibidos.
+  const aniversariantes = useMemo(() => new Set(lembretes.exibidos.aniversarios.map((a) => `${a.data}|${a.pacienteId}`)), [lembretes]);
+  const comemoracoesPorDia = useMemo(() => {
+    const m: Record<string, string[]> = {};
+    for (const c of lembretes.exibidos.comemoracoes) m[c.data] = [...(m[c.data] ?? []), c.nome];
+    return m;
+  }, [lembretes]);
+
   // Divergências entre o importado do sistema anterior e o marcado no app (linha vermelha).
   const divergencias = useMemo(() => encontrarDivergencias(atendimentosAtuais), [atendimentosAtuais]);
   const divergenciasPorColuna = useMemo(() => {
@@ -100,8 +111,10 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
         // Visível se ao menos um dos profissionais estiver visível (aparece só nas colunas visíveis).
         .filter((a) => a.profissionalIds.some((id) => !ocultos.has(id)) && (mostrarDesmarcados || a.status !== "desmarcado"))
         .map((a) => (textos.has(a.id) ? { ...a, divergencia: textos.get(a.id) } : a))
+        // Bolo no card: o paciente faz aniversário no dia do atendimento.
+        .map((a) => (aniversariantes.has(`${a.data}|${a.pacienteId}`) ? { ...a, aniversario: true } : a))
     );
-  }, [atendimentosAtuais, ocultos, mostrarDesmarcados, divergencias]);
+  }, [atendimentosAtuais, ocultos, mostrarDesmarcados, divergencias, aniversariantes]);
   const porColuna = useMemo(() => agruparPorColuna(visiveis), [visiveis]);
 
   const planos = useMemo(() => {
@@ -193,7 +206,7 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const propsVisao = { dias, hoje, colunas, visiveis, porColuna, compactar, expandidos, aoExpandir: expandirSegmento, aoAbrir: setSelecionado, sufixoUrl, alturaVisivel, especiais, aoCriarEm: setCriando, divergencias: divergenciasPorColuna };
+  const propsVisao = { dias, hoje, colunas, visiveis, porColuna, compactar, expandidos, aoExpandir: expandirSegmento, aoAbrir: setSelecionado, sufixoUrl, alturaVisivel, especiais, aoCriarEm: setCriando, divergencias: divergenciasPorColuna, comemoracoes: comemoracoesPorDia };
 
   const grade = (
     <ProvedorDeArraste aoSoltar={(a, de, alvo) => void soltar(a, de, alvo)} aoDica={(texto) => setAviso({ texto })}>
@@ -217,6 +230,8 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
 
         {/* Largura mínima: sem espaço, a navegação desce para a linha de baixo em vez de transbordar. */}
         <div className="min-w-[18rem] flex-1">{navegacao}</div>
+
+        <BotoesDeLembrete aniversarios={lembretes.proximos.aniversarios} comemoracoes={lembretes.proximos.comemoracoes} hoje={hoje} />
 
         {urlDoPlanejamento && (
           <Link

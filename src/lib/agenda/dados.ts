@@ -3,6 +3,7 @@ import type { Database } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
 import { escalaDasJornadas, escalaDoDia, type Escala, type Intervalo } from "./escala";
 import { diasEspeciais, type DiaEspecial } from "./feriados";
+import { ANTECEDENCIA_DIAS, aniversarios, comemoracoes, type Aniversario, type Comemoracao } from "./lembretes";
 import { mapearPeriodo, type MapaDoPeriodo } from "./ocupacao";
 import { inicioDoDiaISO, partesNoFuso, somarDias } from "./tempo";
 
@@ -30,6 +31,8 @@ export type AtendimentoAgenda = {
   pacienteId: string | null;
   /** Veio da importação do sistema anterior (tem id_legado). */
   importado: boolean;
+  /** O paciente faz aniversário no dia do atendimento (bolo no card). */
+  aniversario?: boolean;
   /** Divergência com um atendimento do outro sistema (texto para o card). */
   divergencia?: string;
   /** Só no planejamento: como o atendimento difere da agenda real. */
@@ -203,4 +206,28 @@ export async function carregarMapaDeOcupacao(profissionalIds: string[], primeiro
       ),
     ]),
   );
+}
+
+export type Lembretes = {
+  /** De hoje até ANTECEDENCIA_DIAS à frente (aviso na barra da agenda). */
+  proximos: { aniversarios: Aniversario[]; comemoracoes: Comemoracao[] };
+  /** Nos dias exibidos (bolo nos cards, estrela no cabeçalho do dia). */
+  exibidos: { aniversarios: Aniversario[]; comemoracoes: Comemoracao[] };
+};
+
+/** Aniversários (pacientes ativos) e datas comemorativas para a agenda. */
+export async function carregarLembretes(hoje: string, primeiroDia: string, ultimoDia: string): Promise<Lembretes> {
+  const supabase = await createClient();
+  const [pacientes, datas] = await Promise.all([
+    supabase.from("pacientes").select("id, nome, data_nascimento").eq("ativo", true).not("data_nascimento", "is", null),
+    supabase.from("datas_comemorativas").select("id, nome, descricao, mes, dia, ordem, dia_semana, pascoa"),
+  ]);
+  if (pacientes.error) throw pacientes.error;
+  if (datas.error) throw datas.error;
+  const lista = pacientes.data.map((p) => ({ id: p.id, nome: p.nome, nascimento: p.data_nascimento }));
+  const ate = somarDias(hoje, ANTECEDENCIA_DIAS - 1);
+  return {
+    proximos: { aniversarios: aniversarios(lista, hoje, ate), comemoracoes: comemoracoes(datas.data, hoje, ate) },
+    exibidos: { aniversarios: aniversarios(lista, primeiroDia, ultimoDia), comemoracoes: comemoracoes(datas.data, primeiroDia, ultimoDia) },
+  };
 }

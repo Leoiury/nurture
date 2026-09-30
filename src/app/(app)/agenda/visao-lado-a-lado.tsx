@@ -26,6 +26,7 @@ import {
 import { useArraste } from "./arraste";
 import { ColunaClicavel, type NovoNoHorario } from "./coluna-clicavel";
 import { EtiquetaDiaEspecial, FundoSemExpediente, fundoDoCabecalho } from "./dia-especial";
+import { EtiquetaComemoracao, IconeBolo } from "./lembretes";
 
 // A escala vertical se ajusta para o expediente (08–18) caber na altura visível.
 const ESCALA = { padrao: 12, min: 8, max: 26 };
@@ -56,9 +57,11 @@ type Props = {
   aoCriarEm: (novo: NovoNoHorario) => void;
   /** Divergências (importado × app) por coluna "dia|profissional". */
   divergencias: Map<string, Divergencia[]>;
+  /** Datas comemorativas por dia (estrela no cabeçalho). */
+  comemoracoes: Record<string, string[]>;
 };
 
-export function VisaoLadoALado({ dias, hoje, colunas, visiveis, porColuna, compactar, expandidos, aoExpandir, aoAbrir, sufixoUrl, alturaVisivel, especiais, aoCriarEm, divergencias }: Props) {
+export function VisaoLadoALado({ dias, hoje, colunas, visiveis, porColuna, compactar, expandidos, aoExpandir, aoAbrir, sufixoUrl, alturaVisivel, especiais, aoCriarEm, divergencias, comemoracoes }: Props) {
   const px = escalaParaCaber(alturaVisivel && alturaVisivel - ALTURA_CABECALHO - 8, ESCALA);
   const segmentos = useMemo(
     () =>
@@ -128,6 +131,7 @@ export function VisaoLadoALado({ dias, hoje, colunas, visiveis, porColuna, compa
                 </span>
                 <span className="text-xs text-muted">{total}</span>
                 <EtiquetaDiaEspecial dias={especiais[dia]} compacta />
+                <EtiquetaComemoracao nomes={comemoracoes[dia]} compacta />
               </Link>
               <div className="flex px-0.5 pb-1.5">
                 {colunas.map((p) => (
@@ -229,6 +233,11 @@ function CardCompacto({ atendimento: a, top, altura, profissionalId, aoAbrir }: 
     >
       {a.divergencia && <span className="absolute right-0.5 bottom-0.5 size-1.5 rounded-full bg-red-600" aria-hidden />}
       <span className={`block truncate pt-0.5 pr-0.5 pl-[6px] text-[11px] leading-tight font-medium ${desmarcado ? "line-through" : ""}`}>
+        {a.aniversario && (
+          <span className="mr-0.5 inline-block align-[-2px] text-pink-600" title="Aniversário hoje" data-aniversario>
+            <IconeBolo tamanho={10} />
+          </span>
+        )}
         {a.paciente?.split(" ")[0] ?? "—"}
       </span>
       {/* Horário de início, quando o card tem altura para uma segunda linha. */}
