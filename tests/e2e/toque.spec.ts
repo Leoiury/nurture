@@ -20,7 +20,8 @@ test("segurar o card e arrastar com o dedo muda o horário", async ({ page }) =>
   const nome = `Teste Toque ${Date.now()}`;
   await criarAtendimento(page, { nome, dia: 3, hora: "12:30", profissional: 1 });
   const card = cardDoPaciente(page, nome);
-  await card.scrollIntoViewIfNeeded();
+  // Centralizado: há espaço para arrastar, seja qual for o dia de hoje.
+  await card.evaluate((el) => el.scrollIntoView({ block: "center" }));
   await page.waitForTimeout(300);
   const caixa = (await card.boundingBox())!;
   const umaHora = await page.evaluate(() => {

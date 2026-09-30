@@ -30,7 +30,8 @@ async function descartarSeHouver(page: Page) {
  */
 async function arrastarParaBaixo(page: Page, nome: string, horas: number) {
   const card = cardDoPaciente(page, nome);
-  await card.scrollIntoViewIfNeeded();
+  // Centralizado: há espaço para arrastar para cima ou para baixo, seja qual for o dia de hoje.
+  await card.evaluate((el) => el.scrollIntoView({ block: "center" }));
   await page.waitForTimeout(300);
   const id = await card.getAttribute("data-atendimento");
   await page.evaluate(
