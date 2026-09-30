@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { ehAdm } from "@/lib/auth/usuario";
 import { createClient } from "@/lib/supabase/server";
 import { ListaDeProfissionais, type ProfissionalDaLista } from "./lista-de-profissionais";
 
@@ -15,7 +16,7 @@ export default async function ProfissionaisPage() {
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 px-4 py-6 sm:px-6">
-      <ListaDeProfissionais profissionais={data satisfies ProfissionalDaLista[]} />
+      <ListaDeProfissionais profissionais={data satisfies ProfissionalDaLista[]} podeEditar={await ehAdm()} />
     </div>
   );
 }

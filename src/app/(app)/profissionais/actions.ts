@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { NOMES_DOS_DIAS, problemaNoDia, type Escala } from "@/lib/agenda/escala";
 import { formatarHora } from "@/lib/agenda/tempo";
+import { ehAdm } from "@/lib/auth/usuario";
 import { createClient } from "@/lib/supabase/server";
 
 export type DadosDoProfissional = {
@@ -18,6 +19,7 @@ export type DadosDoProfissional = {
 export type ResultadoProfissional = { ok: true; id: string } | { ok: false; erro: string };
 
 export async function salvarProfissional(p: DadosDoProfissional): Promise<ResultadoProfissional> {
+  if (!(await ehAdm())) return { ok: false, erro: "Apenas administradores alteram profissionais." };
   const nome = p.nome.trim().replace(/\s+/g, " ");
   if (nome.length < 3) return { ok: false, erro: "Informe o nome." };
   const email = p.email.trim().toLowerCase();
@@ -45,6 +47,7 @@ export async function salvarProfissional(p: DadosDoProfissional): Promise<Result
 
 /** Troca a escala semanal (vazia: sem escala própria, vale o expediente padrão). */
 export async function salvarEscala(profissionalId: string, escala: Escala): Promise<{ ok: true } | { ok: false; erro: string }> {
+  if (!(await ehAdm())) return { ok: false, erro: "Apenas administradores alteram a escala." };
   const intervalos: { dia_semana: number; hora_inicio: string; hora_fim: string }[] = [];
   for (const [dia, lista] of Object.entries(escala)) {
     if (!lista?.length) continue;

@@ -1,7 +1,8 @@
-// Cria um usuário do sistema (o cadastro público está desativado).
+// Cria um usuário do sistema pelo terminal (o cadastro público está desativado).
+// No dia a dia, use a tela Configurações → Usuários.
 //
 // Uso:  npm run usuario:criar -- <email> <perfil> [nome]
-//       perfil: direcao | dev
+//       perfil: adm | limitado
 //
 // A senha é gerada aleatoriamente e mostrada uma única vez. O usuário pode
 // trocá-la depois de entrar.
@@ -9,12 +10,13 @@
 import { randomBytes } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 
-const PERFIS = ["direcao", "dev"] as const;
+// A linha em usuarios é criada por um gatilho, com o perfil do app_metadata.
+const PERFIS = ["adm", "limitado"] as const;
 type Perfil = (typeof PERFIS)[number];
 
 const [email, perfil, ...nome] = process.argv.slice(2);
 if (!email || !PERFIS.includes(perfil as Perfil)) {
-  console.error("Uso: npm run usuario:criar -- <email> <direcao|dev> [nome]");
+  console.error("Uso: npm run usuario:criar -- <email> <adm|limitado> [nome]");
   process.exit(1);
 }
 

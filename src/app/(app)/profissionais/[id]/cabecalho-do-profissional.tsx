@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { PainelDoProfissional, type ProfissionalEditavel } from "../painel-do-profissional";
 
-export function CabecalhoDoProfissional({ profissional: p, futuros }: { profissional: ProfissionalEditavel; futuros: number }) {
+export function CabecalhoDoProfissional({ profissional: p, futuros, podeEditar }: { profissional: ProfissionalEditavel; futuros: number; podeEditar: boolean }) {
   const [editando, setEditando] = useState(false);
   return (
     <>
@@ -15,9 +15,11 @@ export function CabecalhoDoProfissional({ profissional: p, futuros }: { profissi
           </h1>
           {p.especialidade && <p className="text-sm text-muted">{p.especialidade}</p>}
         </div>
-        <button type="button" onClick={() => setEditando(true)} className="rounded-full bg-accent px-4 py-2 text-sm font-medium text-white hover:brightness-110">
+        {podeEditar && (
+          <button type="button" onClick={() => setEditando(true)} className="rounded-full bg-accent px-4 py-2 text-sm font-medium text-white hover:brightness-110">
           Editar
         </button>
+        )}
       </header>
       {editando && <PainelDoProfissional profissional={p} futuros={futuros} aoFechar={() => setEditando(false)} />}
     </>

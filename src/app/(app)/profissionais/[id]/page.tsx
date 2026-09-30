@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { carregarEscalas, carregarMapaDeOcupacao } from "@/lib/agenda/dados";
 import { formatarDuracao } from "@/lib/agenda/ocupacao";
 import { FUSO, hoje, inicioDaSemana, inicioDoDiaISO, inicioDoMes, somarDias } from "@/lib/agenda/tempo";
+import { ehAdm } from "@/lib/auth/usuario";
 import { createClient } from "@/lib/supabase/server";
 import { CabecalhoDoProfissional } from "./cabecalho-do-profissional";
 import { EscalaDoProfissional } from "./escala-do-profissional";
@@ -58,6 +59,7 @@ export default async function ProfissionalPage({ params, searchParams }: PagePro
   if (profissional.error || tipos.error || atendimentos.error) throw new Error("Não foi possível carregar o profissional.");
   const p = profissional.data;
   if (!p) notFound();
+  const adm = await ehAdm();
 
   const validos = atendimentos.data.filter((a) => a.status !== "desmarcado").map((a) => ({ ...a, ms: Date.parse(a.inicio) }));
   const agora = Date.parse(new Date().toISOString());
@@ -87,7 +89,7 @@ export default async function ProfissionalPage({ params, searchParams }: PagePro
       <Link href="/profissionais" className="text-sm text-muted hover:text-foreground">
         ← Profissionais
       </Link>
-      <CabecalhoDoProfissional profissional={p} futuros={proximos.length} />
+      <CabecalhoDoProfissional profissional={p} futuros={proximos.length} podeEditar={adm} />
 
       <div className="grid gap-4 md:grid-cols-[2fr_1fr]">
         <section className="rounded-3xl bg-surface p-5 shadow-sm ring-1 ring-black/5" aria-label="Informações do profissional">
@@ -136,7 +138,7 @@ export default async function ProfissionalPage({ params, searchParams }: PagePro
         </section>
       </div>
 
-      <EscalaDoProfissional profissionalId={id} escala={escalas.get(id) ?? null} />
+      <EscalaDoProfissional profissionalId={id} escala={escalas.get(id) ?? null} podeEditar={adm} />
 
       <section aria-label="Ocupação" className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center justify-between gap-3">

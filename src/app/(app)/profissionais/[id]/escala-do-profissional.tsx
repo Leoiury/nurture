@@ -11,16 +11,18 @@ const minutos = (hora: string) => Number(hora.slice(0, 2)) * 60 + Number(hora.sl
 const descrever = (lista: Intervalo[] | undefined) => (lista?.length ? lista.map((i) => `${formatarHora(i.inicio)}–${formatarHora(i.fim)}`).join(", ") : "—");
 
 /** `escala` null: sem escala própria (vale o expediente padrão). */
-export function EscalaDoProfissional({ profissionalId, escala }: { profissionalId: string; escala: Escala | null }) {
+export function EscalaDoProfissional({ profissionalId, escala, podeEditar }: { profissionalId: string; escala: Escala | null; podeEditar: boolean }) {
   const [editando, setEditando] = useState(false);
   const exibida = escala ?? ESCALA_PADRAO;
   return (
     <section className="flex flex-col gap-3 rounded-3xl bg-surface p-5 shadow-sm ring-1 ring-black/5" aria-label="Escala semanal">
       <div className="flex items-center justify-between gap-3">
         <h2 className="font-semibold">Escala semanal</h2>
-        <button type="button" onClick={() => setEditando(true)} className="rounded-full bg-black/[0.04] px-3 py-1.5 text-sm font-medium hover:bg-black/[0.07]">
+        {podeEditar && (
+          <button type="button" onClick={() => setEditando(true)} className="rounded-full bg-black/[0.04] px-3 py-1.5 text-sm font-medium hover:bg-black/[0.07]">
           Editar escala
         </button>
+        )}
       </div>
       {!escala && <p className="text-xs text-muted">Sem escala cadastrada: vale o expediente padrão.</p>}
       <dl className="grid grid-cols-[6rem_1fr] gap-x-4 gap-y-1.5 text-sm">

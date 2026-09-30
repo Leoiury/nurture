@@ -14,6 +14,7 @@ import { instanteNoFuso } from "@/lib/agenda/tempo";
 import { valorSugerido } from "@/lib/agenda/valores";
 import { ArquivoInvalido, capitalizar, chave, chaveCompacta, lerAgendaLegado, type LinhaLegado } from "@/lib/importacao/agenda-legado";
 import type { Json } from "@/lib/supabase/database.types";
+import { ehAdm } from "@/lib/auth/usuario";
 import { createClient } from "@/lib/supabase/server";
 
 type Supabase = Awaited<ReturnType<typeof createClient>>;
@@ -44,12 +45,6 @@ export type Falha = { ok: false; erro: string };
 const CONVENIO_REUNIOES = chaveCompacta("Reuniões e Visitas");
 const TIPO_REUNIOES = "Reuniões e Visitas";
 const DURACAO_SEM_PLANO = 45;
-
-async function ehAdm(supabase: Supabase): Promise<boolean> {
-  const { data } = await supabase.auth.getClaims();
-  const perfil = (data?.claims.app_metadata as { perfil?: string } | undefined)?.perfil;
-  return perfil === "direcao" || perfil === "dev";
-}
 
 async function lerArquivo(dados: FormData): Promise<LinhaLegado[]> {
   const arquivo = dados.get("arquivo");
@@ -192,7 +187,7 @@ function resumoPorMes(linhas: LinhaLegado[], contagens: Record<string, Partial<R
 
 export async function analisarImportacao(dados: FormData): Promise<Analise | Falha> {
   const supabase = await createClient();
-  if (!(await ehAdm(supabase))) return { ok: false, erro: "Apenas a direção pode importar a agenda." };
+  if (!(await ehAdm())) return { ok: false, erro: "Apenas a direção pode importar a agenda." };
   try {
     const linhas = await lerArquivo(dados);
     if (linhas.length === 0) return { ok: false, erro: "Nenhum atendimento encontrado no arquivo." };
@@ -224,7 +219,7 @@ export async function analisarImportacao(dados: FormData): Promise<Analise | Fal
 
 export async function importarAgenda(dados: FormData): Promise<{ ok: true; contagens: Record<string, Partial<Record<Acao, number>>> } | Falha> {
   const supabase = await createClient();
-  if (!(await ehAdm(supabase))) return { ok: false, erro: "Apenas a direção pode importar a agenda." };
+  if (!(await ehAdm())) return { ok: false, erro: "Apenas a direção pode importar a agenda." };
   let meses: string[];
   try {
     meses = JSON.parse(String(dados.get("meses") ?? "[]"));
