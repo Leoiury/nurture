@@ -16,6 +16,9 @@ const COLUNAS: [Acao, string, string][] = [
   ["excluidos", "Excluídos", "Apagados no sistema anterior"],
 ];
 
+const moeda = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
+const valorDoConvenio = (v: number | null) => (v === null ? "sem valor" : moeda.format(v));
+
 const entrada = "w-full rounded-lg border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-accent";
 
 export function ImportarAgenda() {
@@ -50,6 +53,9 @@ export function ImportarAgenda() {
       return setErro(r.erro);
     }
     setAnalise(r);
+    // Plano sugerido já vem escolhido (a pessoa confere e pode trocar).
+    const sugeridos = Object.fromEntries(r.pendencias.convenios.filter((c) => c.sugestao).map((c) => [c.chave, c.sugestao!]));
+    setEscolhas((atual) => ({ ...atual, convenios: { ...sugeridos, ...atual.convenios } }));
     setMeses(new Set(r.meses.map((m) => m.mes)));
   }
 
@@ -97,14 +103,16 @@ export function ImportarAgenda() {
 
       {analise && pendente && (
         <section aria-label="Correspondências" className="flex flex-col gap-3 rounded-2xl bg-amber-50 p-4 text-sm ring-1 ring-amber-200">
-          <p className="font-medium text-amber-900">O app não reconheceu alguns nomes. Escolha a correspondência (fica guardada para as próximas importações):</p>
+          <p className="font-medium text-amber-900">
+            Confira a correspondência de cada convênio e valor, e dos profissionais não reconhecidos. Fica guardada para as próximas importações.
+          </p>
           {analise.pendencias.convenios.map((c) => (
             <label key={c.chave} className="grid items-center gap-2 sm:grid-cols-[1fr_16rem]">
               <span>
-                Convênio <strong>{c.nome}</strong> <span className="text-muted">({c.quantidade} atendimentos)</span>
+                Convênio <strong>{c.nome}</strong> · {valorDoConvenio(c.valor)} <span className="text-muted">({c.quantidade} atendimentos{c.sugestao ? ", plano sugerido" : ""})</span>
               </span>
               <select
-                aria-label={`Plano para o convênio ${c.nome}`}
+                aria-label={`Plano para o convênio ${c.nome} · ${valorDoConvenio(c.valor)}`}
                 value={escolhas.convenios[c.chave] ?? "?"}
                 onChange={(e) => setEscolhas({ ...escolhas, convenios: { ...escolhas.convenios, [c.chave]: e.target.value } })}
                 className={entrada}

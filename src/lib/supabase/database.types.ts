@@ -224,18 +224,24 @@ export type Database = {
       convenios_legado: {
         Row: {
           criado_em: string
+          id: number
           nome: string
           plano_id: string | null
+          valor: number | null
         }
         Insert: {
           criado_em?: string
+          id?: never
           nome: string
           plano_id?: string | null
+          valor?: number | null
         }
         Update: {
           criado_em?: string
+          id?: never
           nome?: string
           plano_id?: string | null
+          valor?: number | null
         }
         Relationships: [
           {

@@ -3,7 +3,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { cardDoPaciente, criarAtendimento, diaDaSemanaAtual } from "./ajudantes";
 
 // Relatório fictício no formato do sistema anterior (nunca dados reais).
-type Linha = { id: number; data: string; hora: string; pacienteId: number; nome: string; convenio: string; status?: string; deletado?: boolean };
+type Linha = { id: number; data: string; hora: string; pacienteId: number; nome: string; convenio: string; valor?: string; status?: string; deletado?: boolean };
 
 async function relatorio(linhas: Linha[]): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
@@ -12,7 +12,7 @@ async function relatorio(linhas: Linha[]): Promise<Buffer> {
   ws.addRow(["#", "Data Atend", "Hora", "#", "Nome", "Contato", "Convênio", "Tipo", "Status", "Profissional", "Especialidade", "Valor", "Deletado", "Observação"]);
   for (const l of linhas) {
     const [a, m, d] = l.data.split("-");
-    ws.addRow([String(l.id), `${d}/${m}/${a}`, l.hora, String(l.pacienteId), l.nome, "", l.convenio, "SESSÃO PSICOLOGIA", l.status ?? "Marcado", "ANA BEATRIZ COSTA", "Psicóloga", "", l.deletado ? "Sim" : "Não", ""]);
+    ws.addRow([String(l.id), `${d}/${m}/${a}`, l.hora, String(l.pacienteId), l.nome, "", l.convenio, "SESSÃO PSICOLOGIA", l.status ?? "Marcado", "ANA BEATRIZ COSTA", "Psicóloga", l.valor ?? "", l.deletado ? "Sim" : "Não", ""]);
   }
   return Buffer.from(await wb.xlsx.writeBuffer());
 }
@@ -33,12 +33,14 @@ test("importar agenda: correspondências, meses, divergência e versão do app m
   const depois = outroMes.toISOString().slice(0, 10);
   const nomes = { a: `Importado A ${n}`, b: `Importado B ${n}`, c: `Importado C ${n}` };
   const doApp = `Marcado no App ${n}`;
+  // Valor novo a cada execução: a correspondência UNIMED + valor ainda não está guardada.
+  const valorUnimed = 100 + (n % 800);
 
   // No app, um atendimento que sobrepõe o importado A (mesma profissional, 17:15).
   await criarAtendimento(page, { nome: doApp, dia: 4, hora: "17:15", profissional: 1 });
 
   const arquivo = await relatorio([
-    { id: n, data: sexta, hora: "17:00", pacienteId: n, nome: nomes.a.toUpperCase(), convenio: "UNIMED" },
+    { id: n, data: sexta, hora: "17:00", pacienteId: n, nome: nomes.a.toUpperCase(), convenio: "UNIMED", valor: `${valorUnimed},00` },
     { id: n + 1, data: sexta, hora: "07:00", pacienteId: n + 1, nome: nomes.b.toUpperCase(), convenio: `CONVENIO TESTE ${n}` },
     { id: n + 2, data: depois, hora: "09:00", pacienteId: n + 2, nome: nomes.c.toUpperCase(), convenio: "UNIMED" },
     { id: n + 3, data: sexta, hora: "10:00", pacienteId: n + 3, nome: "APAGADO", convenio: "UNIMED", deletado: true },
@@ -48,7 +50,10 @@ test("importar agenda: correspondências, meses, divergência e versão do app m
   await enviar(page, arquivo);
   const correspondencias = page.getByRole("region", { name: "Correspondências" });
   await expect(correspondencias).toContainText(`CONVENIO TESTE ${n}`);
-  await correspondencias.getByLabel(`Plano para o convênio CONVENIO TESTE ${n}`).selectOption({ label: "Unimed" });
+  // Cada convênio + valor é uma correspondência; a de nome igual já vem sugerida.
+  const unimedComValor = correspondencias.getByLabel(new RegExp(`Plano para o convênio UNIMED · R\\$\\s${valorUnimed},00`));
+  await expect(unimedComValor.locator("option:checked")).toHaveText("Unimed");
+  await correspondencias.getByLabel(`Plano para o convênio CONVENIO TESTE ${n} · sem valor`).selectOption({ label: "Unimed" });
   await correspondencias.getByRole("button", { name: "Continuar" }).click();
 
   // 2) Resumo por mês (simulado) e importação só do mês da sexta.
