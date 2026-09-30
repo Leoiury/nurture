@@ -253,6 +253,42 @@ export type Database = {
           },
         ]
       }
+      datas_comemorativas: {
+        Row: {
+          criado_em: string
+          descricao: string | null
+          dia: number | null
+          dia_semana: number | null
+          id: string
+          mes: number | null
+          nome: string
+          ordem: number | null
+          pascoa: number | null
+        }
+        Insert: {
+          criado_em?: string
+          descricao?: string | null
+          dia?: number | null
+          dia_semana?: number | null
+          id?: string
+          mes?: number | null
+          nome: string
+          ordem?: number | null
+          pascoa?: number | null
+        }
+        Update: {
+          criado_em?: string
+          descricao?: string | null
+          dia?: number | null
+          dia_semana?: number | null
+          id?: string
+          mes?: number | null
+          nome?: string
+          ordem?: number | null
+          pascoa?: number | null
+        }
+        Relationships: []
+      }
       feriados: {
         Row: {
           atualizado_em: string

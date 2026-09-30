@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { carregarAgenda, carregarAtendimentosCitados } from "@/lib/agenda/dados";
+import { carregarAgenda, carregarAtendimentosCitados, carregarLembretes } from "@/lib/agenda/dados";
 import type { Operacao } from "@/lib/agenda/planejamento";
 import { ehDataValida, hoje, inicioDaSemana, somarDias } from "@/lib/agenda/tempo";
 import { lerVisao, sufixoDaVisao, type Visao } from "@/lib/agenda/visao";
@@ -26,9 +26,10 @@ export default async function AgendaPage({ searchParams }: PageProps<"/agenda">)
   if (noPlanejamento && !ehAdm) redirect("/agenda");
 
   const semana = Array.from({ length: 7 }, (_, i) => somarDias(segunda, i));
-  const [{ profissionais, atendimentos, especiais }, rascunho] = await Promise.all([
+  const [{ profissionais, atendimentos, especiais }, rascunho, lembretes] = await Promise.all([
     carregarAgenda(semana[0], semana[6]),
     noPlanejamento ? supabase.from("planejamento").select("operacoes").maybeSingle() : null,
+    carregarLembretes(dataHoje, dia ?? semana[0], dia ?? semana[6]),
   ]);
   if (rascunho?.error) throw rascunho.error;
   const operacoes = (rascunho?.data?.operacoes ?? []) as unknown as Operacao[];
@@ -82,6 +83,7 @@ export default async function AgendaPage({ searchParams }: PageProps<"/agenda">)
         profissionais={profissionaisOrdenados}
         atendimentos={dia ? atendimentos.filter((a) => a.data === dia) : atendimentos}
         especiais={especiais}
+        lembretes={lembretes}
         planejamento={noPlanejamento ? { operacoes, base, urlSair: url(visao, false) } : undefined}
         urlDoPlanejamento={ehAdm && !noPlanejamento ? url(visao, true) : undefined}
         navegacao={<Navegacao referencia={referencia} dia={dia} hoje={dataHoje} visao={visao} planejamento={noPlanejamento} />}

@@ -7,6 +7,7 @@ const ABAS = [
   { href: "/configuracoes/planos", rotulo: "Planos" },
   { href: "/configuracoes/tipos", rotulo: "Tipos de atendimento" },
   { href: "/configuracoes/feriados", rotulo: "Feriados e recessos" },
+  { href: "/configuracoes/datas", rotulo: "Datas comemorativas" },
   { href: "/configuracoes/importar", rotulo: "Importar agenda" },
   { href: "/configuracoes/usuarios", rotulo: "Usuários" },
 ] as const;
@@ -14,7 +15,7 @@ const ABAS = [
 export function AbasDeConfiguracao() {
   const caminho = usePathname();
   return (
-    <nav aria-label="Seções de configuração" className="flex max-w-full gap-0.5 self-start overflow-x-auto rounded-full bg-black/[0.04] p-1 whitespace-nowrap">
+    <nav aria-label="Seções de configuração" className="flex max-w-full flex-wrap gap-0.5 self-start rounded-2xl bg-black/[0.04] p-1">
       {ABAS.map((a) => {
         const ativa = caminho.startsWith(a.href);
         return (

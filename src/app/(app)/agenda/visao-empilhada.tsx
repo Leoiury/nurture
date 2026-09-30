@@ -28,6 +28,7 @@ import {
 import { useArraste } from "./arraste";
 import { ColunaClicavel, type NovoNoHorario } from "./coluna-clicavel";
 import { EtiquetaDiaEspecial, FundoSemExpediente, fundoDoCabecalho } from "./dia-especial";
+import { EtiquetaComemoracao, IconeBolo } from "./lembretes";
 
 type Modo = "semana" | "dia";
 
@@ -65,9 +66,11 @@ type Props = {
   aoCriarEm: (novo: NovoNoHorario) => void;
   /** Divergências (importado × app) por coluna "dia|profissional". */
   divergencias: Map<string, Divergencia[]>;
+  /** Datas comemorativas por dia (estrela no cabeçalho). */
+  comemoracoes: Record<string, string[]>;
 };
 
-export function VisaoEmpilhada({ modo, dias, hoje, colunas, visiveis, porColuna, compactar, expandidos, aoExpandir, aoAbrir, sufixoUrl, alturaVisivel, ampliada, especiais, aoCriarEm, divergencias }: Props) {
+export function VisaoEmpilhada({ modo, dias, hoje, colunas, visiveis, porColuna, compactar, expandidos, aoExpandir, aoAbrir, sufixoUrl, alturaVisivel, ampliada, especiais, aoCriarEm, divergencias, comemoracoes }: Props) {
   const px = ampliada
     ? PX_AMPLIADA
     : escalaParaCaber(alturaVisivel && alturaVisivel - ALTURA_CABECALHO_PROF - ALTURA_CABECALHO_DIA - 8, ESCALA);
@@ -118,6 +121,7 @@ export function VisaoEmpilhada({ modo, dias, hoje, colunas, visiveis, porColuna,
           especiais={especiais[dia]}
           aoCriarEm={aoCriarEm}
           divergencias={divergencias}
+          comemoracoes={comemoracoes[dia]}
         />
       ))}
     </div>
@@ -141,9 +145,11 @@ type DiaProps = {
   aoCriarEm: (novo: NovoNoHorario) => void;
   /** Divergências (importado × app) por coluna "dia|profissional". */
   divergencias: Map<string, Divergencia[]>;
+  /** Datas comemorativas do dia (estrela no cabeçalho). */
+  comemoracoes: string[] | undefined;
 };
 
-function Dia({ dia, ehHoje, modo, px, segmentos, colunas, porColuna, total, aoExpandir, aoAbrir, sufixoUrl, ampliada, especiais, aoCriarEm, divergencias }: DiaProps) {
+function Dia({ dia, ehHoje, modo, px, segmentos, colunas, porColuna, total, aoExpandir, aoAbrir, sufixoUrl, ampliada, especiais, aoCriarEm, divergencias, comemoracoes }: DiaProps) {
   const altura = segmentos.reduce((soma, s) => soma + alturaDoSegmento(s, px), 0);
   const titulo = nomeLongoDoDia(dia);
 
@@ -164,6 +170,7 @@ function Dia({ dia, ehHoje, modo, px, segmentos, colunas, porColuna, total, aoEx
           )}
           {ehHoje && <span className="rounded-full bg-accent px-1.5 py-px text-[10px] font-medium text-white">Hoje</span>}
           <EtiquetaDiaEspecial dias={especiais} />
+          <EtiquetaComemoracao nomes={comemoracoes} />
           <span className="text-xs text-muted">
             {total} atendimento{total === 1 ? "" : "s"}
           </span>
@@ -324,6 +331,11 @@ function Card({ atendimento: a, modo, top, altura, ampliada, profissionalId, aoA
       )}
       <span className={`flex h-full flex-col justify-center gap-px pl-3.5 pr-2 leading-tight ${linhas === 1 ? "flex-row items-center justify-start gap-1.5" : ""}`}>
         <span className={`truncate font-semibold ${ampliada ? "text-[15px]" : modo === "dia" ? "text-sm" : "text-[13px]"} ${desmarcado ? "line-through" : ""}`}>
+          {a.aniversario && (
+            <span className="mr-1 inline-block align-[-2px] text-pink-600" title="Aniversário hoje" data-aniversario>
+              <IconeBolo tamanho={13} />
+            </span>
+          )}
           {a.paciente ?? "Sem paciente"}
         </span>
         {linhas >= 2 && (
