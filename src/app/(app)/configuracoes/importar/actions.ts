@@ -12,7 +12,17 @@
 import { revalidatePath } from "next/cache";
 import { instanteNoFuso } from "@/lib/agenda/tempo";
 import { valorSugerido } from "@/lib/agenda/valores";
-import { ArquivoInvalido, capitalizar, chave, chaveCompacta, lerAgendaLegado, type LinhaLegado } from "@/lib/importacao/agenda-legado";
+import {
+  ArquivoInvalido,
+  capitalizar,
+  chave,
+  chaveCompacta,
+  chaveDoConvenio,
+  lerAgendaLegado,
+  lerChaveDoConvenio,
+  sugerirPlano,
+  type LinhaLegado,
+} from "@/lib/importacao/agenda-legado";
 import type { Json } from "@/lib/supabase/database.types";
 import { ehAdm } from "@/lib/auth/usuario";
 import { createClient } from "@/lib/supabase/server";
@@ -21,7 +31,7 @@ type Supabase = Awaited<ReturnType<typeof createClient>>;
 
 /** Correspondências escolhidas na tela para o que o app não reconheceu. */
 export type Escolhas = {
-  /** chave compacta do convênio → id do plano ("" = sem plano). */
+  /** chaveDoConvenio(convênio, valor) → id do plano ("" = sem plano). */
   convenios: Record<string, string>;
   /** chave do nome do profissional → id do profissional, ou "novo". */
   profissionais: Record<string, string>;
@@ -34,7 +44,11 @@ export type ResumoDoMes = { mes: string; linhas: number; validas: number; contag
 export type Analise = {
   ok: true;
   meses: ResumoDoMes[];
-  pendencias: { convenios: { chave: string; nome: string; quantidade: number }[]; profissionais: { chave: string; nome: string; quantidade: number }[] };
+  pendencias: {
+    /** Combinações convênio + valor ainda sem plano; sugestao: plano pré-escolhido na tela. */
+    convenios: { chave: string; nome: string; valor: number | null; quantidade: number; sugestao: string | null }[];
+    profissionais: { chave: string; nome: string; quantidade: number }[];
+  };
   pacientesNovos: number;
   tiposNovos: string[];
   opcoes: { planos: { id: string; nome: string }[]; profissionais: { id: string; nome: string }[] };
@@ -66,29 +80,30 @@ async function resolver(supabase: Supabase, linhas: LinhaLegado[], escolhas: Esc
   const idsPacientes = [...new Set(linhas.map((l) => l.pacienteIdLegado).filter((id): id is number => id !== null))];
   const [planos, mapeados, profissionais, tipos, pacientes] = await Promise.all([
     supabase.from("planos").select("id, nome, duracao_padrao_min, valor_padrao, valor_fonoaudiologia, valor_psicologia, valor_nutricao, valor_psicopedagogia"),
-    supabase.from("convenios_legado").select("nome, plano_id"),
+    supabase.from("convenios_legado").select("nome, valor, plano_id"),
     supabase.from("profissionais").select("id, nome, nome_legado, ativo"),
     supabase.from("tipos_atendimento").select("id, nome, area"),
     idsPacientes.length ? supabase.from("pacientes").select("id, id_legado").in("id_legado", idsPacientes) : { data: [], error: null },
   ]);
   for (const r of [planos, mapeados, profissionais, tipos, pacientes]) if (r.error) throw new Error("Não foi possível ler os dados do app.");
 
-  // Convênio → plano: correspondência guardada, escolhida agora, ou nome igual.
-  const planoPorChave = new Map(planos.data!.map((p) => [chaveCompacta(p.nome), p]));
+  // Convênio + valor → plano: correspondência escolhida agora ou guardada. Cada
+  // combinação nova é confirmada uma vez na tela (com um plano sugerido).
   const planoPorId = new Map(planos.data!.map((p) => [p.id, p]));
-  const guardados = new Map(mapeados.data!.map((m) => [m.nome, m.plano_id]));
-  const convenioPendente = new Map<string, { nome: string; quantidade: number }>();
+  const guardados = new Map(mapeados.data!.map((m) => [chaveDoConvenio(m.nome, m.valor), m.plano_id]));
+  const convenioPendente = new Map<string, { nome: string; valor: number | null; quantidade: number; sugestao: string | null }>();
   type Plano = NonNullable<typeof planos.data>[number];
-  const planoDo = (convenio: string): { reuniao: boolean; plano: Plano | null; pendente: boolean } => {
+  // Linhas apagadas no sistema anterior só são excluídas: não pedem correspondência.
+  const planoDo = (convenio: string, valor: number | null, apagada: boolean): { reuniao: boolean; plano: Plano | null; pendente: boolean } => {
     const k = chaveCompacta(convenio);
     if (!k) return { reuniao: false, plano: null, pendente: false };
     if (k === CONVENIO_REUNIOES) return { reuniao: true, plano: null, pendente: false };
-    if (k in escolhas.convenios) return { reuniao: false, plano: planoPorId.get(escolhas.convenios[k]) ?? null, pendente: false };
-    if (guardados.has(k)) return { reuniao: false, plano: planoPorId.get(guardados.get(k) ?? "") ?? null, pendente: false };
-    const plano = planoPorChave.get(k);
-    if (plano) return { reuniao: false, plano, pendente: false };
-    const p = convenioPendente.get(k) ?? { nome: convenio, quantidade: 0 };
-    convenioPendente.set(k, { ...p, quantidade: p.quantidade + 1 });
+    const kv = chaveDoConvenio(k, valor);
+    if (kv in escolhas.convenios) return { reuniao: false, plano: planoPorId.get(escolhas.convenios[kv]) ?? null, pendente: false };
+    if (guardados.has(kv)) return { reuniao: false, plano: planoPorId.get(guardados.get(kv) ?? "") ?? null, pendente: false };
+    if (apagada) return { reuniao: false, plano: null, pendente: false };
+    const p = convenioPendente.get(kv) ?? { nome: convenio.trim(), valor, quantidade: 0, sugestao: sugerirPlano(convenio, valor, planos.data!) };
+    convenioPendente.set(kv, { ...p, quantidade: p.quantidade + 1 });
     return { reuniao: false, plano: null, pendente: true };
   };
 
@@ -99,10 +114,11 @@ async function resolver(supabase: Supabase, linhas: LinhaLegado[], escolhas: Esc
     if (p.nome_legado) profPorChave.set(chave(p.nome_legado), p.id);
   }
   const profPendente = new Map<string, { nome: string; quantidade: number }>();
-  const profissionalDo = (nome: string): string | "novo" | null => {
+  const profissionalDo = (nome: string, apagada: boolean): string | "novo" | null => {
     const k = chave(nome);
     if (escolhas.profissionais[k]) return escolhas.profissionais[k];
     if (profPorChave.has(k)) return profPorChave.get(k)!;
+    if (apagada) return null;
     const p = profPendente.get(k) ?? { nome: capitalizar(nome), quantidade: 0 };
     profPendente.set(k, { ...p, quantidade: p.quantidade + 1 });
     return null;
@@ -114,8 +130,8 @@ async function resolver(supabase: Supabase, linhas: LinhaLegado[], escolhas: Esc
   const pacientesNovos = new Map<number, { nome: string; contato: string | null; planoId: string | null }>();
 
   const resolvidas = linhas.map((l) => {
-    const { reuniao, plano, pendente: convenioPendenteNaLinha } = planoDo(l.convenio);
-    const profissional = profissionalDo(l.profissional);
+    const { reuniao, plano, pendente: convenioPendenteNaLinha } = planoDo(l.convenio, l.valor, l.deletado);
+    const profissional = profissionalDo(l.profissional, l.deletado);
     const nomeTipo = reuniao ? TIPO_REUNIOES : l.tipo;
     const tipo = nomeTipo ? (tipoPorChave.get(chave(nomeTipo)) ?? null) : null;
     if (nomeTipo && !tipo) tiposNovos.set(chave(nomeTipo), nomeTipo);
@@ -127,7 +143,7 @@ async function resolver(supabase: Supabase, linhas: LinhaLegado[], escolhas: Esc
     const inicio = instanteNoFuso(l.data, l.hora);
     return {
       linha: l,
-      pendente: convenioPendenteNaLinha || profissional === null,
+      pendente: convenioPendenteNaLinha || (profissional === null && !l.deletado),
       profissional,
       planoId: plano?.id ?? null,
       tipoNome: nomeTipo,
@@ -235,9 +251,9 @@ export async function importarAgenda(dados: FormData): Promise<{ ok: true; conta
     if (r.pendencias.convenios.length || r.pendencias.profissionais.length) return { ok: false, erro: "Escolha a correspondência dos convênios e profissionais pendentes." };
 
     // Correspondências escolhidas: ficam guardadas para as próximas importações.
-    const convenios = Object.entries(escolhas.convenios).map(([nome, planoId]) => ({ nome, plano_id: planoId || null }));
+    const convenios = Object.entries(escolhas.convenios).map(([k, planoId]) => ({ ...lerChaveDoConvenio(k), plano_id: planoId || null }));
     if (convenios.length) {
-      const { error } = await supabase.from("convenios_legado").upsert(convenios);
+      const { error } = await supabase.from("convenios_legado").upsert(convenios, { onConflict: "nome,valor" });
       if (error) return { ok: false, erro: "Não foi possível guardar os convênios." };
     }
     for (const [k, id] of Object.entries(escolhas.profissionais)) {

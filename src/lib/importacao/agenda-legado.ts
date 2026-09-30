@@ -151,3 +151,44 @@ export async function lerAgendaLegado(conteudo: ArrayBuffer): Promise<LinhaLegad
   if (faltando.length) throw new ArquivoInvalido(`Faltam colunas no relatório: ${faltando.join(", ")}.`);
   return linhas;
 }
+
+export type PlanoParaSugestao = {
+  id: string;
+  nome: string;
+  valor_padrao: number | null;
+  valor_fonoaudiologia: number | null;
+  valor_psicologia: number | null;
+  valor_nutricao: number | null;
+  valor_psicopedagogia: number | null;
+};
+
+const valoresDoPlano = (p: PlanoParaSugestao) =>
+  [p.valor_padrao, p.valor_fonoaudiologia, p.valor_psicologia, p.valor_nutricao, p.valor_psicopedagogia].filter((v): v is number => v !== null);
+
+/**
+ * Plano sugerido para um convênio do sistema anterior com um valor (a pessoa confirma):
+ * o de mesmo nome; senão, entre os de nome parecido (ou todos), o único com esse valor.
+ * Ambíguo: nenhum.
+ */
+export function sugerirPlano(convenio: string, valor: number | null, planos: PlanoParaSugestao[]): string | null {
+  const k = chaveCompacta(convenio);
+  const mesmoNome = planos.filter((p) => chaveCompacta(p.nome) === k);
+  if (mesmoNome.length === 1) return mesmoNome[0].id;
+  if (valor === null) return null;
+  const parecidos = planos.filter((p) => chaveCompacta(p.nome).startsWith(k) || k.startsWith(chaveCompacta(p.nome)));
+  for (const grupo of [parecidos, planos]) {
+    const comValor = grupo.filter((p) => valoresDoPlano(p).includes(valor));
+    if (comValor.length === 1) return comValor[0].id;
+    if (comValor.length > 1) return null;
+  }
+  return null;
+}
+
+/** Chave da correspondência convênio + valor ("UNIMED|110", "PARTICULAR|" sem valor). */
+export const chaveDoConvenio = (convenio: string, valor: number | null) => `${chaveCompacta(convenio)}|${valor ?? ""}`;
+
+/** Inverso de chaveDoConvenio: nome compacto e valor. */
+export function lerChaveDoConvenio(k: string): { nome: string; valor: number | null } {
+  const [nome, valor] = k.split("|");
+  return { nome, valor: valor ? Number(valor) : null };
+}

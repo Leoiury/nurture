@@ -1,6 +1,6 @@
 import ExcelJS from "exceljs";
 import { describe, expect, it } from "vitest";
-import { ArquivoInvalido, capitalizar, chaveCompacta, lerAgendaLegado, lerStatus } from "./agenda-legado";
+import { ArquivoInvalido, capitalizar, chaveCompacta, lerAgendaLegado, lerStatus, sugerirPlano } from "./agenda-legado";
 
 // Relatório fictício no formato do sistema anterior: títulos antes do cabeçalho,
 // "#" repetido (atendimento e paciente).
@@ -57,5 +57,41 @@ describe("normalização", () => {
     expect(lerStatus("Atendido")).toEqual({ status: "atendido", motivo: null });
     expect(lerStatus("DesmarcadoMotivo: Feriado")).toEqual({ status: "desmarcado", motivo: "Feriado" });
     expect(capitalizar("SESSÃO DE ABA")).toBe("Sessão de ABA");
+  });
+});
+
+describe("sugerirPlano", () => {
+  const plano = (id: string, nome: string, valor: number | null, psico: number | null = null) => ({
+    id,
+    nome,
+    valor_padrao: valor,
+    valor_fonoaudiologia: null,
+    valor_psicologia: psico,
+    valor_nutricao: null,
+    valor_psicopedagogia: null,
+  });
+  const planos = [
+    plano("unimed", "Unimed", 120),
+    plano("reembolso", "Unimed - Reembolso", 200),
+    plano("a", "Particular - Tabela A", null, 180),
+    plano("b", "Particular - Tabela B", 150),
+    plano("c", "Particular - Tabela C", null),
+  ];
+
+  it("mesmo nome, com qualquer valor", () => {
+    expect(sugerirPlano("UNIMED", 110, planos)).toBe("unimed");
+    expect(sugerirPlano("UNIMED - REEMBOLSO", null, planos)).toBe("reembolso");
+    expect(sugerirPlano("PARTICULAR  - TABELA B", null, planos)).toBe("b");
+  });
+
+  it("sem nome igual: o único de nome parecido com esse valor (padrão ou por área)", () => {
+    expect(sugerirPlano("PARTICULAR", 180, planos)).toBe("a");
+    expect(sugerirPlano("PARTICULAR", 150, planos)).toBe("b");
+  });
+
+  it("ambíguo ou sem valor: nenhuma sugestão", () => {
+    expect(sugerirPlano("PARTICULAR", null, planos)).toBeNull();
+    expect(sugerirPlano("PARTICULAR", 999, planos)).toBeNull();
+    expect(sugerirPlano("CONVENIO X", 999, planos)).toBeNull();
   });
 });
