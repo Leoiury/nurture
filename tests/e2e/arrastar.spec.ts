@@ -10,7 +10,8 @@ test("arrastar o card muda horário e profissional, e dá para desfazer", async 
   const profissionalOriginal = rotuloOriginal.split(" · ")[2];
 
   // O card precisa estar na tela para o mouse alcançá-lo (sexta fica abaixo na rolagem).
-  await card.scrollIntoViewIfNeeded();
+  // Centralizado: há espaço para arrastar, seja qual for o dia de hoje.
+  await card.evaluate((el) => el.scrollIntoView({ block: "center" }));
   await page.waitForTimeout(300); // rolagem com encaixe por dia assentar
 
   const caixa = (await card.boundingBox())!;
