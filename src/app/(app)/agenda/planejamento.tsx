@@ -51,7 +51,13 @@ export function usePlanejamento(inicial: Operacao[] | null, base: AtendimentoAge
     aoErroRef.current = aoErro;
   }, [aoErro]);
 
+  // Referências atuais para as ações (chamadas depois de await). As operações são
+  // atualizadas já aqui: duas ações seguidas (ex.: editar + ajuste em massa) não
+  // podem esperar a nova renderização, senão a segunda apagaria a primeira.
+  const atual = useRef<{ operacoes: Operacao[]; simulados: AtendimentoAgenda[] }>({ operacoes: inicial ?? [], simulados: base });
+
   const definir = useCallback((novas: Operacao[]) => {
+    atual.current = { ...atual.current, operacoes: novas };
     setOperacoes(novas);
     setSalvando(true);
     fila.current = fila.current.then(async () => {
@@ -62,8 +68,6 @@ export function usePlanejamento(inicial: Operacao[] | null, base: AtendimentoAge
   }, []);
 
   const simulados = useMemo(() => (ativo ? simular(base, operacoes, nomePorId) : base), [ativo, base, operacoes, nomePorId]);
-  // Referências atuais para as ações (chamadas depois de await).
-  const atual = useRef({ operacoes, simulados });
   useEffect(() => {
     atual.current = { operacoes, simulados };
   }, [operacoes, simulados]);
