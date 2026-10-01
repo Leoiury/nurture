@@ -12,6 +12,7 @@ import { profissionaisDoTipo, type TipoComProfissionais } from "@/lib/agenda/tip
 import { FUSO, ehDataValida, formatarHora, inicioDoDiaISO, instanteNoFuso, partesNoFuso, somarDias } from "@/lib/agenda/tempo";
 import type { ArgsCriar } from "@/lib/agenda/planejamento";
 import type { Database } from "@/lib/supabase/database.types";
+import { ehAdm } from "@/lib/auth/usuario";
 import { createClient } from "@/lib/supabase/server";
 
 type Status = Database["public"]["Enums"]["status_atendimento"];
@@ -36,7 +37,8 @@ export async function opcoesDoFormulario() {
     profissionais: t.vinculos.map((v) => v.profissional_id),
     area: t.area,
   }));
-  return { pacientes: pacientes.data!, profissionais: profissionais.data!, planos: planos.data!, tipos: tiposComProfissionais };
+  // "Anteriores e futuros" nos ajustes de valor: só administradores.
+  return { pacientes: pacientes.data!, profissionais: profissionais.data!, planos: planos.data!, tipos: tiposComProfissionais, ehAdm: await ehAdm() };
 }
 
 export type OpcoesDoFormulario = Awaited<ReturnType<typeof opcoesDoFormulario>>;

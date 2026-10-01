@@ -696,6 +696,17 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      ajustar_valores_do_paciente: {
+        Args: {
+          p_area: string
+          p_escopo: string
+          p_ignorar?: string
+          p_paciente: string
+          p_tipo: string
+          p_valor: number
+        }
+        Returns: number
+      }
       aplicar_planejamento: { Args: { p_operacoes: Json }; Returns: number }
       atendimentos_ativos_no_periodo: {
         Args: { p_fim: string; p_inicio: string }
@@ -753,6 +764,7 @@ export type Database = {
           p_profissionais: string[]
           p_tipo_id?: string
           p_valor?: number
+          p_valor_so_neste?: boolean
         }
         Returns: number
       }
@@ -786,9 +798,21 @@ export type Database = {
         }
         Returns: undefined
       }
+      mudar_plano_dos_futuros: {
+        Args: { p_ignorar?: string; p_paciente: string; p_plano: string }
+        Returns: number
+      }
       planejamento_confere: {
         Args: { p_esperado: Json; p_id: string }
         Returns: boolean
+      }
+      reajustar_plano: {
+        Args: { p_antigos: Json; p_plano: string }
+        Returns: number
+      }
+      valor_do_plano: {
+        Args: { p_area: string; p_plano: string }
+        Returns: number
       }
     }
     Enums: {

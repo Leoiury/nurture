@@ -96,6 +96,8 @@ export type Edicao = {
   planoId: string | null;
   tipoId: string | null;
   valor: number | null;
+  /** Numa série: o valor muda só neste atendimento (o alcance do valor é outra pergunta). */
+  valorSoNeste?: boolean;
 };
 
 /** Valida e monta os argumentos de editar_atendimentos (também usado pelo planejamento). */
@@ -124,6 +126,7 @@ export async function argsDeEdicao(e: Edicao): Promise<{ ok: true; args: ArgsEdi
       p_plano_id: e.planoId ?? undefined,
       p_tipo_id: e.tipoId ?? undefined,
       p_valor: e.valor ?? undefined,
+      p_valor_so_neste: e.valorSoNeste ?? false,
     },
   };
 }
@@ -161,4 +164,46 @@ export async function mover(m: Movimento): Promise<Resultado> {
     p_para_profissional: m.paraProfissional,
   });
   return concluir(error);
+}
+
+/** Ajustes do paciente depois de salvar um atendimento (cada um opcional). */
+export type AjustesDoPaciente = {
+  pacienteId: string;
+  /** O atendimento recém-salvo (já está como deve). */
+  ignorarId: string | null;
+  /** undefined: não mexe; string/null: novo plano padrão do paciente. */
+  planoPadrao?: string | null;
+  /** Atendimentos futuros do paciente passam para este plano (valor de cada área). */
+  planoNosFuturos?: string;
+  /** Mesmo valor nos atendimentos do paciente na mesma área (ou no mesmo tipo, se ele não tiver área). */
+  valores?: { valor: number | null; escopo: "futuros" | "todos"; area: string | null; tipoId: string | null };
+};
+
+export async function ajustarPaciente(a: AjustesDoPaciente): Promise<Resultado> {
+  const supabase = await createClient();
+  let quantidade = 0;
+  if (a.planoPadrao !== undefined) {
+    const { error } = await supabase.from("pacientes").update({ plano_id: a.planoPadrao }).eq("id", a.pacienteId);
+    if (error) return { ok: false, erro: "Não foi possível mudar o plano padrão do paciente." };
+  }
+  if (a.planoNosFuturos) {
+    const { data, error } = await supabase.rpc("mudar_plano_dos_futuros", { p_paciente: a.pacienteId, p_plano: a.planoNosFuturos, p_ignorar: a.ignorarId ?? undefined });
+    if (error) return { ok: false, erro: "Não foi possível mudar o plano dos atendimentos futuros." };
+    quantidade += data ?? 0;
+  }
+  if (a.valores) {
+    const { data, error } = await supabase.rpc("ajustar_valores_do_paciente", {
+      p_paciente: a.pacienteId,
+      p_area: a.valores.area as string,
+      p_tipo: a.valores.tipoId as string,
+      p_valor: a.valores.valor as number,
+      p_escopo: a.valores.escopo,
+      p_ignorar: a.ignorarId ?? undefined,
+    });
+    if (error) return { ok: false, erro: /administradores/.test(error.message) ? error.message : "Não foi possível ajustar os valores." };
+    quantidade += data ?? 0;
+  }
+  revalidatePath("/agenda");
+  revalidatePath("/pacientes", "layout");
+  return { ok: true, quantidade };
 }

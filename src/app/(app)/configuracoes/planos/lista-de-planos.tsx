@@ -25,6 +25,7 @@ function plural(n: number, singular: string, pluralTexto: string) {
 
 export function ListaDePlanos({ planos }: { planos: PlanoDaLista[] }) {
   const [editando, setEditando] = useState<PlanoDaLista | "novo" | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
 
   return (
     <>
@@ -37,6 +38,11 @@ export function ListaDePlanos({ planos }: { planos: PlanoDaLista[] }) {
           + Novo plano
         </button>
       </div>
+      {aviso && (
+        <p role="status" className="rounded-xl bg-accent-soft px-4 py-2 text-sm text-accent">
+          {aviso}
+        </p>
+      )}
       <ul className="flex flex-col divide-y divide-border overflow-hidden rounded-2xl bg-surface ring-1 ring-black/5" aria-label="Planos">
         {planos.map((p) => (
           <li key={p.id}>
@@ -66,7 +72,14 @@ export function ListaDePlanos({ planos }: { planos: PlanoDaLista[] }) {
         {planos.length === 0 && <li className="px-4 py-6 text-sm text-muted">Nenhum plano cadastrado.</li>}
       </ul>
 
-      {editando && <PainelDoPlano key={editando === "novo" ? "novo" : editando.id} plano={editando === "novo" ? null : editando} aoFechar={() => setEditando(null)} />}
+      {editando && (
+        <PainelDoPlano
+          key={editando === "novo" ? "novo" : editando.id}
+          plano={editando === "novo" ? null : editando}
+          aoFechar={() => setEditando(null)}
+          aoReajustar={(n) => setAviso(n ? `${plural(n, "atendimento futuro reajustado", "atendimentos futuros reajustados")}.` : "Nenhum atendimento futuro com o valor antigo.")}
+        />
+      )}
     </>
   );
 }
@@ -74,7 +87,7 @@ export function ListaDePlanos({ planos }: { planos: PlanoDaLista[] }) {
 const entrada =
   "rounded-xl border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft";
 
-function PainelDoPlano({ plano, aoFechar }: { plano: PlanoDaLista | null; aoFechar: () => void }) {
+function PainelDoPlano({ plano, aoFechar, aoReajustar }: { plano: PlanoDaLista | null; aoFechar: () => void; aoReajustar: (quantidade: number) => void }) {
   const [nome, setNome] = useState(plano?.nome ?? "");
   const [cor, setCor] = useState(plano?.cor ?? PALETA_PLANOS[0].hex);
   const [duracao, setDuracao] = useState(plano?.duracaoMin ?? 45);
@@ -86,9 +99,14 @@ function PainelDoPlano({ plano, aoFechar }: { plano: PlanoDaLista | null; aoFech
     >,
   );
   const [ativo, setAtivo] = useState(plano?.ativo ?? true);
+  const [reajustarFuturos, setReajustarFuturos] = useState(true);
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const emUso = !!plano && plano.atendimentos + plano.pacientes > 0;
+  // Mudou algum valor de um plano em uso: oferece reajustar os atendimentos futuros.
+  const valoresMudaram =
+    !!plano &&
+    (lerValor(valor) !== plano.valor || AREAS.some(({ valor: a }) => lerValor(porArea[a]) !== plano.valoresPorArea[a]));
 
   useEffect(() => {
     const aoTeclar = (e: KeyboardEvent) => {
@@ -98,12 +116,13 @@ function PainelDoPlano({ plano, aoFechar }: { plano: PlanoDaLista | null; aoFech
     return () => window.removeEventListener("keydown", aoTeclar);
   }, [aoFechar]);
 
-  async function executar(acao: () => Promise<{ ok: true } | { ok: false; erro: string }>) {
+  async function executar(acao: () => Promise<{ ok: true; reajustados?: number } | { ok: false; erro: string }>) {
     setSalvando(true);
     setErro(null);
     const r = await acao().catch(() => ({ ok: false as const, erro: "Falha de conexão." }));
     setSalvando(false);
     if (!r.ok) return setErro(r.erro);
+    if (r.reajustados !== undefined) aoReajustar(r.reajustados);
     aoFechar();
   }
 
@@ -113,7 +132,9 @@ function PainelDoPlano({ plano, aoFechar }: { plano: PlanoDaLista | null; aoFech
     const valoresPorArea = Object.fromEntries(AREAS.map(({ valor: a }) => [a, lerValor(porArea[a])])) as Record<Area, number | null>;
     const invalida = AREAS.find(({ valor: a }) => Number.isNaN(valoresPorArea[a]));
     if (invalida) return setErro(`Valor de ${invalida.rotulo} inválido.`);
-    void executar(() => salvarPlano({ id: plano?.id, nome, cor, duracaoMin: duracao, valor: v, valoresPorArea, ativo }));
+    void executar(() =>
+      salvarPlano({ id: plano?.id, nome, cor, duracaoMin: duracao, valor: v, valoresPorArea, ativo, reajustarFuturos: valoresMudaram && reajustarFuturos }),
+    );
   }
 
   return (
@@ -230,6 +251,19 @@ function PainelDoPlano({ plano, aoFechar }: { plano: PlanoDaLista | null; aoFech
               </div>
               <p className="text-xs text-muted">Usado quando o tipo do atendimento é dessa área (veja em Tipos de atendimento). Vazio: vale o valor padrão.</p>
             </fieldset>
+
+            {valoresMudaram && (
+              <label className="flex cursor-pointer items-start gap-2 rounded-xl bg-amber-50 p-3 ring-1 ring-amber-200">
+                <input type="checkbox" checked={reajustarFuturos} onChange={(e) => setReajustarFuturos(e.target.checked)} className="mt-0.5 size-4 accent-[var(--accent)]" />
+                <span>
+                  Atualizar os atendimentos futuros deste plano
+                  <span className="block text-xs text-muted">
+                    Só os que estão com o valor antigo da sua área; valores combinados à parte e desmarcados não mudam. Cada mudança fica nas
+                    observações do atendimento.
+                  </span>
+                </span>
+              </label>
+            )}
 
             {plano && (
               <label className="flex cursor-pointer items-center gap-2">

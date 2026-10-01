@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { carregarAgenda, carregarAtendimentosCitados, carregarLembretes } from "@/lib/agenda/dados";
-import type { Operacao } from "@/lib/agenda/planejamento";
+import { sobreAtendimento, type Operacao } from "@/lib/agenda/planejamento";
 import { ehDataValida, hoje, inicioDaSemana, somarDias } from "@/lib/agenda/tempo";
 import { lerVisao, sufixoDaVisao, type Visao } from "@/lib/agenda/visao";
 import { ehAdm as usuarioEhAdm } from "@/lib/auth/usuario";
@@ -38,7 +38,7 @@ export default async function AgendaPage({ searchParams }: PageProps<"/agenda">)
   // (movidos para esta, ou de uma série alterada): entram na base da simulação.
   let base = atendimentos;
   if (noPlanejamento) {
-    const citados = [...new Set(operacoes.flatMap((op) => (op.tipo === "criar" ? [] : [op.args.p_id])))];
+    const citados = [...new Set(operacoes.flatMap((op) => (sobreAtendimento(op) ? [op.args.p_id] : [])))];
     const naSemana = new Set(atendimentos.map((a) => a.id));
     const extras = (await carregarAtendimentosCitados(citados.filter((id) => !naSemana.has(id)))).filter((a) => !naSemana.has(a.id));
     base = [...atendimentos, ...extras];
