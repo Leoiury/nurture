@@ -24,6 +24,8 @@ function atendimento(id: string, data: string, inicio: string, extra: Partial<At
     recorrenciaId: null,
     pacienteId: `p-${id}`,
     importado: false,
+    tipoId: null,
+    area: null,
     ...extra,
   };
 }
@@ -148,5 +150,41 @@ describe("lerErroDeAplicacao", () => {
     expect(lerErroDeAplicacao("CONFLITO k2")?.chave).toBe("k2");
     expect(lerErroDeAplicacao("ERRO k3: Duração inválida.")).toEqual({ chave: "k3", motivo: "Duração inválida." });
     expect(lerErroDeAplicacao("outra coisa")).toBeNull();
+  });
+});
+
+describe("ajustes do paciente no planejamento", () => {
+  const hoje = "2026-10-07";
+  const base = [
+    atendimento("passado", "2026-10-05", "09:00", { pacienteId: "joao", area: "psicologia" }),
+    atendimento("futuroPsi", "2026-10-08", "09:00", { pacienteId: "joao", area: "psicologia" }),
+    atendimento("futuroFono", "2026-10-09", "09:00", { pacienteId: "joao", area: "fonoaudiologia" }),
+    atendimento("desmarcado", "2026-10-09", "10:00", { pacienteId: "joao", area: "psicologia", status: "desmarcado" }),
+    atendimento("outro", "2026-10-08", "09:00", { pacienteId: "maria", area: "psicologia" }),
+  ];
+  const alterados = (ops: Operacao[]) => simular(base, ops, nomes, hoje).filter((a) => a.rascunho).map((a) => a.id);
+
+  it("valores: só a área, futuros ou todos, nunca desmarcados nem o próprio", () => {
+    const op = (escopo: "futuros" | "todos"): Operacao => ({
+      chave: "v",
+      descricao: "",
+      tipo: "valores_paciente",
+      args: { p_paciente: "joao", p_area: "psicologia", p_tipo: null, p_valor: 150, p_escopo: escopo },
+    });
+    expect(alterados([op("futuros")])).toEqual(["futuroPsi"]);
+    expect(alterados([op("todos")])).toEqual(["passado", "futuroPsi"]);
+  });
+
+  it("plano dos futuros: todas as áreas, com o plano novo no card", () => {
+    const op: Operacao = {
+      chave: "p",
+      descricao: "",
+      tipo: "plano_futuros",
+      args: { p_paciente: "joao", p_plano: "unimed", p_ignorar: "futuroFono" },
+      exibicao: { plano: { nome: "Unimed", cor: "#2E7D5B" } },
+    };
+    const r = simular(base, [op], nomes, hoje);
+    expect(r.filter((a) => a.rascunho).map((a) => a.id)).toEqual(["futuroPsi"]);
+    expect(r.find((a) => a.id === "futuroPsi")?.plano?.nome).toBe("Unimed");
   });
 });

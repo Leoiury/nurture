@@ -19,6 +19,8 @@ function a(id: string, inicio: string, extra: Partial<AtendimentoAgenda> = {}): 
     recorrenciaId: null,
     pacienteId: `p-${id}`,
     importado: false,
+    tipoId: null,
+    area: null,
     ...extra,
   };
 }

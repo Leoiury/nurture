@@ -20,6 +20,7 @@ import {
   semAlteracoesDe,
   semNovo,
   simular,
+  sobreAtendimento,
   type Operacao,
 } from "@/lib/agenda/planejamento";
 import { formatarHora, instanteNoFuso } from "@/lib/agenda/tempo";
@@ -31,6 +32,7 @@ import type { AlvoDoArraste } from "./arraste";
 import { nomeAbreviado } from "./comum";
 
 const novaChave = () => crypto.randomUUID();
+const moeda = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 
 export type Planejamento = ReturnType<typeof usePlanejamento>;
 
@@ -49,7 +51,13 @@ export function usePlanejamento(inicial: Operacao[] | null, base: AtendimentoAge
     aoErroRef.current = aoErro;
   }, [aoErro]);
 
+  // Referências atuais para as ações (chamadas depois de await). As operações são
+  // atualizadas já aqui: duas ações seguidas (ex.: editar + ajuste em massa) não
+  // podem esperar a nova renderização, senão a segunda apagaria a primeira.
+  const atual = useRef<{ operacoes: Operacao[]; simulados: AtendimentoAgenda[] }>({ operacoes: inicial ?? [], simulados: base });
+
   const definir = useCallback((novas: Operacao[]) => {
+    atual.current = { ...atual.current, operacoes: novas };
     setOperacoes(novas);
     setSalvando(true);
     fila.current = fila.current.then(async () => {
@@ -60,8 +68,6 @@ export function usePlanejamento(inicial: Operacao[] | null, base: AtendimentoAge
   }, []);
 
   const simulados = useMemo(() => (ativo ? simular(base, operacoes, nomePorId) : base), [ativo, base, operacoes, nomePorId]);
-  // Referências atuais para as ações (chamadas depois de await).
-  const atual = useRef({ operacoes, simulados });
   useEffect(() => {
     atual.current = { operacoes, simulados };
   }, [operacoes, simulados]);
@@ -103,8 +109,40 @@ export function usePlanejamento(inicial: Operacao[] | null, base: AtendimentoAge
         const args = { p_id: id, p_alcance: alcance, p_motivo: motivo.trim() };
         return adicionar({ chave: novaChave(), tipo: "excluir", args, esperado: esperadoDe(a), descricao: descreverExclusao(a, args) });
       },
+      async ajustar(a, exibicao) {
+        // Vira operações do rascunho; ao aplicar, o banco atinge os atendimentos que houver.
+        const ops: Operacao[] = [];
+        if (a.planoPadrao !== undefined) {
+          ops.push({
+            chave: novaChave(),
+            tipo: "plano_padrao",
+            args: { p_paciente: a.pacienteId, p_plano: a.planoPadrao },
+            descricao: `Plano padrão de ${exibicao.paciente}: ${exibicao.planoPadrao ?? "nenhum"}`,
+          });
+        }
+        if (a.planoNosFuturos) {
+          ops.push({
+            chave: novaChave(),
+            tipo: "plano_futuros",
+            args: { p_paciente: a.pacienteId, p_plano: a.planoNosFuturos, p_ignorar: a.ignorarId ?? undefined },
+            exibicao: { plano: exibicao.planoNosFuturos ?? null },
+            descricao: `Atendimentos futuros de ${exibicao.paciente} passam para ${exibicao.planoNosFuturos?.nome ?? "o novo plano"}`,
+          });
+        }
+        if (a.valores) {
+          const v = a.valores;
+          ops.push({
+            chave: novaChave(),
+            tipo: "valores_paciente",
+            args: { p_paciente: a.pacienteId, p_area: v.area, p_tipo: v.tipoId, p_valor: v.valor, p_escopo: v.escopo, p_ignorar: a.ignorarId ?? undefined },
+            descricao: `Valor ${v.valor === null ? "vazio" : moeda.format(v.valor)} nos atendimentos ${v.escopo === "todos" ? "anteriores e futuros" : "futuros"} de ${exibicao.paciente}${exibicao.segmento ? ` (${exibicao.segmento})` : ""}`,
+          });
+        }
+        if (ops.length) definir([...atual.current.operacoes, ...ops]);
+        return { ok: true };
+      },
       pendencias(id) {
-        const minhas = atual.current.operacoes.filter((op) => op.tipo !== "criar" && op.args.p_id === id);
+        const minhas = atual.current.operacoes.filter((op) => sobreAtendimento(op) && op.args.p_id === id);
         if (!minhas.length) return null;
         return { descricoes: minhas.map((op) => op.descricao), desfazer: () => definir(semAlteracoesDe(atual.current.operacoes, id)) };
       },

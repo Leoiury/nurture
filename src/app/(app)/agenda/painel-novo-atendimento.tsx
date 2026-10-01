@@ -16,7 +16,7 @@ import {
   type Frequencia,
 } from "@/lib/agenda/recorrencia";
 import { hoje as dataDeHoje, nomeCurtoDoDia, partesNoFuso } from "@/lib/agenda/tempo";
-import { lerValor, valorSugerido } from "@/lib/agenda/valores";
+import { AREAS, lerValor, valorSugerido } from "@/lib/agenda/valores";
 import { atendeOTipo, tipoSugerido } from "@/lib/agenda/tipos";
 import { paraBusca } from "@/lib/pacientes";
 import { useAcoesDaAgenda } from "./acoes-da-agenda";
@@ -104,6 +104,11 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
   const [conflitos, setConflitos] = useState<Conflito[]>([]);
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  // Etapa de confirmação ao salvar (plano padrão, plano dos futuros, alcance do valor).
+  const [confirmando, setConfirmando] = useState(false);
+  const [tornarPadrao, setTornarPadrao] = useState(false);
+  const [planoNosFuturos, setPlanoNosFuturos] = useState(false);
+  const [escopoValor, setEscopoValor] = useState<"so_este" | "futuros" | "todos">("so_este");
 
   useEffect(() => {
     let ativo = true;
@@ -231,10 +236,22 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
     setProfissionais([...profissionais, id]);
   }
 
+  // Plano e valor: perguntas ao salvar (plano padrão, plano dos futuros, alcance do valor).
+  const pacienteAtual = opcoes?.pacientes.find((p) => p.id === pacienteId) ?? null;
+  const planoDoPaciente = pacienteAtual?.plano_id ?? null;
+  const planoInicial = edicao ? edicao.planoId : planoDoPaciente;
+  const perguntarPlano = !!pacienteId && !!planoId && planoId !== planoInicial;
+  const podeTornarPadrao = perguntarPlano && planoId !== planoDoPaciente;
+  const valorAtual = lerValor(valor);
+  const perguntarValor = !!edicao && !Number.isNaN(valorAtual) && valorAtual !== edicao.valor;
+  const tipoAtual = opcoes?.tipos.find((t) => t.id === tipoId) ?? null;
+  const segmento = tipoAtual ? (AREAS.find((a) => a.valor === tipoAtual.area)?.rotulo ?? tipoAtual.nome) : "sem tipo";
+
   async function salvar() {
     setErro(null);
     const valorNumero = lerValor(valor);
     if (valorNumero !== null && Number.isNaN(valorNumero)) return setErro("Valor inválido.");
+    if (!confirmando && (perguntarPlano || perguntarValor)) return setConfirmando(true);
     setSalvando(true);
     const comuns = { pacienteId: pacienteId ?? "", profissionais, data, hora, duracaoMin: duracao, planoId, tipoId, valor: valorNumero };
     // Como o card aparece (usado pelo planejamento, que simula antes de gravar).
@@ -244,12 +261,35 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
       plano: plano ? { nome: plano.nome, cor: plano.cor } : null,
       tipo: opcoes?.tipos.find((t) => t.id === tipoId)?.nome ?? null,
     };
+    // Com a pergunta do valor, ela decide o alcance do valor (o resto da série mantém o seu).
+    const valorSoNeste = perguntarValor && alcance !== "este";
     const resultado = await (edicao
-      ? acoes.editar({ ...comuns, id: edicao.id, alcance }, exibicao)
-      : acoes.criar({ ...comuns, serie, status, observacao: observacao.trim() }, exibicao)
+      ? acoes.editar({ ...comuns, id: edicao.id, alcance, valorSoNeste }, { ...exibicao, area: tipoAtual?.area ?? null })
+      : acoes.criar({ ...comuns, serie, status, observacao: observacao.trim() }, { ...exibicao, area: tipoAtual?.area ?? null })
     ).catch(() => ({ ok: false as const, erro: "Falha de conexão ao salvar." }));
+    if (!resultado.ok) {
+      setSalvando(false);
+      return setErro(resultado.erro);
+    }
+
+    const ajustes = {
+      pacienteId: pacienteId!,
+      ignorarId: edicao?.id ?? null,
+      planoPadrao: podeTornarPadrao && tornarPadrao ? planoId : undefined,
+      planoNosFuturos: perguntarPlano && planoNosFuturos ? planoId! : undefined,
+      valores:
+        perguntarValor && escopoValor !== "so_este" ? { valor: valorNumero, escopo: escopoValor, area: tipoAtual?.area ?? null, tipoId } : undefined,
+    };
+    if (ajustes.planoPadrao !== undefined || ajustes.planoNosFuturos || ajustes.valores) {
+      const r = await acoes
+        .ajustar(ajustes, { paciente: exibicao.paciente, planoPadrao: plano?.nome ?? null, planoNosFuturos: exibicao.plano, segmento })
+        .catch(() => ({ ok: false as const, erro: "Falha de conexão." }));
+      if (!r.ok) {
+        setSalvando(false);
+        return setErro(`O atendimento foi salvo, mas: ${r.erro}`);
+      }
+    }
     setSalvando(false);
-    if (!resultado.ok) return setErro(resultado.erro);
     aoFechar();
   }
 
@@ -290,6 +330,54 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
             }}
           >
             <div className="flex flex-1 flex-col gap-5 overflow-y-auto px-5 py-4">
+              {confirmando ? (
+                <section aria-label="Confirmar plano e valor" className="flex flex-col gap-4 text-sm">
+                  <p className="font-medium">Antes de salvar:</p>
+                  {perguntarPlano && (
+                    <fieldset className="flex flex-col gap-2 rounded-xl bg-black/[0.03] p-3">
+                      <legend className="sr-only">Plano</legend>
+                      {podeTornarPadrao && (
+                        <label className="flex cursor-pointer items-start gap-2">
+                          <input type="checkbox" checked={tornarPadrao} onChange={(e) => setTornarPadrao(e.target.checked)} className="mt-0.5 size-4 accent-[var(--accent)]" />
+                          <span>
+                            Tornar <strong>{opcoes.planos.find((p) => p.id === planoId)?.nome}</strong> o plano padrão de {pacienteAtual?.nome}
+                          </span>
+                        </label>
+                      )}
+                      <label className="flex cursor-pointer items-start gap-2">
+                        <input type="checkbox" checked={planoNosFuturos} onChange={(e) => setPlanoNosFuturos(e.target.checked)} className="mt-0.5 size-4 accent-[var(--accent)]" />
+                        <span>
+                          Passar os atendimentos futuros de {pacienteAtual?.nome} para esse plano
+                          <span className="block text-xs text-muted">Cada um com o valor do plano para a sua área. Desmarcados não mudam.</span>
+                        </span>
+                      </label>
+                    </fieldset>
+                  )}
+                  {perguntarValor && (
+                    <fieldset className="flex flex-col gap-2 rounded-xl bg-black/[0.03] p-3">
+                      <legend className="mb-1 font-medium">
+                        Valor de {valorAtual === null ? "vazio" : `R$ ${valor}`} vale para ({segmento}):
+                      </legend>
+                      {(
+                        [
+                          ["so_este", "Não, apenas este atendimento"],
+                          ["futuros", "Sim, todos os futuros atendimentos"],
+                          ...(opcoes.ehAdm ? [["todos", "Sim, todos os anteriores e os futuros"] as const] : []),
+                        ] as const
+                      ).map(([v, rotulo]) => (
+                        <label key={v} className="flex cursor-pointer items-center gap-2">
+                          <input type="radio" name="escopo-valor" checked={escopoValor === v} onChange={() => setEscopoValor(v)} className="accent-[var(--accent)]" />
+                          {rotulo}
+                        </label>
+                      ))}
+                      <p className="text-xs text-muted">
+                        Atendimentos de {pacienteAtual?.nome} da mesma área. Desmarcados e excluídos não mudam; cada mudança fica nas observações do atendimento.
+                      </p>
+                    </fieldset>
+                  )}
+                </section>
+              ) : (
+                <>
               {/* Paciente */}
               <Campo rotulo="Paciente" id="campo-paciente">
                 <div className="flex gap-2">
@@ -444,6 +532,29 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
                   />
                 </Campo>
               </div>
+              {/* Editando um atendimento com plano diferente do padrão do paciente. */}
+              {edicao && planoDoPaciente && planoId === edicao.planoId && planoId !== planoDoPaciente && (
+                <div role="note" className="-mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-900 ring-1 ring-amber-200">
+                  <span>
+                    O plano padrão de {pacienteAtual?.nome} é <strong>{opcoes.planos.find((p) => p.id === planoDoPaciente)?.nome}</strong>
+                    {(() => {
+                      const v = valorSugerido(opcoes.planos.find((p) => p.id === planoDoPaciente), tipoAtual?.area);
+                      return v != null ? ` (R$ ${String(v).replace(".", ",")})` : "";
+                    })()}
+                    .
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPlanoId(planoDoPaciente);
+                      sugerirValor(planoDoPaciente, tipoId);
+                    }}
+                    className="font-semibold underline underline-offset-2"
+                  >
+                    Usar esse plano e valor
+                  </button>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-3">
                 <Campo rotulo="Tipo" id="campo-tipo">
                   <select id="campo-tipo" value={tipoId ?? ""} onChange={(e) => escolherTipo(e.target.value || null)} className={entrada}>
@@ -592,6 +703,8 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
                   </ul>
                 </section>
               )}
+                </>
+              )}
             </div>
 
             <div className="flex shrink-0 items-center justify-end gap-2 border-t border-border px-5 py-3">
@@ -600,13 +713,15 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
                   {erro}
                 </p>
               )}
-              <button type="button" onClick={aoFechar} className={botaoSecundario}>
-                Cancelar
+              <button type="button" onClick={confirmando ? () => setConfirmando(false) : aoFechar} className={botaoSecundario}>
+                {confirmando ? "Voltar" : "Cancelar"}
               </button>
               <button type="submit" disabled={!podeSalvar} className="rounded-full bg-accent px-5 py-2 text-sm font-medium text-white transition hover:brightness-110 disabled:opacity-50">
                 {salvando
                   ? "Salvando…"
-                  : edicao
+                  : confirmando
+                    ? "Confirmar e salvar"
+                    : edicao
                     ? quantidadeNaEdicao(edicao, alcance) > 1
                       ? `Salvar ${quantidadeNaEdicao(edicao, alcance)} atendimentos`
                       : "Salvar alterações"
