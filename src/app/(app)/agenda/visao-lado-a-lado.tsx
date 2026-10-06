@@ -13,7 +13,7 @@ import { diaDoMes, formatarHora, nomeCurtoDoDia } from "@/lib/agenda/tempo";
 import {
   FUNDO_DA_HORA,
   HORARIO_PADRAO,
-  corDoPlano,
+  corDoCard,
   descricaoDoAtendimento,
   escalaParaCaber,
   fundoDoCard,
@@ -204,7 +204,7 @@ type CardProps = {
 function CardCompacto({ atendimento: a, top, altura, profissionalId, aoAbrir }: CardProps) {
   const { estado: arraste, iniciar, cliqueSuprimido } = useArraste();
   const sendoArrastado = arraste?.ativo && arraste.atendimento.id === a.id;
-  const cor = corDoPlano(a);
+  const cor = corDoCard(a);
   const desmarcado = a.status === "desmarcado";
   const descricao = descricaoDoAtendimento(a);
 

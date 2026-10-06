@@ -656,6 +656,7 @@ export type Database = {
           area: string | null
           ativo: boolean
           atualizado_em: string
+          cor: string | null
           criado_em: string
           id: string
           nome: string
@@ -664,6 +665,7 @@ export type Database = {
           area?: string | null
           ativo?: boolean
           atualizado_em?: string
+          cor?: string | null
           criado_em?: string
           id?: string
           nome: string
@@ -672,6 +674,7 @@ export type Database = {
           area?: string | null
           ativo?: boolean
           atualizado_em?: string
+          cor?: string | null
           criado_em?: string
           id?: string
           nome?: string

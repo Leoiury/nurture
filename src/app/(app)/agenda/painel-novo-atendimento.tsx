@@ -260,6 +260,7 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
       paciente: opcoes?.pacientes.find((p) => p.id === pacienteId)?.nome ?? busca,
       plano: plano ? { nome: plano.nome, cor: plano.cor } : null,
       tipo: opcoes?.tipos.find((t) => t.id === tipoId)?.nome ?? null,
+      corDoTipo: opcoes?.tipos.find((t) => t.id === tipoId)?.cor ?? null,
     };
     // Com a pergunta do valor, ela decide o alcance do valor (o resto da série mantém o seu).
     const valorSoNeste = perguntarValor && alcance !== "este";

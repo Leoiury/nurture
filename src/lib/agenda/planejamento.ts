@@ -24,7 +24,7 @@ export type ArgsPlanoPadrao = { p_paciente: string; p_plano: string | null };
 
 export type Esperado = { inicio: string; fim: string; status: Status; profissionais: string[] };
 /** O que a tela mostra de um atendimento criado/editado no planejamento. */
-export type Exibicao = { paciente: string | null; plano: { nome: string; cor: string } | null; tipo: string | null; area?: string | null };
+export type Exibicao = { paciente: string | null; plano: { nome: string; cor: string } | null; tipo: string | null; area?: string | null; corDoTipo?: string | null };
 
 type Base = { chave: string; descricao: string };
 export type Operacao =
@@ -101,6 +101,7 @@ export function simular(base: AtendimentoAgenda[], operacoes: Operacao[], nomePo
           pacienteId: args.p_paciente_id,
           importado: false,
           tipoId: args.p_tipo_id ?? null,
+          corDoTipo: op.exibicao.corDoTipo ?? null,
           area: op.exibicao.area ?? null,
           rascunho: "novo",
         });
@@ -145,6 +146,7 @@ export function simular(base: AtendimentoAgenda[], operacoes: Operacao[], nomePo
           data: somarDias(a.data, deslocamento),
           pacienteId: args.p_paciente_id,
           tipoId: args.p_tipo_id ?? null,
+          corDoTipo: op.exibicao.corDoTipo ?? null,
           area: op.exibicao.area ?? a.area,
           inicio,
           fim: Math.min(inicio + args.p_duracao_min, 24 * 60),

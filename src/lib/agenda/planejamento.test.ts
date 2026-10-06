@@ -72,6 +72,20 @@ describe("simular", () => {
     expect(r.find((x) => x.id === "s3")).toMatchObject({ data: "2026-10-22", inicio: 480 });
   });
 
+  it("editar o tipo leva junto a cor do tipo (e a tira ao trocar)", () => {
+    const editar = (corDoTipo: string | null): Operacao => ({
+      chave: "k",
+      descricao: "",
+      tipo: "editar",
+      exibicao: { ...exibicao, corDoTipo },
+      esperado: esperadoDe(base[0]),
+      args: { p_id: "a", p_alcance: "este", p_paciente_id: "p", p_profissionais: ["ana"], p_data: "2026-10-06", p_hora: "09:00", p_duracao_min: 45 },
+    });
+    expect(simular(base, [editar("#FF6D00")], nomes).find((x) => x.id === "a")?.corDoTipo).toBe("#FF6D00");
+    const temporario = { ...base[0], corDoTipo: "#FF6D00" };
+    expect(simular([temporario], [editar(null)], nomes)[0].corDoTipo).toBeNull();
+  });
+
   it("desmarcar a série poupa atendidos; excluir tira da agenda", () => {
     const ops: Operacao[] = [
       { chave: "d", descricao: "", tipo: "desmarcar", esperado: esperadoDe(base[1]), args: { p_id: "s1", p_alcance: "todos", p_motivo: "férias" } },
