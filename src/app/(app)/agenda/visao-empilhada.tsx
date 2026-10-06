@@ -14,7 +14,7 @@ import {
   FUNDO_DA_HORA,
   FUNDO_DA_HORA_AMPLIADA,
   HORARIO_PADRAO,
-  corDoPlano,
+  corDoCard,
   descricaoDoAtendimento,
   escalaParaCaber,
   fundoDoCard,
@@ -292,7 +292,7 @@ type CardProps = {
 function Card({ atendimento: a, modo, top, altura, ampliada, profissionalId, aoAbrir }: CardProps) {
   const { estado: arraste, iniciar, cliqueSuprimido } = useArraste();
   const sendoArrastado = arraste?.ativo && arraste.atendimento.id === a.id;
-  const cor = corDoPlano(a);
+  const cor = corDoCard(a);
   const desmarcado = a.status === "desmarcado";
   const descricao = descricaoDoAtendimento(a);
   const alturaCard = Math.max(altura - 3, 14);

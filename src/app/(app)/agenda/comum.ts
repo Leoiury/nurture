@@ -14,8 +14,9 @@ export const HORARIO_PADRAO = { inicio: 8 * 60, fim: 18 * 60 };
 
 const COR_SEM_PLANO = "#9ca3af";
 
-export function corDoPlano(a: AtendimentoAgenda): string {
-  return a.plano?.cor ?? COR_SEM_PLANO;
+/** Cor do card: a do tipo, se ele tiver (ex.: Temporário); senão, a do plano. */
+export function corDoCard(a: AtendimentoAgenda): string {
+  return a.corDoTipo ?? a.plano?.cor ?? COR_SEM_PLANO;
 }
 
 /** Fundo suave do card, derivado da cor do plano. */
