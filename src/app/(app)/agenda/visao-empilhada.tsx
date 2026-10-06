@@ -28,6 +28,7 @@ import {
 import { useArraste } from "./arraste";
 import { ColunaClicavel, type NovoNoHorario } from "./coluna-clicavel";
 import { EtiquetaDiaEspecial, FundoSemExpediente, fundoDoCabecalho } from "./dia-especial";
+import { IconeGuia } from "./icone-guia";
 import { EtiquetaComemoracao, IconeBolo } from "./lembretes";
 
 type Modo = "semana" | "dia";
@@ -323,13 +324,18 @@ function Card({ atendimento: a, modo, top, altura, ampliada, profissionalId, aoA
     >
       <span className="absolute inset-y-1 left-1 w-1 rounded-full" style={{ background: cor }} aria-hidden />
       {a.divergencia && <span className="absolute right-1 bottom-1 size-2 rounded-full bg-red-600 ring-2 ring-white" aria-hidden />}
-      {/* Atendimento conjunto: mais de um profissional (o card aparece em cada coluna). */}
-      {a.profissionalIds.length > 1 && (
-        <span className="absolute top-1 right-1 rounded-full bg-black/10 px-1.5 text-[10px] leading-4 font-semibold" aria-hidden>
-          +{a.profissionalIds.length - 1}
+      {(a.guia || a.profissionalIds.length > 1) && (
+        <span className="absolute top-1 right-1 flex items-center gap-1">
+          {/* Atendimento conjunto: mais de um profissional (o card aparece em cada coluna). */}
+          {a.profissionalIds.length > 1 && (
+            <span className="rounded-full bg-black/10 px-1.5 text-[10px] leading-4 font-semibold" aria-hidden>
+              +{a.profissionalIds.length - 1}
+            </span>
+          )}
+          {a.guia && <IconeGuia situacao={a.guia} tamanho={ampliada ? 18 : 16} />}
         </span>
       )}
-      <span className={`flex h-full flex-col justify-center gap-px pl-3.5 pr-2 leading-tight ${linhas === 1 ? "flex-row items-center justify-start gap-1.5" : ""}`}>
+      <span className={`flex h-full flex-col justify-center gap-px pl-3.5 ${a.guia ? "pr-5" : "pr-2"} leading-tight ${linhas === 1 ? "flex-row items-center justify-start gap-1.5" : ""}`}>
         <span className={`truncate font-semibold ${ampliada ? "text-[15px]" : modo === "dia" ? "text-sm" : "text-[13px]"} ${desmarcado ? "line-through" : ""}`}>
           {a.aniversario && (
             <span className="mr-1 inline-block align-[-2px] text-pink-600" title="Aniversário hoje" data-aniversario>

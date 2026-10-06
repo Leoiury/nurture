@@ -56,6 +56,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "atendimento_profissionais_atendimento_id_fkey"
+            columns: ["atendimento_id"]
+            isOneToOne: false
+            referencedRelation: "guias_dos_atendimentos"
+            referencedColumns: ["atendimento_id"]
+          },
+          {
             foreignKeyName: "atendimento_profissionais_profissional_id_fkey"
             columns: ["profissional_id"]
             isOneToOne: false
@@ -219,6 +226,13 @@ export type Database = {
             referencedRelation: "atendimentos"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "atendimentos_observacoes_atendimento_id_fkey"
+            columns: ["atendimento_id"]
+            isOneToOne: false
+            referencedRelation: "guias_dos_atendimentos"
+            referencedColumns: ["atendimento_id"]
+          },
         ]
       }
       convenios_legado: {
@@ -326,6 +340,47 @@ export type Database = {
             columns: ["profissional_id"]
             isOneToOne: false
             referencedRelation: "profissionais"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      guias: {
+        Row: {
+          a_partir_de: string
+          criado_em: string
+          criado_por: string | null
+          id: string
+          numero: string | null
+          ordem: number
+          quantidade: number
+          recorrencia_id: string
+        }
+        Insert: {
+          a_partir_de: string
+          criado_em?: string
+          criado_por?: string | null
+          id?: string
+          numero?: string | null
+          ordem: number
+          quantidade: number
+          recorrencia_id: string
+        }
+        Update: {
+          a_partir_de?: string
+          criado_em?: string
+          criado_por?: string | null
+          id?: string
+          numero?: string | null
+          ordem?: number
+          quantidade?: number
+          recorrencia_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "guias_recorrencia_id_fkey"
+            columns: ["recorrencia_id"]
+            isOneToOne: false
+            referencedRelation: "recorrencias"
             referencedColumns: ["id"]
           },
         ]
@@ -483,6 +538,7 @@ export type Database = {
           cor: string
           criado_em: string
           duracao_padrao_min: number
+          exige_guia: boolean
           id: string
           nome: string
           valor_fonoaudiologia: number | null
@@ -497,6 +553,7 @@ export type Database = {
           cor: string
           criado_em?: string
           duracao_padrao_min?: number
+          exige_guia?: boolean
           id?: string
           nome: string
           valor_fonoaudiologia?: number | null
@@ -511,6 +568,7 @@ export type Database = {
           cor?: string
           criado_em?: string
           duracao_padrao_min?: number
+          exige_guia?: boolean
           id?: string
           nome?: string
           valor_fonoaudiologia?: number | null
@@ -693,7 +751,27 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      guias_dos_atendimentos: {
+        Row: {
+          atendimento_id: string | null
+          guia_id: string | null
+          numero: string | null
+          ordem: number | null
+          posicao: number | null
+          quantidade: number | null
+          recorrencia_id: string | null
+          renovada: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "atendimentos_recorrencia_id_fkey"
+            columns: ["recorrencia_id"]
+            isOneToOne: false
+            referencedRelation: "recorrencias"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       ajustar_valores_do_paciente: {
@@ -718,6 +796,15 @@ export type Database = {
           p_id: string
         }
         Returns: string[]
+      }
+      completar_serie: {
+        Args: {
+          p_desde: string
+          p_necessarios: number
+          p_novos: string[]
+          p_serie: string
+        }
+        Returns: number
       }
       criar_atendimentos: {
         Args: {
@@ -777,8 +864,19 @@ export type Database = {
         }
         Returns: number
       }
+      excluir_guia: { Args: { p_guia: string }; Returns: undefined }
       formatar_periodo: {
         Args: { fim: string; inicio: string }
+        Returns: string
+      }
+      gerar_guia: {
+        Args: {
+          p_atendimento: string
+          p_frequencia?: Database["public"]["Enums"]["frequencia_recorrencia"]
+          p_novos?: string[]
+          p_numero?: string
+          p_quantidade: number
+        }
         Returns: string
       }
       importar_agenda_legado: {
@@ -809,6 +907,23 @@ export type Database = {
       reajustar_plano: {
         Args: { p_antigos: Json; p_plano: string }
         Returns: number
+      }
+      relacionar_atendimentos: {
+        Args: {
+          p_base: string
+          p_frequencia?: Database["public"]["Enums"]["frequencia_recorrencia"]
+          p_ids: string[]
+        }
+        Returns: number
+      }
+      renovar_guia: {
+        Args: {
+          p_guia: string
+          p_novos?: string[]
+          p_numero?: string
+          p_quantidade: number
+        }
+        Returns: string
       }
       valor_do_plano: {
         Args: { p_area: string; p_plano: string }

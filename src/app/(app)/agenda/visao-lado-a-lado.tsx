@@ -26,6 +26,7 @@ import {
 import { useArraste } from "./arraste";
 import { ColunaClicavel, type NovoNoHorario } from "./coluna-clicavel";
 import { EtiquetaDiaEspecial, FundoSemExpediente, fundoDoCabecalho } from "./dia-especial";
+import { IconeGuia } from "./icone-guia";
 import { EtiquetaComemoracao, IconeBolo } from "./lembretes";
 
 // A escala vertical se ajusta para o expediente (08–18) caber na altura visível.
@@ -232,7 +233,12 @@ function CardCompacto({ atendimento: a, top, altura, profissionalId, aoAbrir }: 
       }}
     >
       {a.divergencia && <span className="absolute right-0.5 bottom-0.5 size-1.5 rounded-full bg-red-600" aria-hidden />}
-      <span className={`block truncate pt-0.5 pr-0.5 pl-[6px] text-[11px] leading-tight font-medium ${desmarcado ? "line-through" : ""}`}>
+      {a.guia && (
+        <span className="absolute top-0.5 right-0.5">
+          <IconeGuia situacao={a.guia} tamanho={10} />
+        </span>
+      )}
+      <span className={`block truncate pt-0.5 ${a.guia ? "pr-3" : "pr-0.5"} pl-[6px] text-[11px] leading-tight font-medium ${desmarcado ? "line-through" : ""}`}>
         {a.aniversario && (
           <span className="mr-0.5 inline-block align-[-2px] text-pink-600" title="Aniversário hoje" data-aniversario>
             <IconeBolo tamanho={10} />

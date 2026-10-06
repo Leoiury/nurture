@@ -12,6 +12,7 @@ export type PlanoDaLista = {
   duracaoMin: number;
   valor: number | null;
   valoresPorArea: Record<Area, number | null>;
+  exigeGuia: boolean;
   ativo: boolean;
   atendimentos: number;
   pacientes: number;
@@ -55,6 +56,7 @@ export function ListaDePlanos({ planos }: { planos: PlanoDaLista[] }) {
               <span className="min-w-0 flex-1">
                 <span className="block truncate font-medium">
                   {p.nome}
+                  {p.exigeGuia && <span className="ml-2 rounded-full bg-black/5 px-2 py-px text-[11px] font-normal text-muted">exige guia</span>}
                   {!p.ativo && <span className="ml-2 rounded-full bg-black/5 px-2 py-px text-[11px] font-normal text-muted">inativo</span>}
                 </span>
                 <span className="text-muted">
@@ -99,6 +101,7 @@ function PainelDoPlano({ plano, aoFechar, aoReajustar }: { plano: PlanoDaLista |
     >,
   );
   const [ativo, setAtivo] = useState(plano?.ativo ?? true);
+  const [exigeGuia, setExigeGuia] = useState(plano?.exigeGuia ?? false);
   const [reajustarFuturos, setReajustarFuturos] = useState(true);
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
@@ -133,7 +136,7 @@ function PainelDoPlano({ plano, aoFechar, aoReajustar }: { plano: PlanoDaLista |
     const invalida = AREAS.find(({ valor: a }) => Number.isNaN(valoresPorArea[a]));
     if (invalida) return setErro(`Valor de ${invalida.rotulo} inválido.`);
     void executar(() =>
-      salvarPlano({ id: plano?.id, nome, cor, duracaoMin: duracao, valor: v, valoresPorArea, ativo, reajustarFuturos: valoresMudaram && reajustarFuturos }),
+      salvarPlano({ id: plano?.id, nome, cor, duracaoMin: duracao, valor: v, valoresPorArea, exigeGuia, ativo, reajustarFuturos: valoresMudaram && reajustarFuturos }),
     );
   }
 
@@ -264,6 +267,14 @@ function PainelDoPlano({ plano, aoFechar, aoReajustar }: { plano: PlanoDaLista |
                 </span>
               </label>
             )}
+
+            <label className="flex cursor-pointer items-center gap-2">
+              <input type="checkbox" checked={exigeGuia} onChange={(e) => setExigeGuia(e.target.checked)} className="size-4 accent-[var(--accent)]" />
+              <span>
+                Exige guia
+                <span className="block text-xs text-muted">Atendimentos deste plano sem guia ganham um alerta vermelho no card.</span>
+              </span>
+            </label>
 
             {plano && (
               <label className="flex cursor-pointer items-center gap-2">

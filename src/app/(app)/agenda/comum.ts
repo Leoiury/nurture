@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useSyncExternalStore, type RefObject } from "react";
 import type { AtendimentoAgenda } from "@/lib/agenda/dados";
+import { ROTULO_SITUACAO } from "@/lib/agenda/guias";
 import { distribuirEmFaixas, type Faixa } from "@/lib/agenda/layout";
 import { CHAVE_FOCO } from "@/lib/agenda/preferencias";
 import { formatarHora } from "@/lib/agenda/tempo";
@@ -37,7 +38,7 @@ export function horarioDoAtendimento(a: AtendimentoAgenda): string {
 
 /** Texto completo do atendimento (tooltip e leitor de tela), com todos os profissionais. */
 export function descricaoDoAtendimento(a: AtendimentoAgenda): string {
-  return [horarioDoAtendimento(a), a.paciente ?? "Sem paciente", a.profissionalNomes.join(" + "), a.plano?.nome, a.tipo, a.status]
+  return [horarioDoAtendimento(a), a.paciente ?? "Sem paciente", a.profissionalNomes.join(" + "), a.plano?.nome, a.tipo, a.status, a.guia && ROTULO_SITUACAO[a.guia]]
     .filter(Boolean)
     .join(" · ");
 }

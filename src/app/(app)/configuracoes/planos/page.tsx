@@ -9,7 +9,7 @@ export default async function PlanosPage() {
   const { data, error } = await supabase
     .from("planos")
     .select(
-      "id, nome, cor, duracao_padrao_min, valor_padrao, valor_fonoaudiologia, valor_psicologia, valor_nutricao, valor_psicopedagogia, ativo, atendimentos(count), pacientes(count)",
+      "id, nome, cor, duracao_padrao_min, valor_padrao, valor_fonoaudiologia, valor_psicologia, valor_nutricao, valor_psicopedagogia, exige_guia, ativo, atendimentos(count), pacientes(count)",
     )
     .order("ativo", { ascending: false })
     .order("nome");
@@ -27,6 +27,7 @@ export default async function PlanosPage() {
       nutricao: p.valor_nutricao,
       psicopedagogia: p.valor_psicopedagogia,
     },
+    exigeGuia: p.exige_guia,
     ativo: p.ativo,
     atendimentos: p.atendimentos[0]?.count ?? 0,
     pacientes: p.pacientes[0]?.count ?? 0,
