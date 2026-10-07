@@ -826,6 +826,10 @@ export type Database = {
         }
         Returns: string[]
       }
+      criar_atendimentos_em_sequencia: {
+        Args: { p_itens: Json }
+        Returns: number
+      }
       definir_escala: {
         Args: { p_intervalos: Json; p_profissional: string }
         Returns: number
