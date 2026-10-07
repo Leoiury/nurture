@@ -88,6 +88,19 @@ export function usePlanejamento(inicial: Operacao[] | null, base: AtendimentoAge
         adicionar({ chave: novaChave(), tipo: "criar", args: r.args, exibicao, descricao: descreverCriacao(r.args, exibicao, nomes(r.args.p_profissionais)) });
         return { ok: true, quantidade: r.args.p_inicios.length };
       },
+      async criarEmSequencia(novos, exibicoes) {
+        // Valida todos antes: entram no rascunho juntos ou nenhum.
+        const preparados = await Promise.all(novos.map((n) => argsDeCriacao(n)));
+        const falha = preparados.find((r) => !r.ok);
+        if (falha && !falha.ok) return falha;
+        const ops: Operacao[] = preparados.map((r, i) => {
+          const args = (r as Extract<typeof r, { ok: true }>).args;
+          const exibicao = exibicoes[i];
+          return { chave: novaChave(), tipo: "criar", args, exibicao, descricao: descreverCriacao(args, exibicao, nomes(args.p_profissionais)) };
+        });
+        definir([...atual.current.operacoes, ...ops]);
+        return { ok: true, quantidade: ops.reduce((s, o) => s + (o.tipo === "criar" ? o.args.p_inicios.length : 0), 0) };
+      },
       async editar(e, exibicao) {
         const a = alvo(e.id);
         if (!a) return { ok: false, erro: "Atendimento fora do período carregado." };

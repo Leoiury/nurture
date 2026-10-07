@@ -7,11 +7,13 @@
 import { createContext, useContext } from "react";
 import type { Exibicao } from "@/lib/agenda/planejamento";
 import { ajustarPaciente, desmarcar, editar, excluir, type AjustesDoPaciente, type Alcance, type Edicao, type Resultado } from "./actions";
-import { criarAtendimentos, type NovoAtendimento, type ResultadoCriacao } from "./actions-novo-atendimento";
+import { criarAtendimentos, criarEmSequencia, type NovoAtendimento, type ResultadoCriacao } from "./actions-novo-atendimento";
 
 export type AcoesDaAgenda = {
   planejamento: boolean;
   criar: (novo: NovoAtendimento, exibicao: Exibicao) => Promise<ResultadoCriacao>;
+  /** Um atendimento com cada profissional, colados: todos ou nenhum. */
+  criarEmSequencia: (novos: NovoAtendimento[], exibicoes: Exibicao[]) => Promise<ResultadoCriacao>;
   editar: (e: Edicao, exibicao: Exibicao) => Promise<Resultado>;
   desmarcar: (id: string, alcance: Alcance, motivo: string) => Promise<Resultado>;
   excluir: (id: string, alcance: Alcance, motivo: string) => Promise<Resultado>;
@@ -27,6 +29,7 @@ export type ExibicaoDoAjuste = { paciente: string; planoPadrao?: string | null; 
 const REAIS: AcoesDaAgenda = {
   planejamento: false,
   criar: (novo) => criarAtendimentos(novo),
+  criarEmSequencia: (novos) => criarEmSequencia(novos),
   editar: (e) => editar(e),
   desmarcar,
   excluir,

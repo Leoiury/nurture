@@ -17,6 +17,7 @@ import {
 } from "@/lib/agenda/recorrencia";
 import { hoje as dataDeHoje, nomeCurtoDoDia, partesNoFuso } from "@/lib/agenda/tempo";
 import { AREAS, lerValor, valorSugerido } from "@/lib/agenda/valores";
+import { horariosDaSequencia } from "@/lib/agenda/horarios-livres";
 import { atendeOTipo, tipoSugerido } from "@/lib/agenda/tipos";
 import { paraBusca } from "@/lib/pacientes";
 import { useAcoesDaAgenda } from "./acoes-da-agenda";
@@ -93,6 +94,8 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
   const [status, setStatus] = useState<(typeof STATUS_INICIAIS)[number]["valor"]>("marcado");
   const [observacao, setObservacao] = useState("");
 
+  // Vários profissionais: juntos no mesmo horário ou em sequência (um atendimento com cada, colados).
+  const [emSequencia, setEmSequencia] = useState(false);
   const [repetir, setRepetir] = useState(false);
   const [frequencia, setFrequencia] = useState<Frequencia>("semanal");
   const [fimPor, setFimPor] = useState<"data" | "sessoes">("data");
@@ -160,6 +163,20 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
   // Datas da série que caíram em feriado/recesso e foram puladas (até a última data mantida).
   const puladas = serie?.pularFeriados ? candidatas.filter((d) => bloqueado(d) && d <= (datas.at(-1) ?? d)) : [];
 
+  // Em sequência: um atendimento por profissional, na ordem escolhida, cada um com o
+  // tipo que ele atende (o do formulário, se ele atende; senão o sugerido) e o valor da área.
+  const sequencia = !edicao && emSequencia && profissionais.length > 1;
+  const itensDaSequencia = useMemo(() => {
+    const horas = sequencia && hora ? horariosDaSequencia(hora, duracao, profissionais.length) : null;
+    if (!horas || !opcoes) return [];
+    const doFormulario = opcoes.tipos.find((t) => t.id === tipoId);
+    return profissionais.map((id, i) => {
+      const tipo =
+        doFormulario && atendeOTipo(doFormulario, id) ? doFormulario.id : (tipoSugerido(opcoes.profissionais.find((p) => p.id === id), opcoes.tipos) ?? tipoId);
+      return { profissionalId: id, hora: horas[i], tipo: opcoes.tipos.find((t) => t.id === tipo) ?? null };
+    });
+  }, [sequencia, hora, duracao, profissionais, tipoId, opcoes]);
+
   // Feriados e recessos do período das datas candidatas.
   useEffect(() => {
     if (!candidatas.length) return;
@@ -183,13 +200,17 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
     const temporizador = setTimeout(() => {
       // Na edição, o próprio atendimento (e a série, se o alcance for além dele) não conta.
       const ignorar = edicao ? { id: edicao.id, recorrenciaId: alcance === "este" ? null : edicao.recorrenciaId } : undefined;
-      verificarConflitos({ data, hora, duracaoMin: duracao, serie, profissionais, pacienteId, ignorar })
-        .then(setConflitos)
+      // Em sequência: cada atendimento no seu horário, só com o seu profissional.
+      const consultas = sequencia
+        ? itensDaSequencia.map((i) => verificarConflitos({ data, hora: i.hora, duracaoMin: duracao, serie, profissionais: [i.profissionalId], pacienteId }))
+        : [verificarConflitos({ data, hora, duracaoMin: duracao, serie, profissionais, pacienteId, ignorar })];
+      Promise.all(consultas)
+        .then((r) => setConflitos(r.flat().sort((a, b) => a.inicio.localeCompare(b.inicio))))
         .catch(() => setConflitos([]));
     }, 400);
     return () => clearTimeout(temporizador);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, hora, duracao, repetir, frequencia, fimPor, ate, sessoes, pularFeriados, profissionais, pacienteId, alcance]);
+  }, [data, hora, duracao, repetir, frequencia, fimPor, ate, sessoes, pularFeriados, profissionais, pacienteId, alcance, sequencia]);
 
   const paciente = opcoes?.pacientes.find((p) => p.id === pacienteId) ?? null;
   const sugestoes = useMemo(() => {
@@ -264,9 +285,22 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
     };
     // Com a pergunta do valor, ela decide o alcance do valor (o resto da série mantém o seu).
     const valorSoNeste = perguntarValor && alcance !== "este";
-    const resultado = await (edicao
+    const novo = { ...comuns, serie, status, observacao: observacao.trim() };
+    const resultado = await (sequencia
+      ? acoes.criarEmSequencia(
+          itensDaSequencia.map((i) => ({
+            ...novo,
+            profissionais: [i.profissionalId],
+            hora: i.hora,
+            tipoId: i.tipo?.id ?? null,
+            // Valor digitado vale para todos; senão, o do plano para a área de cada tipo.
+            valor: valorDigitado ? valorNumero : valorSugerido(plano, i.tipo?.area),
+          })),
+          itensDaSequencia.map((i) => ({ ...exibicao, tipo: i.tipo?.nome ?? null, corDoTipo: i.tipo?.cor ?? null, area: i.tipo?.area ?? null })),
+        )
+      : edicao
       ? acoes.editar({ ...comuns, id: edicao.id, alcance, valorSoNeste }, { ...exibicao, area: tipoAtual?.area ?? null })
-      : acoes.criar({ ...comuns, serie, status, observacao: observacao.trim() }, { ...exibicao, area: tipoAtual?.area ?? null })
+      : acoes.criar(novo, { ...exibicao, area: tipoAtual?.area ?? null })
     ).catch(() => ({ ok: false as const, erro: "Falha de conexão ao salvar." }));
     if (!resultado.ok) {
       setSalvando(false);
@@ -296,7 +330,8 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
 
   const conflitosPorData = new Set(conflitos.map((c) => partesNoFuso(c.inicio).data));
   const especialDaData = especiais[data];
-  const podeSalvar = !!pacienteId && profissionais.length > 0 && !!data && !!hora && datas.length > 0 && !salvando;
+  const podeSalvar =
+    !!pacienteId && profissionais.length > 0 && !!data && !!hora && datas.length > 0 && !salvando && (!sequencia || itensDaSequencia.length > 0);
 
   return (
     <>
@@ -467,6 +502,20 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
                 </select>
               </Campo>
 
+              {!edicao && profissionais.length > 1 && (
+                <fieldset className="-mt-2 flex flex-col gap-1.5 text-sm">
+                  <legend className="sr-only">Como marcar com vários profissionais</legend>
+                  <label className="flex cursor-pointer items-center gap-2">
+                    <input type="radio" name="sequencia" checked={!emSequencia} onChange={() => setEmSequencia(false)} className="accent-[var(--accent)]" />
+                    Juntos, no mesmo horário
+                  </label>
+                  <label className="flex cursor-pointer items-center gap-2">
+                    <input type="radio" name="sequencia" checked={emSequencia} onChange={() => setEmSequencia(true)} className="accent-[var(--accent)]" />
+                    Em sequência, um atendimento após o outro
+                  </label>
+                </fieldset>
+              )}
+
               {/* Quando */}
               <div className="grid grid-cols-2 gap-3">
                 <Campo rotulo="Data" id="campo-data">
@@ -476,6 +525,35 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
                   <input id="campo-hora" type="time" step={900} value={hora} onChange={(e) => setHora(e.target.value)} required className={entrada} />
                 </Campo>
               </div>
+
+              {sequencia && (
+                <section aria-label="Sequência" className="-mt-2 flex flex-col gap-1 rounded-xl bg-black/[0.03] px-3 py-2 text-sm">
+                  {itensDaSequencia.length === 0 ? (
+                    <p className="text-xs text-muted">{hora ? "A sequência passa da meia-noite." : "Escolha o início (ou um horário livre abaixo)."}</p>
+                  ) : (
+                    <ol className="flex flex-col gap-1">
+                      {itensDaSequencia.map((i, n) => (
+                        <li key={i.profissionalId} className="flex items-center gap-2">
+                          <span className="tabular-nums text-muted">{i.hora}</span>
+                          <span className="font-medium">{nomeAbreviado(opcoes.profissionais.find((p) => p.id === i.profissionalId)?.nome ?? "")}</span>
+                          <span className="truncate text-xs text-muted">{i.tipo?.nome ?? "sem tipo"}</span>
+                          {n > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => setProfissionais(profissionais.map((id, k) => (k === n - 1 ? profissionais[n] : k === n ? profissionais[n - 1] : id)))}
+                              className="ml-auto rounded-full px-2 text-xs text-muted hover:bg-black/[0.05] hover:text-foreground"
+                              aria-label={`Antecipar ${opcoes.profissionais.find((p) => p.id === i.profissionalId)?.nome}`}
+                            >
+                              ↑
+                            </button>
+                          )}
+                        </li>
+                      ))}
+                    </ol>
+                  )}
+                  <p className="text-[11px] text-muted">Um atendimento com cada profissional, colados, cada um com a duração abaixo.</p>
+                </section>
+              )}
 
               <Campo rotulo="Duração (min)" id="campo-duracao">
                 <div className="flex items-center gap-1.5">
@@ -583,7 +661,8 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
               {(() => {
                 // Só avisa: a clínica pode ter exceções (ex.: cobrir um colega).
                 const tipo = opcoes.tipos.find((t) => t.id === tipoId);
-                const fora = tipo ? profissionais.filter((id) => !atendeOTipo(tipo, id)) : [];
+                // Em sequência, cada um recebe o tipo que atende: o aviso não se aplica.
+                const fora = tipo && !sequencia ? profissionais.filter((id) => !atendeOTipo(tipo, id)) : [];
                 return fora.length > 0 ? (
                   <p className="-mt-2 text-xs text-muted">
                     {fora.map((id) => nomeAbreviado(opcoes.profissionais.find((p) => p.id === id)?.nome ?? "")).join(", ")}{" "}
@@ -593,14 +672,15 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
               })()}
 
               <BuscaDeHorariosLivres
-                pronta={!!tipoId && duracao > 0}
-                criterio={{ dataInicial: data || dataDeHoje(), duracaoMin: duracao, profissionais, tipoId, pacienteId, ignorarId: edicao?.id }}
+                pronta={(!!tipoId || sequencia) && duracao > 0}
+                criterio={{ dataInicial: data || dataDeHoje(), duracaoMin: duracao, profissionais, tipoId, pacienteId, ignorarId: edicao?.id, emSequencia: sequencia }}
                 nomeDoProfissional={(id) => nomeAbreviado(opcoes.profissionais.find((p) => p.id === id)?.nome ?? "")}
                 escolhido={{ data, hora }}
                 aoEscolher={(s) => {
                   setData(s.data);
                   setHora(s.hora);
-                  if (profissionais.length === 0) setProfissionais(s.profissionalIds);
+                  // Em sequência, a sugestão traz a ordem dos atendimentos.
+                  if (profissionais.length === 0 || sequencia) setProfissionais(s.profissionalIds);
                 }}
               />
 
@@ -726,8 +806,8 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
                     ? quantidadeNaEdicao(edicao, alcance) > 1
                       ? `Salvar ${quantidadeNaEdicao(edicao, alcance)} atendimentos`
                       : "Salvar alterações"
-                    : datas.length > 1
-                      ? `Salvar ${datas.length} atendimentos`
+                    : datas.length * (sequencia ? profissionais.length : 1) > 1
+                      ? `Salvar ${datas.length * (sequencia ? profissionais.length : 1)} atendimentos`
                       : "Salvar"}
               </button>
             </div>
@@ -903,7 +983,8 @@ function BuscaDeHorariosLivres({ pronta, criterio, nomeDoProfissional, escolhido
   const [estado, setEstado] = useState<
     { tipo: "ocioso" } | { tipo: "buscando" } | { tipo: "pronto"; sugestoes: HorarioSugerido[]; ate: string; chave: string } | { tipo: "erro" }
   >({ tipo: "ocioso" });
-  const chave = JSON.stringify(criterio);
+  // Em sequência, a ordem vem da sugestão escolhida: reordenar não muda a busca.
+  const chave = JSON.stringify({ ...criterio, profissionais: criterio.emSequencia ? [...criterio.profissionais].sort() : criterio.profissionais });
 
   async function buscar() {
     setEstado({ tipo: "buscando" });
@@ -918,6 +999,8 @@ function BuscaDeHorariosLivres({ pronta, criterio, nomeDoProfissional, escolhido
   const porDia = new Map<string, HorarioSugerido[]>();
   if (estado.tipo === "pronto") for (const s of estado.sugestoes) porDia.set(s.data, [...(porDia.get(s.data) ?? []), s]);
   const alternativas = criterio.profissionais.length === 0;
+  // Em sequência, cada sugestão diz a ordem dos atendimentos.
+  const ordem = !!criterio.emSequencia && criterio.profissionais.length > 1;
 
   return (
     <section className="flex flex-col gap-3 rounded-2xl bg-black/[0.03] p-4" aria-label="Horários livres">
@@ -963,6 +1046,7 @@ function BuscaDeHorariosLivres({ pronta, criterio, nomeDoProfissional, escolhido
                               >
                                 {s.hora}
                                 {alternativas && ` · ${s.profissionalIds.map(nomeDoProfissional).join(", ")}`}
+                                {ordem && ` · ${s.profissionalIds.map(nomeDoProfissional).join(" → ")}`}
                               </button>
                             );
                           })}

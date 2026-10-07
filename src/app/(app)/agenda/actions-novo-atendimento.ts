@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 import { carregarDiasEspeciais, carregarEscalas } from "@/lib/agenda/dados";
 import { escalaDoDia, intersecao } from "@/lib/agenda/escala";
 import { semExpediente } from "@/lib/agenda/feriados";
-import { horariosLivres, type Ocupacao } from "@/lib/agenda/horarios-livres";
+import { horariosEmSequencia, horariosLivres, type Ocupacao } from "@/lib/agenda/horarios-livres";
 import { MAXIMO_DE_SESSOES, candidatasDaSerie, datasDaSerie, datasSemBloqueios, type FimDaSerie, type Frequencia } from "@/lib/agenda/recorrencia";
 import { profissionaisDoTipo, type TipoComProfissionais } from "@/lib/agenda/tipos";
 import { FUSO, ehDataValida, formatarHora, inicioDoDiaISO, instanteNoFuso, partesNoFuso, somarDias } from "@/lib/agenda/tempo";
@@ -200,6 +200,25 @@ export async function criarAtendimentos(novo: NovoAtendimento): Promise<Resultad
   return { ok: true, quantidade: data.length };
 }
 
+/**
+ * Atendimentos em sequência (um com cada profissional, colados): todos ou nenhum.
+ * Cada item já vem com o seu profissional e horário.
+ */
+export async function criarEmSequencia(novos: NovoAtendimento[]): Promise<ResultadoCriacao> {
+  if (novos.length < 2) return { ok: false, erro: "A sequência precisa de ao menos dois profissionais." };
+  const itens: ArgsCriar[] = [];
+  for (const novo of novos) {
+    const preparado = await argsDeCriacao(novo);
+    if (!preparado.ok) return preparado;
+    itens.push(preparado.args);
+  }
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("criar_atendimentos_em_sequencia", { p_itens: itens });
+  if (error) return { ok: false, erro: `Não foi possível salvar: ${error.message}` };
+  revalidatePath("/agenda");
+  return { ok: true, quantidade: data };
+}
+
 export type NovoPaciente = { nome: string; responsavel: string; celular: string; planoId: string | null };
 
 /** Cadastro rápido, feito de dentro do painel de novo atendimento. */
@@ -225,6 +244,8 @@ export type BuscaDeHorarios = {
   pacienteId: string | null;
   /** Na edição, o próprio atendimento não ocupa o horário. */
   ignorarId?: string;
+  /** Com 2+ profissionais: um atendimento com cada um, colados (em qualquer ordem), em vez de juntos. */
+  emSequencia?: boolean;
 };
 
 export type HorarioSugerido = { data: string; hora: string; profissionalIds: string[] };
@@ -284,7 +305,8 @@ export async function buscarHorariosLivres(b: BuscaDeHorarios): Promise<{ sugest
     if (b.pacienteId && a.paciente_id === b.pacienteId) ocupacaoDoPaciente.push(o);
   }
 
-  const livres = horariosLivres({
+  const emSequencia = !!b.emSequencia && b.profissionais.length > 1;
+  const livres = (emSequencia ? horariosEmSequencia : horariosLivres)({
     dias,
     duracao: b.duracaoMin,
     grupos,

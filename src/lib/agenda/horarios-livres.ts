@@ -73,3 +73,73 @@ export function horariosLivres(b: Busca): HorarioLivre[] {
   }
   return resultado.sort((x, y) => x.data.localeCompare(y.data) || x.inicio - y.inicio);
 }
+
+/** Todas as ordens possíveis de uma lista (a original primeiro). */
+export function permutacoes<T>(lista: T[]): T[][] {
+  if (lista.length <= 1) return [lista];
+  return lista.flatMap((x, i) => permutacoes([...lista.slice(0, i), ...lista.slice(i + 1)]).map((resto) => [x, ...resto]));
+}
+
+const dentroDe = (expediente: Intervalo[], ini: number, fim: number) => expediente.some((e) => e.inicio <= ini && fim <= e.fim);
+
+/**
+ * Horários em sequência: um atendimento de `duracao` com cada profissional do grupo,
+ * colados um no outro, em qualquer ordem que caiba na escala e na agenda de cada um.
+ * O paciente precisa estar livre do começo do primeiro ao fim do último.
+ * `profissionalIds` vem na ordem dos atendimentos.
+ */
+export function horariosEmSequencia(b: Busca): HorarioLivre[] {
+  const limite = b.limitePorPeriodo ?? 4;
+  const resultado: HorarioLivre[] = [];
+
+  for (const data of b.dias) {
+    for (const grupo of b.grupos) {
+      const expediente = new Map(grupo.map((id) => [id, b.expedienteDo ? b.expedienteDo([id], data) : EXPEDIENTE_PADRAO]));
+      const todos = [...expediente.values()].flat();
+      if (todos.length === 0) continue;
+      const total = b.duracao * grupo.length;
+      const ordens = permutacoes(grupo);
+      const porTurno = [0, 0]; // manhã, tarde
+      const fimDoDia = Math.max(...todos.map((e) => e.fim));
+      let t = Math.ceil(Math.min(...todos.map((e) => e.inicio)) / 15) * 15;
+      while (t + total <= fimDoDia) {
+        const turno = t < 12 * 60 ? 0 : 1;
+        if (porTurno[turno] >= limite) {
+          if (turno === 0) {
+            t = Math.max(t + 15, 12 * 60);
+            continue;
+          }
+          break;
+        }
+        const passou = b.agora && (data < b.agora.data || (data === b.agora.data && t < b.agora.minutos));
+        const ordem =
+          !passou && livreEm(b.ocupacaoDoPaciente, data, t, t + total)
+            ? ordens.find((o) =>
+                o.every((id, i) => {
+                  const ini = t + i * b.duracao;
+                  return dentroDe(expediente.get(id)!, ini, ini + b.duracao) && livreEm(b.ocupacao.get(id), data, ini, ini + b.duracao);
+                }),
+              )
+            : undefined;
+        if (ordem) {
+          resultado.push({ data, inicio: t, profissionalIds: ordem });
+          porTurno[turno]++;
+          t = Math.ceil((t + b.duracao) / 15) * 15;
+        } else {
+          t += 15;
+        }
+      }
+    }
+  }
+  return resultado.sort((x, y) => x.data.localeCompare(y.data) || x.inicio - y.inicio);
+}
+
+/** Horários de início de `n` atendimentos colados ("09:00", 45 min, 2 → 09:00 e 09:45); null se passar da meia-noite. */
+export function horariosDaSequencia(hora: string, duracao: number, n: number): string[] | null {
+  const inicio = Number(hora.slice(0, 2)) * 60 + Number(hora.slice(3, 5));
+  if (Number.isNaN(inicio) || inicio + duracao * n > 24 * 60) return null;
+  return Array.from({ length: n }, (_, i) => {
+    const m = inicio + i * duracao;
+    return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+  });
+}
