@@ -119,7 +119,13 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
 
   const planos = useMemo(() => {
     const m = new Map<string, string>();
-    for (const a of atendimentos) if (a.plano) m.set(a.plano.nome, a.plano.cor);
+    const tipos = new Map<string, string>();
+    for (const a of atendimentos) {
+      if (a.corDoTipo && a.tipo) tipos.set(a.tipo, a.corDoTipo);
+      else if (a.plano) m.set(a.plano.nome, a.plano.cor);
+    }
+    // Tipos com cor própria (ex.: Temporário) também entram na legenda.
+    for (const [tipo, cor] of tipos) m.set(`${tipo} (tipo)`, cor);
     return [...m].sort(([a], [b]) => a.localeCompare(b));
   }, [atendimentos]);
 

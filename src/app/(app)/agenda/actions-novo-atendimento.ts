@@ -28,7 +28,7 @@ export async function opcoesDoFormulario() {
       .from("planos")
       .select("id, nome, cor, duracao_padrao_min, valor_padrao, valor_fonoaudiologia, valor_psicologia, valor_nutricao, valor_psicopedagogia, ativo")
       .order("nome"),
-    supabase.from("tipos_atendimento").select("id, nome, area, vinculos:tipos_atendimento_profissionais(profissional_id)").eq("ativo", true).order("nome"),
+    supabase.from("tipos_atendimento").select("id, nome, area, cor, vinculos:tipos_atendimento_profissionais(profissional_id)").eq("ativo", true).order("nome"),
   ]);
   for (const r of [pacientes, profissionais, planos, tipos]) if (r.error) throw new Error("Não foi possível carregar o formulário.");
   const tiposComProfissionais: TipoComProfissionais[] = tipos.data!.map((t) => ({
@@ -36,6 +36,7 @@ export async function opcoesDoFormulario() {
     nome: t.nome,
     profissionais: t.vinculos.map((v) => v.profissional_id),
     area: t.area,
+    cor: t.cor,
   }));
   // "Anteriores e futuros" nos ajustes de valor: só administradores.
   return { pacientes: pacientes.data!, profissionais: profissionais.data!, planos: planos.data!, tipos: tiposComProfissionais, ehAdm: await ehAdm() };
