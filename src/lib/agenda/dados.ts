@@ -3,6 +3,7 @@ import type { Database } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
 import { escalaDasJornadas, escalaDoDia, type Escala, type Intervalo } from "./escala";
 import { diasEspeciais, type DiaEspecial } from "./feriados";
+import { situacaoDaGuia, type SituacaoDaGuia } from "./guias";
 import { ANTECEDENCIA_DIAS, aniversarios, comemoracoes, type Aniversario, type Comemoracao } from "./lembretes";
 import { mapearPeriodo, type MapaDoPeriodo } from "./ocupacao";
 import { inicioDoDiaISO, partesNoFuso, somarDias } from "./tempo";
@@ -34,6 +35,8 @@ export type AtendimentoAgenda = {
   area: string | null;
   /** Veio da importação do sistema anterior (tem id_legado). */
   importado: boolean;
+  /** Guia do convênio: verde, amarela (perto do fim) ou vermelha (o plano exige e não tem). */
+  guia?: SituacaoDaGuia | null;
   /** O paciente faz aniversário no dia do atendimento (bolo no card). */
   aniversario?: boolean;
   /** Divergência com um atendimento do outro sistema (texto para o card). */
@@ -73,7 +76,7 @@ export async function carregarDiasEspeciais(primeiroDia: string, ultimoDia: stri
 }
 
 const SELECAO_DA_AGENDA =
-  "id, id_legado, paciente_id, tipo_id, inicio, fim, status, recorrencia_id, profissionais:atendimento_profissionais(profissional:profissionais(id, nome)), paciente:pacientes(nome), plano:planos(nome, cor), tipo:tipos_atendimento(nome, area)";
+  "id, id_legado, paciente_id, tipo_id, inicio, fim, status, recorrencia_id, profissionais:atendimento_profissionais(profissional:profissionais(id, nome)), paciente:pacientes(nome), plano:planos(nome, cor, exige_guia), tipo:tipos_atendimento(nome, area)";
 
 type LinhaDaAgenda = {
   id: string;
@@ -86,7 +89,7 @@ type LinhaDaAgenda = {
   tipo_id: string | null;
   profissionais: { profissional: { id: string; nome: string } }[];
   paciente: { nome: string } | null;
-  plano: { nome: string; cor: string } | null;
+  plano: { nome: string; cor: string; exige_guia: boolean } | null;
   tipo: { nome: string; area: string | null } | null;
 };
 
@@ -103,7 +106,7 @@ function paraAgenda(a: LinhaDaAgenda): AtendimentoAgenda {
     fim: fim.data === inicio.data ? fim.minutos : 24 * 60,
     status: a.status,
     paciente: a.paciente?.nome ?? null,
-    plano: a.plano,
+    plano: a.plano && { nome: a.plano.nome, cor: a.plano.cor },
     tipo: a.tipo?.nome ?? null,
     recorrenciaId: a.recorrencia_id,
     pacienteId: a.paciente_id,
@@ -111,6 +114,22 @@ function paraAgenda(a: LinhaDaAgenda): AtendimentoAgenda {
     area: a.tipo?.area ?? null,
     importado: a.id_legado !== null,
   };
+}
+
+/** Situação da guia de cada atendimento (cobertura calculada no banco, por série). */
+async function comGuias(linhas: LinhaDaAgenda[]): Promise<AtendimentoAgenda[]> {
+  const series = [...new Set(linhas.map((a) => a.recorrencia_id).filter((r): r is string => !!r))];
+  const cobertura = new Map<string, { posicao: number; quantidade: number; renovada: boolean }>();
+  if (series.length) {
+    const supabase = await createClient();
+    const { data, error } = await supabase.from("guias_dos_atendimentos").select("atendimento_id, posicao, quantidade, renovada").in("recorrencia_id", series);
+    if (error) throw error;
+    for (const c of data) cobertura.set(c.atendimento_id!, { posicao: c.posicao!, quantidade: c.quantidade!, renovada: c.renovada! });
+  }
+  return linhas.map((a) => {
+    const guia = situacaoDaGuia(cobertura.get(a.id) ?? null, a.plano?.exige_guia ?? false, a.status);
+    return guia ? { ...paraAgenda(a), guia } : paraAgenda(a);
+  });
 }
 
 /** Profissionais ativos, atendimentos e dias especiais entre as datas (inclusive). */
@@ -136,7 +155,7 @@ export async function carregarAgenda(primeiroDia: string, ultimoDia: string) {
   return {
     especiais,
     profissionais: profissionais.data satisfies ProfissionalAgenda[],
-    atendimentos: atendimentos.data.map(paraAgenda),
+    atendimentos: await comGuias(atendimentos.data),
   };
 }
 
@@ -154,7 +173,7 @@ export async function carregarAtendimentosCitados(ids: string[]): Promise<Atendi
   const filtro = series.length ? `id.in.(${ids.join(",")}),recorrencia_id.in.(${series.join(",")})` : `id.in.(${ids.join(",")})`;
   const { data, error } = await supabase.from("atendimentos").select(SELECAO_DA_AGENDA).is("excluido_em", null).or(filtro);
   if (error) throw error;
-  return data.map(paraAgenda);
+  return comGuias(data);
 }
 
 /** Escala de cada profissional (null: sem escala cadastrada, vale o expediente padrão). */

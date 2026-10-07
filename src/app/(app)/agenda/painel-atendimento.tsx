@@ -18,6 +18,7 @@ import {
   type Resultado,
 } from "./actions";
 import { useAcoesDaAgenda } from "./acoes-da-agenda";
+import { GuiaDoAtendimento } from "./guia-do-atendimento";
 import type { DadosEdicao } from "./painel-novo-atendimento";
 
 const ROTULO_STATUS: Record<Status, string> = {
@@ -305,6 +306,19 @@ export function PainelAtendimento({ id, aoFechar, aoEditar, mostrarLinkDoPacient
                 </>
               )}
             </dl>
+
+            {/* Guia do convênio (fora do planejamento: age direto na agenda) */}
+            {!acoes.planejamento && a.paciente_id && (
+              <GuiaDoAtendimento
+                atendimentoId={a.id}
+                status={a.status}
+                versao={versao}
+                aoAlterar={(texto) => {
+                  setAviso(texto);
+                  recarregar();
+                }}
+              />
+            )}
 
             {/* Observações (não fazem parte do planejamento) */}
             <section className={`flex flex-col gap-2 ${acoes.planejamento ? "hidden" : ""}`}>

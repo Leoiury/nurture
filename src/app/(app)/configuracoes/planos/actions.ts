@@ -15,6 +15,7 @@ export type DadosDoPlano = {
   valor: number | null;
   /** Valor por área do tipo de atendimento (vazio = usa o valor padrão). */
   valoresPorArea: Record<Area, number | null>;
+  exigeGuia: boolean;
   ativo: boolean;
   /** Mudou valor: os atendimentos futuros deste plano com o valor antigo passam ao novo. */
   reajustarFuturos?: boolean;
@@ -44,6 +45,7 @@ export async function salvarPlano(p: DadosDoPlano): Promise<Resultado> {
     valor_psicologia: porArea.psicologia,
     valor_nutricao: porArea.nutricao,
     valor_psicopedagogia: porArea.psicopedagogia,
+    exige_guia: p.exigeGuia,
     ativo: p.ativo,
   };
   // Valores antes da mudança: o reajuste só alcança quem estava com o valor antigo.
