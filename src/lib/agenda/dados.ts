@@ -35,6 +35,10 @@ export type AtendimentoAgenda = {
   corDoTipo?: string | null;
   /** Área do tipo (valor do plano por área; "segmento" nos ajustes em massa). */
   area: string | null;
+  /** Nível do cadastro do paciente (filtro "cadastro incompleto"). */
+  nivelCadastral?: "completo" | "falta_informacao" | "critico" | null;
+  /** Não passa nos filtros avançados (modo "esmaecer"): o card fica apagado. */
+  esmaecido?: boolean;
   /** Veio da importação do sistema anterior (tem id_legado). */
   importado: boolean;
   /** Guia do convênio: verde, amarela (perto do fim) ou vermelha (o plano exige e não tem). */
@@ -78,7 +82,7 @@ export async function carregarDiasEspeciais(primeiroDia: string, ultimoDia: stri
 }
 
 const SELECAO_DA_AGENDA =
-  "id, id_legado, paciente_id, tipo_id, inicio, fim, status, recorrencia_id, profissionais:atendimento_profissionais(profissional:profissionais(id, nome)), paciente:pacientes(nome), plano:planos(nome, cor, exige_guia), tipo:tipos_atendimento(nome, area, cor)";
+  "id, id_legado, paciente_id, tipo_id, inicio, fim, status, recorrencia_id, profissionais:atendimento_profissionais(profissional:profissionais(id, nome)), paciente:pacientes(nome, nivel_cadastral), plano:planos(nome, cor, exige_guia), tipo:tipos_atendimento(nome, area, cor)";
 
 type LinhaDaAgenda = {
   id: string;
@@ -90,7 +94,7 @@ type LinhaDaAgenda = {
   paciente_id: string | null;
   tipo_id: string | null;
   profissionais: { profissional: { id: string; nome: string } }[];
-  paciente: { nome: string } | null;
+  paciente: { nome: string; nivel_cadastral: "completo" | "falta_informacao" | "critico" } | null;
   plano: { nome: string; cor: string; exige_guia: boolean } | null;
   tipo: { nome: string; area: string | null; cor: string | null } | null;
 };
@@ -108,6 +112,7 @@ function paraAgenda(a: LinhaDaAgenda): AtendimentoAgenda {
     fim: fim.data === inicio.data ? fim.minutos : 24 * 60,
     status: a.status,
     paciente: a.paciente?.nome ?? null,
+    nivelCadastral: a.paciente?.nivel_cadastral ?? null,
     plano: a.plano && { nome: a.plano.nome, cor: a.plano.cor },
     tipo: a.tipo?.nome ?? null,
     recorrenciaId: a.recorrencia_id,

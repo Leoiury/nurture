@@ -2,7 +2,7 @@
 
 // Menu lateral deslizante com os filtros da agenda.
 
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import type { ProfissionalAgenda } from "@/lib/agenda/dados";
 
 type MenuProps = {
@@ -23,10 +23,15 @@ type MenuProps = {
   aoMostrarDesmarcados: (v: boolean) => void;
   /** Opções de visualização (só na semana). */
   opcoesDeVisao: ReactNode;
+  /** Conteúdo da aba "Filtros avançados" e quantos grupos estão filtrando. */
+  filtrosAvancados: ReactNode;
+  totalDeFiltros: number;
+  aoLimparFiltros: () => void;
 };
 
 export function MenuLateral(props: MenuProps) {
   const { aberto, aoFechar } = props;
+  const [aba, setAba] = useState<"principal" | "avancados">("principal");
 
   useEffect(() => {
     if (!aberto) return;
@@ -54,12 +59,51 @@ export function MenuLateral(props: MenuProps) {
           aberto ? "translate-x-0" : "-translate-x-full"
         }`}
       >
+        {aba === "avancados" ? (
+          <>
+            <div className="flex items-center justify-between gap-2">
+              <button type="button" onClick={() => setAba("principal")} className="-ml-2 rounded-full px-2 py-1 text-sm text-muted hover:bg-background" aria-label="Voltar aos filtros">
+                ←
+              </button>
+              <h2 className="flex-1 text-lg font-semibold">Filtros avançados</h2>
+              <button type="button" onClick={aoFechar} className="rounded-full px-2 py-1 text-muted hover:bg-background" aria-label="Fechar">
+                ✕
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={props.aoLimparFiltros}
+              disabled={props.totalDeFiltros === 0}
+              className="-mt-3 self-start rounded-full bg-black/[0.04] px-3 py-1.5 text-sm font-medium hover:bg-black/[0.07] disabled:opacity-40"
+            >
+              Limpar filtros
+            </button>
+            {props.filtrosAvancados}
+          </>
+        ) : (
+        <>
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold">Filtros</h2>
           <button type="button" onClick={aoFechar} className="rounded-full px-2 py-1 text-muted hover:bg-background" aria-label="Fechar">
             ✕
           </button>
         </div>
+
+        <button
+          type="button"
+          onClick={() => setAba("avancados")}
+          className="-mt-2 flex items-center justify-between gap-3 rounded-xl bg-black/[0.03] px-3 py-2.5 text-sm font-medium hover:bg-black/[0.06]"
+        >
+          <span className="flex items-center gap-2">
+            Filtros avançados
+            {props.totalDeFiltros > 0 && (
+              <span className="rounded-full bg-accent px-1.5 text-[11px] leading-4 font-semibold text-white">{props.totalDeFiltros}</span>
+            )}
+          </span>
+          <span aria-hidden className="text-muted">
+            →
+          </span>
+        </button>
 
         {props.navegacao && (
           <section className="flex flex-col gap-2">
@@ -139,6 +183,8 @@ export function MenuLateral(props: MenuProps) {
               ))}
             </ul>
           </section>
+        )}
+        </>
         )}
       </aside>
     </>

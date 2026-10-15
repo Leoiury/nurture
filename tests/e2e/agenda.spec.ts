@@ -65,7 +65,7 @@ test("painel do atendimento mostra dados e leva à página do paciente", async (
 test("troca de visão pelo menu e preservação ao navegar", async ({ page }) => {
   await abrirAgenda(page);
 
-  await page.getByRole("button", { name: /Filtros/ }).click();
+  await page.getByRole("button", { name: "Filtros", exact: true }).click();
   await menu(page).getByRole("link", { name: /Lado a lado/ }).click();
   await expect(page).toHaveURL(/visao=lado/);
   await expect(menu(page)).not.toBeInViewport(); // o menu fecha ao escolher
@@ -77,7 +77,7 @@ test("troca de visão pelo menu e preservação ao navegar", async ({ page }) =>
   await expect(page).toHaveURL(/semana=.*visao=lado/);
   await expect(page.locator("section").first()).toBeVisible();
 
-  await page.getByRole("button", { name: /Filtros/ }).click();
+  await page.getByRole("button", { name: "Filtros", exact: true }).click();
   await menu(page).getByRole("link", { name: /Ampliado/ }).click();
   await expect(page).toHaveURL(/visao=ampliada/);
 });
