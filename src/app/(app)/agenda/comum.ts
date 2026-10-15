@@ -19,6 +19,15 @@ export function corDoCard(a: AtendimentoAgenda): string {
   return a.corDoTipo ?? a.plano?.cor ?? COR_SEM_PLANO;
 }
 
+/**
+ * Limites das colunas dos profissionais: faixas alternadas bem leves e uma linha
+ * fina entre elas. Translúcido, para as linhas de hora e o fundo de feriado
+ * continuarem aparecendo. O mesmo índice no cabeçalho e no corpo mantém o alinhamento.
+ */
+export function classeDaColuna(indice: number): string {
+  return `${indice % 2 === 1 ? "bg-black/[0.025]" : ""} ${indice > 0 ? "border-l border-black/[0.07]" : ""}`;
+}
+
 /** Fundo suave do card, derivado da cor do plano. */
 export function fundoDoCard(cor: string): string {
   return `color-mix(in srgb, ${cor} 26%, white)`;

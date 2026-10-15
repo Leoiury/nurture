@@ -13,6 +13,7 @@ import { diaDoMes, formatarHora, nomeCurtoDoDia } from "@/lib/agenda/tempo";
 import {
   FUNDO_DA_HORA,
   HORARIO_PADRAO,
+  classeDaColuna,
   corDoCard,
   descricaoDoAtendimento,
   escalaParaCaber,
@@ -135,8 +136,8 @@ export function VisaoLadoALado({ dias, hoje, colunas, visiveis, porColuna, compa
                 <EtiquetaComemoracao nomes={comemoracoes[dia]} compacta />
               </Link>
               <div className="flex px-0.5 pb-1.5">
-                {colunas.map((p) => (
-                  <div key={p.id} className="flex min-w-0 flex-1 justify-center px-px" title={p.nome}>
+                {colunas.map((p, i) => (
+                  <div key={p.id} className={`flex min-w-0 flex-1 justify-center px-px ${classeDaColuna(i)}`} title={p.nome}>
                     <span className="truncate text-[10px] font-semibold text-muted">{nomeAbreviado(p.nome)}</span>
                   </div>
                 ))}
@@ -158,7 +159,7 @@ export function VisaoLadoALado({ dias, hoje, colunas, visiveis, porColuna, compa
                 ))}
               </div>
               <div className="pointer-events-none absolute inset-0 flex px-0.5">
-                {colunas.map((p) => (
+                {colunas.map((p, i) => (
                   <ColunaClicavel
                     key={p.id}
                     dia={dia}
@@ -169,7 +170,7 @@ export function VisaoLadoALado({ dias, hoje, colunas, visiveis, porColuna, compa
                     aoCriar={aoCriarEm}
                     divergencias={divergencias.get(`${dia}|${p.id}`)}
                     compacta
-                    className="relative min-w-0 flex-1 px-px"
+                    className={`relative min-w-0 flex-1 px-px ${classeDaColuna(i)}`}
                   >
                     {(porColuna.get(`${dia}|${p.id}`) ?? []).map((a) => (
                       <CardCompacto
