@@ -14,6 +14,7 @@ import {
   FUNDO_DA_HORA,
   FUNDO_DA_HORA_AMPLIADA,
   HORARIO_PADRAO,
+  classeDaColuna,
   corDoCard,
   descricaoDoAtendimento,
   escalaParaCaber,
@@ -96,8 +97,8 @@ export function VisaoEmpilhada({ modo, dias, hoje, colunas, visiveis, porColuna,
       {/* Profissionais */}
       <div className="sticky top-0 z-30 flex border-b border-black/[0.06] bg-surface/95 backdrop-blur" style={{ height: ALTURA_CABECALHO_PROF }}>
         <div className="sticky left-0 z-10 shrink-0 bg-surface/95" style={{ width: LARGURA_EIXO }} />
-        {colunas.map((p) => (
-          <div key={p.id} className="flex min-w-0 flex-1 items-center px-3" title={p.especialidade ? `${p.nome} · ${p.especialidade}` : p.nome}>
+        {colunas.map((p, i) => (
+          <div key={p.id} className={`flex min-w-0 flex-1 items-center px-3 ${classeDaColuna(i)}`} title={p.especialidade ? `${p.nome} · ${p.especialidade}` : p.nome}>
             <span className="truncate text-[13px] font-semibold">{nomeAbreviado(p.nome)}</span>
           </div>
         ))}
@@ -212,7 +213,7 @@ function Dia({ dia, ehHoje, modo, px, segmentos, colunas, porColuna, total, aoEx
           <LinhasDeFundo segmentos={segmentos} px={px} aoExpandir={aoExpandir} ampliada={ampliada} />
           <FundoSemExpediente dias={especiais} />
           <div className="pointer-events-none absolute inset-0 flex">
-            {colunas.map((p) => (
+            {colunas.map((p, i) => (
               <ColunaClicavel
                 key={p.id}
                 dia={dia}
@@ -222,7 +223,7 @@ function Dia({ dia, ehHoje, modo, px, segmentos, colunas, porColuna, total, aoEx
                 aoExpandir={aoExpandir}
                 aoCriar={aoCriarEm}
                 divergencias={divergencias.get(`${dia}|${p.id}`)}
-                className="relative min-w-0 flex-1 px-1"
+                className={`relative min-w-0 flex-1 px-1 ${classeDaColuna(i)}`}
               >
                 <div className="relative h-full">
                   {(porColuna.get(`${dia}|${p.id}`) ?? []).map((a) => (
@@ -312,9 +313,10 @@ function Card({ atendimento: a, modo, top, altura, ampliada, profissionalId, aoA
       data-divergencia={a.divergencia ? "" : undefined}
       data-atendimento={a.id}
       className={`pointer-events-auto absolute overflow-hidden rounded-xl text-left text-foreground ring-1 ring-black/[0.04] transition hover:z-10 hover:-translate-y-px hover:shadow-md focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-[var(--accent)] ${
-        desmarcado ? "opacity-50" : sendoArrastado ? "opacity-30" : ""
+        a.esmaecido ? "opacity-25 grayscale" : desmarcado ? "opacity-50" : sendoArrastado ? "opacity-30" : ""
       } ${a.status === "faltou" ? "ring-2 ring-[var(--danger)]" : ""} ${a.rascunho ? MARCA_DO_RASCUNHO : ""}`}
       data-rascunho={a.rascunho}
+      data-esmaecido={a.esmaecido ? "" : undefined}
       style={{
         top: top + 1.5,
         height: alturaCard,

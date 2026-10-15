@@ -8,12 +8,14 @@ import type { Segmento } from "@/lib/agenda/layout";
 import { formatarHora, nomeCurtoDoDia } from "@/lib/agenda/tempo";
 import { sufixoDaVisao, type Visao } from "@/lib/agenda/visao";
 import { encontrarDivergencias, textosDasDivergencias, type Divergencia } from "@/lib/agenda/divergencias";
+import { FILTROS_VAZIOS, ajustarAoFiltro, aplicarFiltros, quantosFiltros, type Filtros, type ModoDoFiltro } from "@/lib/agenda/filtros";
 import { lerIdNovo, quando as quandoFormatado, type Operacao } from "@/lib/agenda/planejamento";
 import { ProvedorDeAcoes } from "./acoes-da-agenda";
 import { mover } from "./actions";
 import { ProvedorDeArraste, type AlvoDoArraste } from "./arraste";
 import { agruparPorColuna, nomeAbreviado, useAlturaDoElemento, useModoFoco } from "./comum";
 import type { NovoNoHorario } from "./coluna-clicavel";
+import { FiltrosAvancados, type OpcoesDosFiltros } from "./filtros-avancados";
 import { MenuLateral } from "./menu-lateral";
 import { PainelAtendimento } from "./painel-atendimento";
 import { BotoesDeLembrete } from "./lembretes";
@@ -63,6 +65,12 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
   const [editando, setEditando] = useState<DadosEdicao | null>(null);
   const [foco, setFoco] = useModoFoco();
   const [aviso, setAviso] = useState<{ texto: string; desfazer?: () => void } | null>(null);
+  // Filtros avançados: não ficam salvos (zeram ao reabrir a agenda).
+  const [filtros, setFiltros] = useState<Filtros>(FILTROS_VAZIOS);
+  const [modoDoFiltro, setModoDoFiltro] = useState<ModoDoFiltro>("esmaecer");
+  // Com filtro no modo "esconder": tira colunas sem resultado e condensa as horas sem resultado.
+  const [ajustarAgenda, setAjustarAgenda] = useState(true);
+  const totalDeFiltros = quantosFiltros(filtros);
 
   // Ajustes locais (arraste): a tela muda na hora, sem esperar o servidor. Quando
   // chegam dados novos do servidor, os ajustes deixam de ser necessários.
@@ -88,7 +96,7 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
   const quadro = useRef<HTMLDivElement>(null);
   const alturaVisivel = useAlturaDoElemento(quadro);
 
-  const colunas = profissionais.filter((p) => !ocultos.has(p.id));
+  const colunasVisiveis = profissionais.filter((p) => !ocultos.has(p.id));
   // Aniversariantes ("dia|paciente") e datas comemorativas dos dias exibidos.
   const aniversariantes = useMemo(() => new Set(lembretes.exibidos.aniversarios.map((a) => `${a.data}|${a.pacienteId}`)), [lembretes]);
   const comemoracoesPorDia = useMemo(() => {
@@ -106,16 +114,49 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
   }, [divergencias]);
   const visiveis = useMemo(() => {
     const textos = textosDasDivergencias(divergencias, new Map(atendimentosAtuais.map((a) => [a.id, a])));
-    return (
+    return aplicarFiltros(
       atendimentosAtuais
         // Visível se ao menos um dos profissionais estiver visível (aparece só nas colunas visíveis).
-        .filter((a) => a.profissionalIds.some((id) => !ocultos.has(id)) && (mostrarDesmarcados || a.status !== "desmarcado"))
+        // Filtrar por "desmarcado" no status também os mostra.
+        .filter(
+          (a) =>
+            a.profissionalIds.some((id) => !ocultos.has(id)) &&
+            (mostrarDesmarcados || filtros.status.includes("desmarcado") || a.status !== "desmarcado"),
+        )
         .map((a) => (textos.has(a.id) ? { ...a, divergencia: textos.get(a.id) } : a))
         // Bolo no card: o paciente faz aniversário no dia do atendimento.
-        .map((a) => (aniversariantes.has(`${a.data}|${a.pacienteId}`) ? { ...a, aniversario: true } : a))
+        .map((a) => (aniversariantes.has(`${a.data}|${a.pacienteId}`) ? { ...a, aniversario: true } : a)),
+      filtros,
+      modoDoFiltro,
     );
-  }, [atendimentosAtuais, ocultos, mostrarDesmarcados, divergencias, aniversariantes]);
-  const porColuna = useMemo(() => agruparPorColuna(visiveis), [visiveis]);
+  }, [atendimentosAtuais, ocultos, mostrarDesmarcados, divergencias, aniversariantes, filtros, modoDoFiltro]);
+  const ajuste = useMemo(
+    () =>
+      totalDeFiltros > 0 && modoDoFiltro === "esconder" && ajustarAgenda ? ajustarAoFiltro(visiveis, colunasVisiveis.map((p) => p.id)) : null,
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- colunasVisiveis deriva de profissionais e ocultos
+    [totalDeFiltros, modoDoFiltro, ajustarAgenda, visiveis, profissionais, ocultos],
+  );
+  const colunas = ajuste ? colunasVisiveis.filter((p) => ajuste.profissionalIds.includes(p.id)) : colunasVisiveis;
+  const exibidos = ajuste?.lista ?? visiveis;
+  const porColuna = useMemo(() => agruparPorColuna(exibidos), [exibidos]);
+
+  // Opções dos filtros: planos e tipos que aparecem no período carregado.
+  const opcoesDosFiltros = useMemo<OpcoesDosFiltros>(() => {
+    const planos = new Map<string, string | null>();
+    const tipos = new Set<string>();
+    for (const a of atendimentosAtuais) {
+      planos.set(a.plano?.nome ?? "", a.plano?.cor ?? null);
+      tipos.add(a.tipo ?? "");
+    }
+    // Os já marcados continuam na lista, mesmo fora do período.
+    for (const p of filtros.planos) if (!planos.has(p)) planos.set(p, null);
+    for (const t of filtros.tipos) tipos.add(t);
+    const ordem = (a: string, b: string) => (a === "" ? 1 : b === "" ? -1 : a.localeCompare(b));
+    return {
+      planos: [...planos].sort(([a], [b]) => ordem(a, b)).map(([nome, cor]) => ({ nome, cor })),
+      tipos: [...tipos].sort(ordem),
+    };
+  }, [atendimentosAtuais, filtros.planos, filtros.tipos]);
 
   const planos = useMemo(() => {
     const m = new Map<string, string>();
@@ -212,7 +253,7 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const propsVisao = { dias, hoje, colunas, visiveis, porColuna, compactar, expandidos, aoExpandir: expandirSegmento, aoAbrir: setSelecionado, sufixoUrl, alturaVisivel, especiais, aoCriarEm: setCriando, divergencias: divergenciasPorColuna, comemoracoes: comemoracoesPorDia };
+  const propsVisao = { dias, hoje, colunas, visiveis: exibidos, porColuna, compactar: compactar || !!ajuste, expandidos, aoExpandir: expandirSegmento, aoAbrir: setSelecionado, sufixoUrl, alturaVisivel, especiais, aoCriarEm: setCriando, divergencias: divergenciasPorColuna, comemoracoes: comemoracoesPorDia };
 
   const grade = (
     <ProvedorDeArraste aoSoltar={(a, de, alvo) => void soltar(a, de, alvo)} aoDica={(texto) => setAviso({ texto })}>
@@ -233,6 +274,15 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
           <IconeFiltros />
           <ContadorOcultos quantidade={ocultos.size} />
         </button>
+
+        {totalDeFiltros > 0 && (
+          <span role="status" aria-label="Filtros ativos" className="inline-flex h-9 items-center gap-1 rounded-full bg-accent-soft pr-1 pl-3 text-sm text-accent">
+            {totalDeFiltros === 1 ? "1 filtro ativo" : `${totalDeFiltros} filtros ativos`}
+            <button type="button" onClick={() => setFiltros(FILTROS_VAZIOS)} className="rounded-full px-2 py-1 text-xs font-medium hover:bg-accent/10">
+              Limpar filtros
+            </button>
+          </span>
+        )}
 
         {/* Largura mínima: sem espaço, a navegação desce para a linha de baixo em vez de transbordar. */}
         <div className="min-w-[18rem] flex-1">{navegacao}</div>
@@ -341,6 +391,19 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
         }}
         mostrarDesmarcados={mostrarDesmarcados}
         aoMostrarDesmarcados={setMostrarDesmarcados}
+        totalDeFiltros={totalDeFiltros}
+        aoLimparFiltros={() => setFiltros(FILTROS_VAZIOS)}
+        filtrosAvancados={
+          <FiltrosAvancados
+            filtros={filtros}
+            aoMudar={setFiltros}
+            modo={modoDoFiltro}
+            aoMudarModo={setModoDoFiltro}
+            ajustarAgenda={ajustarAgenda}
+            aoAjustarAgenda={setAjustarAgenda}
+            opcoes={opcoesDosFiltros}
+          />
+        }
         opcoesDeVisao={
           <>
             <OpcaoVisao

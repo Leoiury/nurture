@@ -7,6 +7,8 @@
 //    (esse arquivo tem prioridade sobre o .env.local, que continua apontando para
 //    a produção e é usado só pelos scripts de importação e de usuários).
 // 3. Cria o usuário de teste (tests/e2e/usuario-teste.json), se não existir.
+// 4. Liga o login automático com esse usuário (só no .env.development.local;
+//    ver src/lib/auth/login-automatico.ts).
 //
 // Com --ci também grava .env.production.local, para `next build`/`next start`.
 
@@ -26,17 +28,25 @@ if (!url || !publica || !secreta) {
 }
 if (!/^http:\/\/(127\.0\.0\.1|localhost)/.test(url)) throw new Error(`URL não é local: ${url}`);
 
+const { email, senha } = JSON.parse(readFileSync("tests/e2e/usuario-teste.json", "utf8"));
+
 const conteudo = `# Gerado por scripts/ambiente-local.mjs — Supabase LOCAL (dados fictícios).
 # Apague este arquivo para o \`npm run dev\` voltar a usar a produção (.env.local).
 NEXT_PUBLIC_SUPABASE_URL=${url}
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${publica}
 SUPABASE_SECRET_KEY=${secreta}
 `;
-writeFileSync(".env.development.local", conteudo);
+// O login automático só vai para o arquivo do `npm run dev` (nunca para o build).
+writeFileSync(
+  ".env.development.local",
+  `${conteudo}# Login automático do ambiente de testes (apague as duas linhas para desligar).
+LOGIN_AUTOMATICO_EMAIL=${email}
+LOGIN_AUTOMATICO_SENHA=${senha}
+`,
+);
 if (process.argv.includes("--ci")) writeFileSync(".env.production.local", conteudo);
 console.log(`Ambiente local configurado: ${url}`);
 
-const { email, senha } = JSON.parse(readFileSync("tests/e2e/usuario-teste.json", "utf8"));
 const db = createClient(url, secreta, { auth: { persistSession: false } });
 const { error } = await db.auth.admin.createUser({
   email,

@@ -26,6 +26,8 @@ export default defineConfig({
   workers: CI ? undefined : 2,
   reporter: CI ? [["github"], ["html", { open: "never" }]] : "list",
   use: {
+    // O ambiente local entra sozinho com o usuário de teste; os testes fazem o login pelo formulário.
+    extraHTTPHeaders: { "x-nurture-sem-login-automatico": "1" },
     baseURL: "http://localhost:3000",
     locale: "pt-BR",
     timezoneId: "America/Sao_Paulo",

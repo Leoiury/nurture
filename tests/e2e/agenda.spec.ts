@@ -57,7 +57,8 @@ test("painel do atendimento mostra dados e leva à página do paciente", async (
   const painel = page.getByRole("dialog", { name: "Detalhes do atendimento" });
   await expect(painel.getByRole("link", { name: "Ver página do paciente" })).toHaveAttribute("href", /^\/pacientes\/[0-9a-f-]{36}$/);
   await expect(painel.getByText("Histórico")).toHaveCount(0);
-  await expect(painel.getByText("Profissional")).toBeVisible();
+  // O primeiro card pode ser um atendimento conjunto ("Profissionais").
+  await expect(painel.getByText(/^Profissiona(l|is)$/)).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(painel).toBeHidden();
 });
@@ -65,7 +66,7 @@ test("painel do atendimento mostra dados e leva à página do paciente", async (
 test("troca de visão pelo menu e preservação ao navegar", async ({ page }) => {
   await abrirAgenda(page);
 
-  await page.getByRole("button", { name: /Filtros/ }).click();
+  await page.getByRole("button", { name: "Filtros", exact: true }).click();
   await menu(page).getByRole("link", { name: /Lado a lado/ }).click();
   await expect(page).toHaveURL(/visao=lado/);
   await expect(menu(page)).not.toBeInViewport(); // o menu fecha ao escolher
@@ -77,7 +78,7 @@ test("troca de visão pelo menu e preservação ao navegar", async ({ page }) =>
   await expect(page).toHaveURL(/semana=.*visao=lado/);
   await expect(page.locator("section").first()).toBeVisible();
 
-  await page.getByRole("button", { name: /Filtros/ }).click();
+  await page.getByRole("button", { name: "Filtros", exact: true }).click();
   await menu(page).getByRole("link", { name: /Ampliado/ }).click();
   await expect(page).toHaveURL(/visao=ampliada/);
 });

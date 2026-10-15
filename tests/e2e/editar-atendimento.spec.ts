@@ -76,7 +76,8 @@ test("excluir exige observação e remove o atendimento", async ({ page }) => {
 
 test("série: desmarcar este e os próximos", async ({ page }) => {
   const nome = unico("Teste Serie Desmarcar");
-  await criarAtendimento(page, { nome, dia: 0, hora: "12:45", sessoes: 3 });
+  // Terça: segunda tem mais feriados, e a série pula feriados.
+  await criarAtendimento(page, { nome, dia: 1, hora: "12:45", sessoes: 3 });
   await abrirAtendimento(page, nome);
   const painel = painelDetalhes(page);
   await expect(painel).toContainText("Toda semana · 3 atendimentos");

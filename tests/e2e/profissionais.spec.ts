@@ -53,27 +53,27 @@ test("escala semanal e mapa de ocupação", async ({ page }) => {
   await page.getByRole("dialog", { name: "Novo profissional" }).getByRole("button", { name: "Salvar" }).click();
   await expect(page.getByRole("heading", { level: 1 })).toContainText(nome);
 
-  // Sem escala: expediente padrão (seg–sex, 9h por dia = 45h na semana).
+  // Sem escala: expediente padrão (seg–sex, 9h por dia = 45h na semana; menos 9h por feriado).
   const escala = page.getByRole("region", { name: "Escala semanal" });
   await expect(escala).toContainText("Sem escala cadastrada");
   const ocupacao = page.getByRole("region", { name: "Ocupação" });
-  await expect(ocupacao.getByText("Na escala", { exact: true }).locator("..")).toContainText("45h");
+  await expect(ocupacao.getByText("Na escala", { exact: true }).locator("..")).toContainText(/(45|36|27)h/);
 
-  // Só segunda, 13:00–18:00.
+  // Só terça, 13:00–18:00 (segunda tem mais feriados).
   await escala.getByRole("button", { name: "Editar escala" }).click();
   const painel = page.getByRole("dialog", { name: "Editar escala" });
-  const segunda = painel.getByRole("group", { name: "Segunda" });
-  await segunda.getByRole("button", { name: "+ intervalo" }).click();
-  await segunda.getByLabel("Segunda: início do intervalo 1").fill("13:00");
-  await segunda.getByLabel("Segunda: fim do intervalo 1").fill("18:00");
+  const terca = painel.getByRole("group", { name: "Terça" });
+  await terca.getByRole("button", { name: "+ intervalo" }).click();
+  await terca.getByLabel("Terça: início do intervalo 1").fill("13:00");
+  await terca.getByLabel("Terça: fim do intervalo 1").fill("18:00");
   // Sobreposição é recusada.
-  await segunda.getByRole("button", { name: "+ intervalo" }).click();
-  await segunda.getByLabel("Segunda: início do intervalo 2").fill("17:00");
-  await segunda.getByLabel("Segunda: fim do intervalo 2").fill("19:00");
-  await expect(segunda).toContainText("sobrepostos");
+  await terca.getByRole("button", { name: "+ intervalo" }).click();
+  await terca.getByLabel("Terça: início do intervalo 2").fill("17:00");
+  await terca.getByLabel("Terça: fim do intervalo 2").fill("19:00");
+  await expect(terca).toContainText("sobrepostos");
   await painel.getByRole("button", { name: "Salvar escala" }).click();
   await expect(painel.getByRole("alert")).toContainText("sobrepostos");
-  await segunda.getByRole("button", { name: "Remover intervalo 2 de Segunda" }).click();
+  await terca.getByRole("button", { name: "Remover intervalo 2 de Terça" }).click();
   await painel.getByRole("button", { name: "Salvar escala" }).click();
   await expect(painel).toBeHidden();
 
