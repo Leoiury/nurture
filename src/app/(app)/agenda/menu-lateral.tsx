@@ -42,6 +42,61 @@ export function MenuLateral(props: MenuProps) {
     return () => window.removeEventListener("keydown", aoTeclar);
   }, [aberto, aoFechar]);
 
+  // Profissionais e exibição: nas duas abas ("Limpar filtros" não mexe neles).
+  const filtrosPadrao = (
+    <>
+      <section className="flex flex-col gap-2">
+        <div className="flex items-center justify-between">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">Profissionais</h3>
+          {props.ocultos.size > 0 && (
+            <button type="button" onClick={props.aoMostrarTodos} className="text-xs text-accent hover:underline">
+              Mostrar todos
+            </button>
+          )}
+        </div>
+        <ul className="flex flex-col gap-1">
+          {props.profissionais.map((p) => {
+            const visivel = !props.ocultos.has(p.id);
+            return (
+              <li key={p.id}>
+                <label className="flex cursor-pointer items-center gap-3 rounded-xl px-2 py-2 hover:bg-background">
+                  <span className="min-w-0 flex-1 leading-tight">
+                    <span className={`block truncate text-sm ${visivel ? "font-medium" : "text-muted"}`}>{p.nome}</span>
+                    {p.especialidade && <span className="block truncate text-xs text-muted">{p.especialidade}</span>}
+                  </span>
+                  <Interruptor ligado={visivel} aoMudar={() => props.aoAlternar(p.id)} rotulo={`Mostrar ${p.nome}`} />
+                </label>
+              </li>
+            );
+          })}
+        </ul>
+      </section>
+  
+      <section className="flex flex-col gap-2">
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">Exibição</h3>
+        <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl px-2 py-2 text-sm hover:bg-background">
+          <span className="leading-tight">
+            Modo foco
+            <span className="block text-xs text-muted">Esconde cabeçalho, mês e semanas</span>
+          </span>
+          <Interruptor ligado={props.foco} aoMudar={() => props.aoMudarFoco(!props.foco)} rotulo="Modo foco" />
+        </label>
+        <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl px-2 py-2 text-sm hover:bg-background">
+          Compactar horários vazios
+          <Interruptor ligado={props.compactar} aoMudar={() => props.aoCompactar(!props.compactar)} rotulo="Compactar horários vazios" />
+        </label>
+        <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl px-2 py-2 text-sm hover:bg-background">
+          Mostrar desmarcados
+          <Interruptor
+            ligado={props.mostrarDesmarcados}
+            aoMudar={() => props.aoMostrarDesmarcados(!props.mostrarDesmarcados)}
+            rotulo="Mostrar desmarcados"
+          />
+        </label>
+      </section>
+    </>
+  );
+
   return (
     <>
       <div
@@ -79,6 +134,10 @@ export function MenuLateral(props: MenuProps) {
               Limpar filtros
             </button>
             {props.filtrosAvancados}
+            <div className="flex flex-col gap-7 border-t border-border pt-6">
+              <p className="-mb-4 text-xs text-muted">Filtros padrão (não mudam com “Limpar filtros”)</p>
+              {filtrosPadrao}
+            </div>
           </>
         ) : (
         <>
@@ -121,55 +180,7 @@ export function MenuLateral(props: MenuProps) {
           </section>
         )}
 
-        <section className="flex flex-col gap-2">
-          <div className="flex items-center justify-between">
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">Profissionais</h3>
-            {props.ocultos.size > 0 && (
-              <button type="button" onClick={props.aoMostrarTodos} className="text-xs text-accent hover:underline">
-                Mostrar todos
-              </button>
-            )}
-          </div>
-          <ul className="flex flex-col gap-1">
-            {props.profissionais.map((p) => {
-              const visivel = !props.ocultos.has(p.id);
-              return (
-                <li key={p.id}>
-                  <label className="flex cursor-pointer items-center gap-3 rounded-xl px-2 py-2 hover:bg-background">
-                    <span className="min-w-0 flex-1 leading-tight">
-                      <span className={`block truncate text-sm ${visivel ? "font-medium" : "text-muted"}`}>{p.nome}</span>
-                      {p.especialidade && <span className="block truncate text-xs text-muted">{p.especialidade}</span>}
-                    </span>
-                    <Interruptor ligado={visivel} aoMudar={() => props.aoAlternar(p.id)} rotulo={`Mostrar ${p.nome}`} />
-                  </label>
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-
-        <section className="flex flex-col gap-2">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">Exibição</h3>
-          <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl px-2 py-2 text-sm hover:bg-background">
-            <span className="leading-tight">
-              Modo foco
-              <span className="block text-xs text-muted">Esconde cabeçalho, mês e semanas</span>
-            </span>
-            <Interruptor ligado={props.foco} aoMudar={() => props.aoMudarFoco(!props.foco)} rotulo="Modo foco" />
-          </label>
-          <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl px-2 py-2 text-sm hover:bg-background">
-            Compactar horários vazios
-            <Interruptor ligado={props.compactar} aoMudar={() => props.aoCompactar(!props.compactar)} rotulo="Compactar horários vazios" />
-          </label>
-          <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl px-2 py-2 text-sm hover:bg-background">
-            Mostrar desmarcados
-            <Interruptor
-              ligado={props.mostrarDesmarcados}
-              aoMudar={() => props.aoMostrarDesmarcados(!props.mostrarDesmarcados)}
-              rotulo="Mostrar desmarcados"
-            />
-          </label>
-        </section>
+        {filtrosPadrao}
 
         {props.planos.length > 0 && (
           <section className="flex flex-col gap-2">

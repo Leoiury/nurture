@@ -25,6 +25,19 @@ test("filtros avançados: paciente, esmaecer ou esconder e limpar", async ({ pag
   await expect(cardDoPaciente(page, bia)).toHaveCount(0);
   await expect(cardDoPaciente(page, ana)).toHaveCount(1);
 
+  // Os filtros padrão também estão na aba, e "Limpar filtros" não mexe neles.
+  const daniel = menu.getByRole("switch", { name: "Mostrar Daniel Rocha" });
+  await daniel.uncheck({ force: true });
+  await expect(daniel).not.toBeChecked();
+  await menu.getByRole("button", { name: "Limpar filtros" }).click();
+  await expect(daniel).not.toBeChecked();
+  await daniel.check({ force: true });
+  await menu.getByRole("button", { name: `Tirar ${ana} do filtro` }).waitFor({ state: "detached" });
+  // De volta ao filtro por paciente, para conferir a barra.
+  await menu.getByRole("button", { name: "Adicionar paciente ao filtro" }).click();
+  await menu.getByRole("searchbox", { name: "Pesquisar paciente" }).fill(ana);
+  await menu.getByRole("option", { name: ana }).click();
+
   // Indicador na barra e "Limpar filtros".
   await menu.getByRole("button", { name: "Fechar" }).click();
   const ativos = page.getByRole("status", { name: "Filtros ativos" });
