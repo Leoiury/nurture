@@ -75,13 +75,16 @@ export function FiltrosAvancados({ filtros: f, aoMudar, modo, aoMudarModo, ajust
           ))}
         </div>
         <p className="text-xs text-muted">{modo === "esmaecer" ? "Fica apagado, ocupando o horário." : "Some da agenda."}</p>
-        <label className="mt-1 flex cursor-pointer items-start gap-2.5 rounded-lg px-2 py-1 text-sm hover:bg-background">
-          <input type="checkbox" checked={ajustarAgenda} onChange={(e) => aoAjustarAgenda(e.target.checked)} className="mt-0.5 size-4 shrink-0 accent-[var(--accent)]" />
-          <span className="leading-tight">
-            Ajustar a agenda ao filtro
-            <span className="block text-xs text-muted">Tira as colunas e condensa os horários sem resultado.</span>
-          </span>
-        </label>
+        {/* Só ao esconder: ao esmaecer, a grade fica inteira, com os cards apagados no lugar. */}
+        {modo === "esconder" && (
+          <label className="mt-1 flex cursor-pointer items-start gap-2.5 rounded-lg px-2 py-1 text-sm hover:bg-background">
+            <input type="checkbox" checked={ajustarAgenda} onChange={(e) => aoAjustarAgenda(e.target.checked)} className="mt-0.5 size-4 shrink-0 accent-[var(--accent)]" />
+            <span className="leading-tight">
+              Ajustar a agenda ao filtro
+              <span className="block text-xs text-muted">Tira as colunas e condensa os horários sem resultado.</span>
+            </span>
+          </label>
+        )}
       </fieldset>
 
       <Pacientes selecionados={f.pacientes} aoMudar={(pacientes) => mudar({ pacientes })} />

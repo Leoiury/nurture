@@ -68,7 +68,7 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
   // Filtros avançados: não ficam salvos (zeram ao reabrir a agenda).
   const [filtros, setFiltros] = useState<Filtros>(FILTROS_VAZIOS);
   const [modoDoFiltro, setModoDoFiltro] = useState<ModoDoFiltro>("esmaecer");
-  // Com filtro: tira colunas sem resultado e condensa as horas sem resultado.
+  // Com filtro no modo "esconder": tira colunas sem resultado e condensa as horas sem resultado.
   const [ajustarAgenda, setAjustarAgenda] = useState(true);
   const totalDeFiltros = quantosFiltros(filtros);
 
@@ -131,9 +131,10 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
     );
   }, [atendimentosAtuais, ocultos, mostrarDesmarcados, divergencias, aniversariantes, filtros, modoDoFiltro]);
   const ajuste = useMemo(
-    () => (totalDeFiltros > 0 && ajustarAgenda ? ajustarAoFiltro(visiveis, colunasVisiveis.map((p) => p.id)) : null),
+    () =>
+      totalDeFiltros > 0 && modoDoFiltro === "esconder" && ajustarAgenda ? ajustarAoFiltro(visiveis, colunasVisiveis.map((p) => p.id)) : null,
     // eslint-disable-next-line react-hooks/exhaustive-deps -- colunasVisiveis deriva de profissionais e ocultos
-    [totalDeFiltros, ajustarAgenda, visiveis, profissionais, ocultos],
+    [totalDeFiltros, modoDoFiltro, ajustarAgenda, visiveis, profissionais, ocultos],
   );
   const colunas = ajuste ? colunasVisiveis.filter((p) => ajuste.profissionalIds.includes(p.id)) : colunasVisiveis;
   const exibidos = ajuste?.lista ?? visiveis;
