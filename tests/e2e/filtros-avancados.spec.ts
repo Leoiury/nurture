@@ -16,7 +16,12 @@ test("filtros avançados: paciente, esmaecer ou esconder e limpar", async ({ pag
   await menu.getByRole("option", { name: ana }).click();
   await expect(menu.getByRole("button", { name: `Tirar ${ana} do filtro` })).toBeVisible();
 
-  // Esmaecer (padrão): o outro paciente fica apagado, mas continua na agenda.
+  // Ajustar a agenda ao filtro (padrão): a coluna da Bia, sem resultado, sai.
+  await expect(cardDoPaciente(page, bia)).toHaveCount(0);
+  await expect(cardDoPaciente(page, ana)).toHaveCount(1);
+
+  // Sem o ajuste, esmaecer (padrão): o outro paciente fica apagado, mas continua na agenda.
+  await menu.getByRole("checkbox", { name: /Ajustar a agenda ao filtro/ }).uncheck();
   await expect(cardDoPaciente(page, bia)).toHaveAttribute("data-esmaecido", "");
   await expect(cardDoPaciente(page, ana)).not.toHaveAttribute("data-esmaecido");
 

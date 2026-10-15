@@ -40,13 +40,15 @@ type Props = {
   aoMudar: (f: Filtros) => void;
   modo: ModoDoFiltro;
   aoMudarModo: (m: ModoDoFiltro) => void;
+  ajustarAgenda: boolean;
+  aoAjustarAgenda: (v: boolean) => void;
   opcoes: OpcoesDosFiltros;
 };
 
 /** Liga/desliga um valor numa lista. */
 const alternar = <T,>(lista: T[], valor: T) => (lista.includes(valor) ? lista.filter((x) => x !== valor) : [...lista, valor]);
 
-export function FiltrosAvancados({ filtros: f, aoMudar, modo, aoMudarModo, opcoes }: Props) {
+export function FiltrosAvancados({ filtros: f, aoMudar, modo, aoMudarModo, ajustarAgenda, aoAjustarAgenda, opcoes }: Props) {
   const mudar = (parcial: Partial<Filtros>) => aoMudar({ ...f, ...parcial });
 
   return (
@@ -73,6 +75,13 @@ export function FiltrosAvancados({ filtros: f, aoMudar, modo, aoMudarModo, opcoe
           ))}
         </div>
         <p className="text-xs text-muted">{modo === "esmaecer" ? "Fica apagado, ocupando o horário." : "Some da agenda."}</p>
+        <label className="mt-1 flex cursor-pointer items-start gap-2.5 rounded-lg px-2 py-1 text-sm hover:bg-background">
+          <input type="checkbox" checked={ajustarAgenda} onChange={(e) => aoAjustarAgenda(e.target.checked)} className="mt-0.5 size-4 shrink-0 accent-[var(--accent)]" />
+          <span className="leading-tight">
+            Ajustar a agenda ao filtro
+            <span className="block text-xs text-muted">Tira as colunas e condensa os horários sem resultado.</span>
+          </span>
+        </label>
       </fieldset>
 
       <Pacientes selecionados={f.pacientes} aoMudar={(pacientes) => mudar({ pacientes })} />

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AtendimentoAgenda } from "./dados";
-import { FILTROS_VAZIOS, aplicarFiltros, passaNoFiltro, quantosFiltros, type Filtros } from "./filtros";
+import { FILTROS_VAZIOS, ajustarAoFiltro, aplicarFiltros, passaNoFiltro, quantosFiltros, type Filtros } from "./filtros";
 
 function a(id: string, extra: Partial<AtendimentoAgenda> = {}): AtendimentoAgenda {
   return {
@@ -60,5 +60,24 @@ describe("filtros avançados", () => {
     const lista = [a("1"), a("2", { status: "atendido" })];
     expect(aplicarFiltros(lista, f, "esmaecer").map((x) => !!x.esmaecido)).toEqual([true, false]);
     expect(aplicarFiltros(lista, f, "esconder").map((x) => x.id)).toEqual(["2"]);
+  });
+});
+
+describe("ajustarAoFiltro", () => {
+  it("tira colunas sem resultado e esmaecidos fora das horas usadas", () => {
+    const lista = [
+      a("ok", { profissionalIds: ["ana"], inicio: 540, fim: 585 }), // 09:00–09:45
+      a("junto", { profissionalIds: ["ana"], inicio: 555, fim: 600, esmaecido: true }), // mesma hora: fica
+      a("tarde", { profissionalIds: ["ana"], inicio: 900, fim: 945, esmaecido: true }), // 15:00: sai
+      a("bia", { profissionalIds: ["bia"], inicio: 540, fim: 585, esmaecido: true }), // coluna sem resultado
+    ];
+    const r = ajustarAoFiltro(lista, ["ana", "bia", "caio"]);
+    expect(r.profissionalIds).toEqual(["ana"]);
+    expect(r.lista.map((x) => x.id)).toEqual(["ok", "junto"]);
+  });
+
+  it("nada combinando: não mexe", () => {
+    const lista = [a("x", { esmaecido: true })];
+    expect(ajustarAoFiltro(lista, ["ana", "bia"])).toEqual({ lista, profissionalIds: ["ana", "bia"] });
   });
 });

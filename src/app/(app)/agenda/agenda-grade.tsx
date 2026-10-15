@@ -8,7 +8,7 @@ import type { Segmento } from "@/lib/agenda/layout";
 import { formatarHora, nomeCurtoDoDia } from "@/lib/agenda/tempo";
 import { sufixoDaVisao, type Visao } from "@/lib/agenda/visao";
 import { encontrarDivergencias, textosDasDivergencias, type Divergencia } from "@/lib/agenda/divergencias";
-import { FILTROS_VAZIOS, aplicarFiltros, quantosFiltros, type Filtros, type ModoDoFiltro } from "@/lib/agenda/filtros";
+import { FILTROS_VAZIOS, ajustarAoFiltro, aplicarFiltros, quantosFiltros, type Filtros, type ModoDoFiltro } from "@/lib/agenda/filtros";
 import { lerIdNovo, quando as quandoFormatado, type Operacao } from "@/lib/agenda/planejamento";
 import { ProvedorDeAcoes } from "./acoes-da-agenda";
 import { mover } from "./actions";
@@ -68,6 +68,8 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
   // Filtros avançados: não ficam salvos (zeram ao reabrir a agenda).
   const [filtros, setFiltros] = useState<Filtros>(FILTROS_VAZIOS);
   const [modoDoFiltro, setModoDoFiltro] = useState<ModoDoFiltro>("esmaecer");
+  // Com filtro: tira colunas sem resultado e condensa as horas sem resultado.
+  const [ajustarAgenda, setAjustarAgenda] = useState(true);
   const totalDeFiltros = quantosFiltros(filtros);
 
   // Ajustes locais (arraste): a tela muda na hora, sem esperar o servidor. Quando
@@ -94,7 +96,7 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
   const quadro = useRef<HTMLDivElement>(null);
   const alturaVisivel = useAlturaDoElemento(quadro);
 
-  const colunas = profissionais.filter((p) => !ocultos.has(p.id));
+  const colunasVisiveis = profissionais.filter((p) => !ocultos.has(p.id));
   // Aniversariantes ("dia|paciente") e datas comemorativas dos dias exibidos.
   const aniversariantes = useMemo(() => new Set(lembretes.exibidos.aniversarios.map((a) => `${a.data}|${a.pacienteId}`)), [lembretes]);
   const comemoracoesPorDia = useMemo(() => {
@@ -128,7 +130,14 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
       modoDoFiltro,
     );
   }, [atendimentosAtuais, ocultos, mostrarDesmarcados, divergencias, aniversariantes, filtros, modoDoFiltro]);
-  const porColuna = useMemo(() => agruparPorColuna(visiveis), [visiveis]);
+  const ajuste = useMemo(
+    () => (totalDeFiltros > 0 && ajustarAgenda ? ajustarAoFiltro(visiveis, colunasVisiveis.map((p) => p.id)) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- colunasVisiveis deriva de profissionais e ocultos
+    [totalDeFiltros, ajustarAgenda, visiveis, profissionais, ocultos],
+  );
+  const colunas = ajuste ? colunasVisiveis.filter((p) => ajuste.profissionalIds.includes(p.id)) : colunasVisiveis;
+  const exibidos = ajuste?.lista ?? visiveis;
+  const porColuna = useMemo(() => agruparPorColuna(exibidos), [exibidos]);
 
   // Opções dos filtros: planos e tipos que aparecem no período carregado.
   const opcoesDosFiltros = useMemo<OpcoesDosFiltros>(() => {
@@ -243,7 +252,7 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const propsVisao = { dias, hoje, colunas, visiveis, porColuna, compactar, expandidos, aoExpandir: expandirSegmento, aoAbrir: setSelecionado, sufixoUrl, alturaVisivel, especiais, aoCriarEm: setCriando, divergencias: divergenciasPorColuna, comemoracoes: comemoracoesPorDia };
+  const propsVisao = { dias, hoje, colunas, visiveis: exibidos, porColuna, compactar: compactar || !!ajuste, expandidos, aoExpandir: expandirSegmento, aoAbrir: setSelecionado, sufixoUrl, alturaVisivel, especiais, aoCriarEm: setCriando, divergencias: divergenciasPorColuna, comemoracoes: comemoracoesPorDia };
 
   const grade = (
     <ProvedorDeArraste aoSoltar={(a, de, alvo) => void soltar(a, de, alvo)} aoDica={(texto) => setAviso({ texto })}>
@@ -384,7 +393,15 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
         totalDeFiltros={totalDeFiltros}
         aoLimparFiltros={() => setFiltros(FILTROS_VAZIOS)}
         filtrosAvancados={
-          <FiltrosAvancados filtros={filtros} aoMudar={setFiltros} modo={modoDoFiltro} aoMudarModo={setModoDoFiltro} opcoes={opcoesDosFiltros} />
+          <FiltrosAvancados
+            filtros={filtros}
+            aoMudar={setFiltros}
+            modo={modoDoFiltro}
+            aoMudarModo={setModoDoFiltro}
+            ajustarAgenda={ajustarAgenda}
+            aoAjustarAgenda={setAjustarAgenda}
+            opcoes={opcoesDosFiltros}
+          />
         }
         opcoesDeVisao={
           <>

@@ -49,3 +49,26 @@ export function aplicarFiltros(lista: AtendimentoAgenda[], f: Filtros, modo: Mod
   if (modo === "esconder") return lista.filter((a) => passaNoFiltro(a, f));
   return lista.map((a) => (passaNoFiltro(a, f) ? a : { ...a, esmaecido: true }));
 }
+
+/**
+ * Agenda ajustada ao filtro: só as colunas (profissionais) com algum atendimento que
+ * combina, e só as horas ocupadas por eles. Esmaecidos ficam se caírem numa hora
+ * dessas no mesmo dia (senão sairiam espremidos numa faixa condensada).
+ * Nada combinando: a agenda fica como está.
+ */
+export function ajustarAoFiltro(lista: AtendimentoAgenda[], profissionalIds: string[]): { lista: AtendimentoAgenda[]; profissionalIds: string[] } {
+  const combinam = lista.filter((a) => !a.esmaecido);
+  if (combinam.length === 0) return { lista, profissionalIds };
+
+  const usados = new Set(combinam.flatMap((a) => a.profissionalIds));
+  const horas = new Set<string>();
+  for (const a of combinam) for (let h = Math.floor(a.inicio / 60) * 60; h < a.fim; h += 60) horas.add(`${a.data}|${h}`);
+  const cabe = (a: AtendimentoAgenda) => {
+    for (let h = Math.floor(a.inicio / 60) * 60; h < a.fim; h += 60) if (!horas.has(`${a.data}|${h}`)) return false;
+    return true;
+  };
+  return {
+    lista: lista.filter((a) => !a.esmaecido || (cabe(a) && a.profissionalIds.some((id) => usados.has(id)))),
+    profissionalIds: profissionalIds.filter((id) => usados.has(id)),
+  };
+}
