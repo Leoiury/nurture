@@ -1,6 +1,8 @@
 "use server";
 
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { COOKIE_LOGIN_MANUAL, credenciaisDoLoginAutomatico } from "@/lib/auth/login-automatico";
 import { createClient } from "@/lib/supabase/server";
 
 export type EstadoLogin = { erro: string; email: string } | undefined;
@@ -21,6 +23,8 @@ export async function entrar(_: EstadoLogin, formData: FormData): Promise<Estado
 export async function sair() {
   const supabase = await createClient();
   await supabase.auth.signOut();
+  // Ambiente de testes local: depois de sair, o formulário vale (para entrar com outro usuário).
+  if (credenciaisDoLoginAutomatico()) (await cookies()).set(COOKIE_LOGIN_MANUAL, "1", { path: "/", httpOnly: true, sameSite: "lax" });
   redirect("/login");
 }
 
