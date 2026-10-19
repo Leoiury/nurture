@@ -17,17 +17,19 @@ export type Filtros = {
   /** Nome do tipo; "" = sem tipo. */
   tipos: string[];
   serie: "todos" | "serie" | "avulso";
+  /** "sem": sem valor definido (para completar antes do financeiro). */
+  valor: "todos" | "sem" | "com";
   cadastro: NivelCadastral[];
 };
 
 /** O que não passa no filtro: fica apagado (ocupando o horário) ou some da grade. */
 export type ModoDoFiltro = "esmaecer" | "esconder";
 
-export const FILTROS_VAZIOS: Filtros = { pacientes: [], planos: [], guias: [], status: [], tipos: [], serie: "todos", cadastro: [] };
+export const FILTROS_VAZIOS: Filtros = { pacientes: [], planos: [], guias: [], status: [], tipos: [], serie: "todos", valor: "todos", cadastro: [] };
 
 /** Quantos grupos estão filtrando. */
 export function quantosFiltros(f: Filtros): number {
-  return [f.pacientes, f.planos, f.guias, f.status, f.tipos, f.cadastro].filter((g) => g.length > 0).length + (f.serie === "todos" ? 0 : 1);
+  return [f.pacientes, f.planos, f.guias, f.status, f.tipos, f.cadastro].filter((g) => g.length > 0).length + (f.serie === "todos" ? 0 : 1) + (f.valor === "todos" ? 0 : 1);
 }
 
 export function passaNoFiltro(a: AtendimentoAgenda, f: Filtros): boolean {
@@ -39,6 +41,7 @@ export function passaNoFiltro(a: AtendimentoAgenda, f: Filtros): boolean {
     em(f.status, a.status) &&
     em(f.tipos, a.tipo ?? "") &&
     (f.serie === "todos" || (f.serie === "serie") === !!a.recorrenciaId) &&
+    (f.valor === "todos" || (f.valor === "sem") === !!a.semValor) &&
     (f.cadastro.length === 0 || (!!a.nivelCadastral && f.cadastro.includes(a.nivelCadastral)))
   );
 }

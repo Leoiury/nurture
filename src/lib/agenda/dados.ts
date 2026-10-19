@@ -41,6 +41,8 @@ export type AtendimentoAgenda = {
   esmaecido?: boolean;
   /** Veio da importação do sistema anterior (tem id_legado). */
   importado: boolean;
+  /** Sem valor definido (filtro "sem valor"). */
+  semValor?: boolean;
   /** Guia do convênio: verde, amarela (perto do fim) ou vermelha (o plano exige e não tem). */
   guia?: SituacaoDaGuia | null;
   /** O paciente faz aniversário no dia do atendimento (bolo no card). */
@@ -82,7 +84,7 @@ export async function carregarDiasEspeciais(primeiroDia: string, ultimoDia: stri
 }
 
 const SELECAO_DA_AGENDA =
-  "id, id_legado, paciente_id, tipo_id, inicio, fim, status, recorrencia_id, profissionais:atendimento_profissionais(profissional:profissionais(id, nome)), paciente:pacientes(nome, nivel_cadastral), plano:planos(nome, cor, exige_guia), tipo:tipos_atendimento(nome, area, cor)";
+  "id, id_legado, paciente_id, tipo_id, inicio, fim, status, valor, recorrencia_id, profissionais:atendimento_profissionais(profissional:profissionais(id, nome)), paciente:pacientes(nome, nivel_cadastral), plano:planos(nome, cor, exige_guia), tipo:tipos_atendimento(nome, area, cor)";
 
 type LinhaDaAgenda = {
   id: string;
@@ -97,6 +99,7 @@ type LinhaDaAgenda = {
   paciente: { nome: string; nivel_cadastral: "completo" | "falta_informacao" | "critico" } | null;
   plano: { nome: string; cor: string; exige_guia: boolean } | null;
   tipo: { nome: string; area: string | null; cor: string | null } | null;
+  valor: number | null;
 };
 
 function paraAgenda(a: LinhaDaAgenda): AtendimentoAgenda {
@@ -121,6 +124,7 @@ function paraAgenda(a: LinhaDaAgenda): AtendimentoAgenda {
     corDoTipo: a.tipo?.cor ?? null,
     area: a.tipo?.area ?? null,
     importado: a.id_legado !== null,
+    semValor: a.valor === null,
   };
 }
 

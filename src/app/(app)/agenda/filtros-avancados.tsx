@@ -143,6 +143,22 @@ export function FiltrosAvancados({ filtros: f, aoMudar, modo, aoMudarModo, ajust
         ))}
       </fieldset>
 
+      <fieldset className="flex flex-col gap-1.5">
+        <legend className="mb-1.5 text-xs font-semibold tracking-wide text-muted uppercase">Valor</legend>
+        {(
+          [
+            ["todos", "Todos"],
+            ["sem", "Só sem valor definido"],
+            ["com", "Só com valor"],
+          ] as const
+        ).map(([valor, rotulo]) => (
+          <label key={valor} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1 text-sm hover:bg-background">
+            <input type="radio" name="filtro-valor" checked={f.valor === valor} onChange={() => mudar({ valor })} className="accent-[var(--accent)]" />
+            {rotulo}
+          </label>
+        ))}
+      </fieldset>
+
       <Grupo titulo="Cadastro do paciente">
         {CADASTRO.map(([valor, rotulo, cor]) => (
           <Opcao key={valor} marcado={f.cadastro.includes(valor)} aoMudar={() => mudar({ cadastro: alternar(f.cadastro, valor) })}>
