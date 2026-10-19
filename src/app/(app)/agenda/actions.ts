@@ -6,6 +6,7 @@
 import { revalidatePath } from "next/cache";
 import type { ArgsEditar } from "@/lib/agenda/planejamento";
 import { instanteNoFuso } from "@/lib/agenda/tempo";
+import { ehAdm } from "@/lib/auth/usuario";
 import type { Database } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
 
@@ -32,11 +33,12 @@ export async function detalhesAtendimento(id: string) {
     .single();
   if (error) throw new Error("Atendimento não encontrado.");
 
-  const [serie, observacoes] = await Promise.all([
+  const [serie, observacoes, adm] = await Promise.all([
     atendimento.recorrencia_id
       ? supabase.from("atendimentos").select("inicio").eq("recorrencia_id", atendimento.recorrencia_id).is("excluido_em", null)
       : null,
     supabase.from("atendimentos_observacoes").select("id, criado_em, texto, automatica").eq("atendimento_id", id).order("criado_em", { ascending: false }),
+    ehAdm(),
   ]);
   if (serie?.error || observacoes.error) throw new Error("Não foi possível carregar o atendimento.");
 
@@ -45,7 +47,20 @@ export async function detalhesAtendimento(id: string) {
     // Tamanho da série e quantos vêm a partir deste (inclusive), para as opções de alcance.
     serie: serie ? { total: serie.data.length, seguintes: serie.data.filter((s) => s.inicio >= atendimento.inicio).length } : null,
     observacoes: observacoes.data,
+    // Só a direção vê o financeiro.
+    financeiro: adm ? await financeiroDoAtendimento(id) : null,
   };
+}
+
+/** Quanto já foi pago e baixado (glosa, desconto) do atendimento. */
+async function financeiroDoAtendimento(id: string): Promise<{ recebido: number; baixado: number }> {
+  const supabase = await createClient();
+  const [quitacoes, baixas] = await Promise.all([
+    supabase.from("pagamentos_atendimentos").select("valor").eq("atendimento_id", id),
+    supabase.from("baixas_atendimentos").select("valor").eq("atendimento_id", id),
+  ]);
+  const soma = (linhas: { valor: number }[] | null) => (linhas ?? []).reduce((t, l) => t + Number(l.valor), 0);
+  return { recebido: soma(quitacoes.data), baixado: soma(baixas.data) };
 }
 
 export type DetalhesAtendimento = Awaited<ReturnType<typeof detalhesAtendimento>>;

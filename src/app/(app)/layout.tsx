@@ -30,7 +30,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
           <Link href="/agenda" className="hidden text-lg font-semibold tracking-tight sm:inline">
             Nurture
           </Link>
-          <NavPrincipal />
+          <NavPrincipal adm={usuario.perfil === "adm"} />
         </div>
         <div className="flex items-center gap-3 text-sm">
           <Link href="/conta" title="Minha conta" className="hidden text-muted hover:text-foreground sm:inline">
