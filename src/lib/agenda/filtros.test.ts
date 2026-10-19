@@ -26,6 +26,15 @@ function a(id: string, extra: Partial<AtendimentoAgenda> = {}): AtendimentoAgend
 const com = (f: Partial<Filtros>): Filtros => ({ ...FILTROS_VAZIOS, ...f });
 
 describe("filtros avançados", () => {
+  it("valor: só sem valor definido ou só com valor", () => {
+    const sem = a("1", { semValor: true });
+    const comValor = a("2");
+    expect(passaNoFiltro(sem, com({ valor: "sem" }))).toBe(true);
+    expect(passaNoFiltro(comValor, com({ valor: "sem" }))).toBe(false);
+    expect(passaNoFiltro(comValor, com({ valor: "com" }))).toBe(true);
+    expect(quantosFiltros(com({ valor: "sem" }))).toBe(1);
+  });
+
   it("sem filtros, todos passam", () => {
     expect(quantosFiltros(FILTROS_VAZIOS)).toBe(0);
     expect(aplicarFiltros([a("1")], FILTROS_VAZIOS, "esconder")).toHaveLength(1);

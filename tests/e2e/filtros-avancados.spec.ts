@@ -61,3 +61,21 @@ test("filtros avançados: paciente, esmaecer ou esconder e limpar", async ({ pag
   await page.reload();
   await expect(page.getByRole("status", { name: "Filtros ativos" })).toHaveCount(0);
 });
+
+test("filtros avançados: valor (só sem valor definido / só com valor)", async ({ page }) => {
+  const nome = `Filtro Valor ${Date.now()}`;
+  // Unimed, Psicologia: o atendimento já nasce com valor (R$ 120,00).
+  await criarAtendimento(page, { nome, dia: 2, hora: "15:00" });
+
+  await page.getByRole("button", { name: "Filtros" }).first().click();
+  const menu = page.getByRole("dialog", { name: "Filtros da agenda" });
+  await menu.getByRole("button", { name: /Filtros avançados/ }).click();
+  await menu.getByRole("radio", { name: "Esconder" }).click();
+
+  await menu.getByRole("radio", { name: "Só sem valor definido" }).check();
+  await expect(cardDoPaciente(page, nome)).toHaveCount(0);
+  await expect(page.getByRole("status", { name: "Filtros ativos" })).toContainText("1 filtro ativo");
+
+  await menu.getByRole("radio", { name: "Só com valor" }).check();
+  await expect(cardDoPaciente(page, nome)).toHaveCount(1);
+});

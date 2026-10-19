@@ -52,7 +52,14 @@ export default async function FinanceiroPage({ searchParams }: PageProps<"/finan
           <span className="text-3xl font-semibold tracking-tight tabular-nums">{moeda.format(r.esperado.valor)}</span>
           <span className="text-xs text-muted">
             {plural(r.esperado.quantidade, "atendimento", "atendimentos")} (sem os desmarcados)
-            {r.esperado.semValor > 0 && <span className="text-danger"> · {r.esperado.semValor} sem valor</span>}
+            {r.esperado.semValor > 0 && (
+              <>
+                {" · "}
+                <Link href={`/financeiro/atendimentos?${m}&pagamento=sem_valor`} className="text-danger underline-offset-2 hover:underline">
+                  {r.esperado.semValor} sem valor
+                </Link>
+              </>
+            )}
           </span>
         </div>
         <Link
