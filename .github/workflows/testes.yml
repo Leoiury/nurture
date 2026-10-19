@@ -1,7 +1,10 @@
 name: Testes
 
+# PRs são testados pelo pull_request; o push só roda na main (depois do merge),
+# para não duplicar os runs de cada PR.
 on:
   push:
+    branches: [main]
   pull_request:
 
 jobs:
