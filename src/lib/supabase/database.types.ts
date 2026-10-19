@@ -59,6 +59,13 @@ export type Database = {
             foreignKeyName: "atendimento_profissionais_atendimento_id_fkey"
             columns: ["atendimento_id"]
             isOneToOne: false
+            referencedRelation: "atendimentos_em_aberto"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "atendimento_profissionais_atendimento_id_fkey"
+            columns: ["atendimento_id"]
+            isOneToOne: false
             referencedRelation: "guias_dos_atendimentos"
             referencedColumns: ["atendimento_id"]
           },
@@ -230,6 +237,68 @@ export type Database = {
             foreignKeyName: "atendimentos_observacoes_atendimento_id_fkey"
             columns: ["atendimento_id"]
             isOneToOne: false
+            referencedRelation: "atendimentos_em_aberto"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "atendimentos_observacoes_atendimento_id_fkey"
+            columns: ["atendimento_id"]
+            isOneToOne: false
+            referencedRelation: "guias_dos_atendimentos"
+            referencedColumns: ["atendimento_id"]
+          },
+        ]
+      }
+      baixas_atendimentos: {
+        Row: {
+          atendimento_id: string
+          criado_em: string
+          criado_por: string | null
+          data: string
+          id: string
+          motivo: string
+          observacao: string | null
+          valor: number
+        }
+        Insert: {
+          atendimento_id: string
+          criado_em?: string
+          criado_por?: string | null
+          data: string
+          id?: string
+          motivo: string
+          observacao?: string | null
+          valor: number
+        }
+        Update: {
+          atendimento_id?: string
+          criado_em?: string
+          criado_por?: string | null
+          data?: string
+          id?: string
+          motivo?: string
+          observacao?: string | null
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "baixas_atendimentos_atendimento_id_fkey"
+            columns: ["atendimento_id"]
+            isOneToOne: false
+            referencedRelation: "atendimentos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "baixas_atendimentos_atendimento_id_fkey"
+            columns: ["atendimento_id"]
+            isOneToOne: false
+            referencedRelation: "atendimentos_em_aberto"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "baixas_atendimentos_atendimento_id_fkey"
+            columns: ["atendimento_id"]
+            isOneToOne: false
             referencedRelation: "guias_dos_atendimentos"
             referencedColumns: ["atendimento_id"]
           },
@@ -300,6 +369,95 @@ export type Database = {
           nome?: string
           ordem?: number | null
           pascoa?: number | null
+        }
+        Relationships: []
+      }
+      despesas: {
+        Row: {
+          categoria: string | null
+          criado_em: string
+          criado_por: string | null
+          data: string
+          descricao: string
+          id: string
+          observacao: string | null
+          paga_em: string | null
+          recorrente_id: string | null
+          valor: number
+        }
+        Insert: {
+          categoria?: string | null
+          criado_em?: string
+          criado_por?: string | null
+          data: string
+          descricao: string
+          id?: string
+          observacao?: string | null
+          paga_em?: string | null
+          recorrente_id?: string | null
+          valor: number
+        }
+        Update: {
+          categoria?: string | null
+          criado_em?: string
+          criado_por?: string | null
+          data?: string
+          descricao?: string
+          id?: string
+          observacao?: string | null
+          paga_em?: string | null
+          recorrente_id?: string | null
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "despesas_recorrente_id_fkey"
+            columns: ["recorrente_id"]
+            isOneToOne: false
+            referencedRelation: "despesas_recorrentes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      despesas_recorrentes: {
+        Row: {
+          categoria: string | null
+          criado_em: string
+          criado_por: string | null
+          descricao: string
+          dia: number
+          fim: string | null
+          gerada_ate: string | null
+          id: string
+          inicio: string
+          observacao: string | null
+          valor: number
+        }
+        Insert: {
+          categoria?: string | null
+          criado_em?: string
+          criado_por?: string | null
+          descricao: string
+          dia: number
+          fim?: string | null
+          gerada_ate?: string | null
+          id?: string
+          inicio: string
+          observacao?: string | null
+          valor: number
+        }
+        Update: {
+          categoria?: string | null
+          criado_em?: string
+          criado_por?: string | null
+          descricao?: string
+          dia?: number
+          fim?: string | null
+          gerada_ate?: string | null
+          id?: string
+          inicio?: string
+          observacao?: string | null
+          valor?: number
         }
         Relationships: []
       }
@@ -506,6 +664,104 @@ export type Database = {
             columns: ["profissional_responsavel_id"]
             isOneToOne: false
             referencedRelation: "profissionais"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pagamentos: {
+        Row: {
+          criado_em: string
+          criado_por: string | null
+          data: string
+          forma: string
+          id: string
+          observacao: string | null
+          paciente_id: string | null
+          plano_id: string | null
+          valor: number
+        }
+        Insert: {
+          criado_em?: string
+          criado_por?: string | null
+          data: string
+          forma: string
+          id?: string
+          observacao?: string | null
+          paciente_id?: string | null
+          plano_id?: string | null
+          valor: number
+        }
+        Update: {
+          criado_em?: string
+          criado_por?: string | null
+          data?: string
+          forma?: string
+          id?: string
+          observacao?: string | null
+          paciente_id?: string | null
+          plano_id?: string | null
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pagamentos_paciente_id_fkey"
+            columns: ["paciente_id"]
+            isOneToOne: false
+            referencedRelation: "pacientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pagamentos_plano_id_fkey"
+            columns: ["plano_id"]
+            isOneToOne: false
+            referencedRelation: "planos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pagamentos_atendimentos: {
+        Row: {
+          atendimento_id: string
+          pagamento_id: string
+          valor: number
+        }
+        Insert: {
+          atendimento_id: string
+          pagamento_id: string
+          valor: number
+        }
+        Update: {
+          atendimento_id?: string
+          pagamento_id?: string
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pagamentos_atendimentos_atendimento_id_fkey"
+            columns: ["atendimento_id"]
+            isOneToOne: false
+            referencedRelation: "atendimentos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pagamentos_atendimentos_atendimento_id_fkey"
+            columns: ["atendimento_id"]
+            isOneToOne: false
+            referencedRelation: "atendimentos_em_aberto"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pagamentos_atendimentos_atendimento_id_fkey"
+            columns: ["atendimento_id"]
+            isOneToOne: false
+            referencedRelation: "guias_dos_atendimentos"
+            referencedColumns: ["atendimento_id"]
+          },
+          {
+            foreignKeyName: "pagamentos_atendimentos_pagamento_id_fkey"
+            columns: ["pagamento_id"]
+            isOneToOne: false
+            referencedRelation: "pagamentos"
             referencedColumns: ["id"]
           },
         ]
@@ -754,6 +1010,58 @@ export type Database = {
       }
     }
     Views: {
+      atendimentos_em_aberto: {
+        Row: {
+          id: string | null
+          inicio: string | null
+          paciente_id: string | null
+          plano_id: string | null
+          status: Database["public"]["Enums"]["status_atendimento"] | null
+          tipo_id: string | null
+          valor: number | null
+        }
+        Insert: {
+          id?: string | null
+          inicio?: string | null
+          paciente_id?: string | null
+          plano_id?: string | null
+          status?: Database["public"]["Enums"]["status_atendimento"] | null
+          tipo_id?: string | null
+          valor?: number | null
+        }
+        Update: {
+          id?: string | null
+          inicio?: string | null
+          paciente_id?: string | null
+          plano_id?: string | null
+          status?: Database["public"]["Enums"]["status_atendimento"] | null
+          tipo_id?: string | null
+          valor?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "atendimentos_paciente_id_fkey"
+            columns: ["paciente_id"]
+            isOneToOne: false
+            referencedRelation: "pacientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "atendimentos_plano_id_fkey"
+            columns: ["plano_id"]
+            isOneToOne: false
+            referencedRelation: "planos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "atendimentos_tipo_id_fkey"
+            columns: ["tipo_id"]
+            isOneToOne: false
+            referencedRelation: "tipos_atendimento"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       guias_dos_atendimentos: {
         Row: {
           atendimento_id: string | null
@@ -775,6 +1083,44 @@ export type Database = {
           },
         ]
       }
+      quitacoes_a_revisar: {
+        Row: {
+          atendimento_id: string | null
+          motivo: string | null
+          pagamento_id: string | null
+          valor: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pagamentos_atendimentos_atendimento_id_fkey"
+            columns: ["atendimento_id"]
+            isOneToOne: false
+            referencedRelation: "atendimentos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pagamentos_atendimentos_atendimento_id_fkey"
+            columns: ["atendimento_id"]
+            isOneToOne: false
+            referencedRelation: "atendimentos_em_aberto"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pagamentos_atendimentos_atendimento_id_fkey"
+            columns: ["atendimento_id"]
+            isOneToOne: false
+            referencedRelation: "guias_dos_atendimentos"
+            referencedColumns: ["atendimento_id"]
+          },
+          {
+            foreignKeyName: "pagamentos_atendimentos_pagamento_id_fkey"
+            columns: ["pagamento_id"]
+            isOneToOne: false
+            referencedRelation: "pagamentos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       ajustar_valores_do_paciente: {
@@ -787,6 +1133,17 @@ export type Database = {
           p_valor: number
         }
         Returns: number
+      }
+      alterar_despesa_recorrente: {
+        Args: {
+          p_categoria: string
+          p_descricao: string
+          p_dia: number
+          p_fim?: string
+          p_id: string
+          p_valor: number
+        }
+        Returns: undefined
       }
       aplicar_planejamento: { Args: { p_operacoes: Json }; Returns: number }
       atendimentos_ativos_no_periodo: {
@@ -830,6 +1187,15 @@ export type Database = {
         Args: { p_itens: Json }
         Returns: number
       }
+      dar_baixa: {
+        Args: {
+          p_data: string
+          p_itens: Json
+          p_motivo: string
+          p_observacao: string
+        }
+        Returns: number
+      }
       definir_escala: {
         Args: { p_intervalos: Json; p_profissional: string }
         Returns: number
@@ -846,6 +1212,7 @@ export type Database = {
         Args: { p_fim: string; p_inicio: string; p_motivo: string }
         Returns: number
       }
+      dia_no_mes: { Args: { p_dia: number; p_mes: string }; Returns: string }
       editar_atendimentos: {
         Args: {
           p_alcance: Database["public"]["Enums"]["alcance_serie"]
@@ -890,6 +1257,7 @@ export type Database = {
         Args: { p_linhas: Json; p_simular?: boolean }
         Returns: Json
       }
+      lancar_despesas_recorrentes: { Args: { p_ate: string }; Returns: number }
       modificado_no_app: {
         Args: { p_id: string; p_importado_em: string }
         Returns: boolean
@@ -915,6 +1283,18 @@ export type Database = {
         Args: { p_antigos: Json; p_plano: string }
         Returns: number
       }
+      registrar_pagamento: {
+        Args: {
+          p_data: string
+          p_forma: string
+          p_itens?: Json
+          p_observacao?: string
+          p_paciente?: string
+          p_plano?: string
+          p_valor: number
+        }
+        Returns: string
+      }
       relacionar_atendimentos: {
         Args: {
           p_base: string
@@ -931,6 +1311,14 @@ export type Database = {
           p_quantidade: number
         }
         Returns: string
+      }
+      saldo_do_atendimento: { Args: { p_id: string }; Returns: number }
+      total_em_aberto: {
+        Args: never
+        Returns: {
+          quantidade: number
+          valor: number
+        }[]
       }
       valor_do_plano: {
         Args: { p_area: string; p_plano: string }

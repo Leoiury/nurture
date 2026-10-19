@@ -243,6 +243,7 @@ export function PainelAtendimento({ id, aoFechar, aoEditar, mostrarLinkDoPacient
             {modo === "desmarcar" && (
               <FormDesmarcar
                 serie={dados.serie}
+                pago={dados.financeiro?.recebido ?? 0}
                 trabalhando={trabalhando}
                 aoCancelar={() => setModo("ver")}
                 aoConfirmar={(alcance, motivo) =>
@@ -262,6 +263,7 @@ export function PainelAtendimento({ id, aoFechar, aoEditar, mostrarLinkDoPacient
             {modo === "excluir" && (
               <FormExcluir
                 serie={dados.serie}
+                pago={dados.financeiro?.recebido ?? 0}
                 trabalhando={trabalhando}
                 aoCancelar={() => setModo("ver")}
                 aoConfirmar={(alcance, motivo) => executar(() => acoes.excluir(a.id, alcance, motivo), aoFechar)}
@@ -292,6 +294,14 @@ export function PainelAtendimento({ id, aoFechar, aoEditar, mostrarLinkDoPacient
               <dd>{a.tipo?.nome ?? "—"}</dd>
               <dt className="text-muted">Valor</dt>
               <dd>{a.valor != null ? moeda.format(a.valor) : "—"}</dd>
+              {dados.financeiro && (a.valor ?? 0) > 0 && (
+                <>
+                  <dt className="text-muted">Pagamento</dt>
+                  <dd>
+                    <SeloDoPagamento valor={a.valor ?? 0} {...dados.financeiro} />
+                  </dd>
+                </>
+              )}
               <dt className="text-muted">Status</dt>
               <dd>
                 {ROTULO_STATUS[a.status]}
@@ -464,13 +474,37 @@ function EscolhaDeAlcance({
   );
 }
 
+/** Situação do pagamento no painel (só para a direção). */
+function SeloDoPagamento({ valor, recebido, baixado }: { valor: number; recebido: number; baixado: number }) {
+  const falta = Math.max(0, valor - recebido - baixado);
+  const [rotulo, cor] =
+    falta < 0.005
+      ? [baixado > 0 ? "Encerrado (com baixa)" : "Pago", "bg-emerald-50 text-emerald-800"]
+      : recebido + baixado > 0
+        ? [`Pago em parte · falta ${moeda.format(falta)}`, "bg-amber-50 text-amber-800"]
+        : ["Em aberto", "bg-red-50 text-red-800"];
+  return <span className={`rounded-full px-2 py-0.5 text-xs ${cor}`}>{rotulo}</span>;
+}
+
+/** Aviso ao desmarcar/excluir um atendimento que já tem pagamento. */
+function AvisoDePago({ pago }: { pago: number }) {
+  if (pago <= 0) return null;
+  return (
+    <p role="note" className="rounded-xl bg-amber-50 px-3 py-2 text-amber-900 ring-1 ring-amber-200">
+      Este atendimento já tem {moeda.format(pago)} pago. O pagamento continua ligado a ele e vai aparecer em Financeiro → Pagamentos → A revisar.
+    </p>
+  );
+}
+
 function FormDesmarcar({
   serie,
+  pago,
   trabalhando,
   aoCancelar,
   aoConfirmar,
 }: {
   serie: Serie;
+  pago: number;
   trabalhando: boolean;
   aoCancelar: () => void;
   aoConfirmar: (alcance: Alcance, motivo: string) => void;
@@ -484,6 +518,7 @@ function FormDesmarcar({
   return (
     <section className="flex flex-col gap-3 rounded-2xl bg-black/[0.03] p-4" aria-label="Desmarcar atendimento">
       <p className="font-semibold">Desmarcar</p>
+      <AvisoDePago pago={pago} />
       <fieldset className="flex flex-col gap-1.5">
         <legend className="mb-1 text-xs font-semibold tracking-wide text-muted uppercase">Motivo</legend>
         {MOTIVOS_DESMARCACAO.map((m) => (
@@ -515,11 +550,13 @@ function FormDesmarcar({
 
 function FormExcluir({
   serie,
+  pago,
   trabalhando,
   aoCancelar,
   aoConfirmar,
 }: {
   serie: Serie;
+  pago: number;
   trabalhando: boolean;
   aoCancelar: () => void;
   aoConfirmar: (alcance: Alcance, motivo: string) => void;
@@ -534,6 +571,7 @@ function FormExcluir({
         O atendimento some da agenda, mas fica guardado com esta observação, a data e quem excluiu. Para faltas e cancelamentos, use
         “Desmarcar”.
       </p>
+      <AvisoDePago pago={pago} />
       <textarea
         value={motivo}
         onChange={(e) => setMotivo(e.target.value)}

@@ -9,12 +9,15 @@ const ITENS = [
   { href: "/profissionais", rotulo: "Profissionais" },
 ];
 
-export function NavPrincipal() {
+// Financeiro: só a direção.
+const ITENS_ADM = [{ href: "/financeiro", rotulo: "Financeiro" }];
+
+export function NavPrincipal({ adm }: { adm: boolean }) {
   const caminho = usePathname();
   return (
     // No celular, se não couber, só o menu rola (não a página).
     <nav className="flex min-w-0 gap-3 overflow-x-auto text-sm whitespace-nowrap sm:gap-4">
-      {ITENS.map((i) => {
+      {(adm ? [...ITENS, ...ITENS_ADM] : ITENS).map((i) => {
         const ativo = caminho === i.href || caminho.startsWith(`${i.href}/`);
         return (
           <Link
