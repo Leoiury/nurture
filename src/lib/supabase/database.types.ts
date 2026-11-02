@@ -91,6 +91,9 @@ export type Database = {
           criado_em: string
           excluido_em: string | null
           excluido_por: string | null
+          exclusao_motivo: string | null
+          exclusao_solicitada_em: string | null
+          exclusao_solicitada_por: string | null
           fim: string
           id: string
           id_legado: number | null
@@ -111,6 +114,9 @@ export type Database = {
           criado_em?: string
           excluido_em?: string | null
           excluido_por?: string | null
+          exclusao_motivo?: string | null
+          exclusao_solicitada_em?: string | null
+          exclusao_solicitada_por?: string | null
           fim: string
           id?: string
           id_legado?: number | null
@@ -131,6 +137,9 @@ export type Database = {
           criado_em?: string
           excluido_em?: string | null
           excluido_por?: string | null
+          exclusao_motivo?: string | null
+          exclusao_solicitada_em?: string | null
+          exclusao_solicitada_por?: string | null
           fim?: string
           id?: string
           id_legado?: number | null
@@ -1131,6 +1140,9 @@ export type Database = {
           criado_em: string | null
           excluido_em: string | null
           excluido_por: string | null
+          exclusao_motivo: string | null
+          exclusao_solicitada_em: string | null
+          exclusao_solicitada_por: string | null
           fim: string | null
           id: string | null
           id_legado: number | null
@@ -1150,6 +1162,9 @@ export type Database = {
           criado_em?: string | null
           excluido_em?: string | null
           excluido_por?: string | null
+          exclusao_motivo?: string | null
+          exclusao_solicitada_em?: string | null
+          exclusao_solicitada_por?: string | null
           fim?: string | null
           id?: string | null
           id_legado?: number | null
@@ -1169,6 +1184,9 @@ export type Database = {
           criado_em?: string | null
           excluido_em?: string | null
           excluido_por?: string | null
+          exclusao_motivo?: string | null
+          exclusao_solicitada_em?: string | null
+          exclusao_solicitada_por?: string | null
           fim?: string | null
           id?: string | null
           id_legado?: number | null
@@ -1350,6 +1368,7 @@ export type Database = {
         }
         Returns: string[]
       }
+      atendimentos_do_pedido: { Args: { p_id: string }; Returns: string[] }
       completar_serie: {
         Args: {
           p_desde: string
@@ -1359,6 +1378,7 @@ export type Database = {
         }
         Returns: number
       }
+      confirmar_exclusao: { Args: { p_id: string }; Returns: number }
       criar_atendimentos: {
         Args: {
           p_data_fim?: string
@@ -1437,6 +1457,13 @@ export type Database = {
         Args: { fim: string; inicio: string }
         Returns: string
       }
+      garantir_meus_atendimentos: {
+        Args: {
+          p_alcance: Database["public"]["Enums"]["alcance_serie"]
+          p_id: string
+        }
+        Returns: undefined
+      }
       gerar_guia: {
         Args: {
           p_atendimento: string
@@ -1478,10 +1505,68 @@ export type Database = {
         Args: { p_esperado: Json; p_id: string }
         Returns: boolean
       }
+      profissional_alterar_status: {
+        Args: {
+          p_id: string
+          p_status: Database["public"]["Enums"]["status_atendimento"]
+        }
+        Returns: undefined
+      }
+      profissional_criar_atendimentos: {
+        Args: {
+          p_data_fim?: string
+          p_duracao_min: number
+          p_frequencia?: Database["public"]["Enums"]["frequencia_recorrencia"]
+          p_inicios: string[]
+          p_observacao?: string
+          p_paciente_id: string
+          p_plano_id?: string
+          p_profissionais: string[]
+          p_sessoes?: number
+          p_status?: Database["public"]["Enums"]["status_atendimento"]
+          p_tipo_id?: string
+        }
+        Returns: string[]
+      }
+      profissional_desmarcar_atendimentos: {
+        Args: {
+          p_alcance: Database["public"]["Enums"]["alcance_serie"]
+          p_id: string
+          p_motivo: string
+        }
+        Returns: number
+      }
+      profissional_editar_atendimentos: {
+        Args: {
+          p_alcance: Database["public"]["Enums"]["alcance_serie"]
+          p_data: string
+          p_duracao_min: number
+          p_hora: string
+          p_id: string
+          p_paciente_id: string
+          p_plano_id?: string
+          p_profissionais: string[]
+          p_tipo_id?: string
+        }
+        Returns: number
+      }
+      profissional_mover_atendimento: {
+        Args: { p_id: string; p_inicio: string }
+        Returns: undefined
+      }
+      profissional_solicitar_exclusao: {
+        Args: {
+          p_alcance: Database["public"]["Enums"]["alcance_serie"]
+          p_id: string
+          p_motivo: string
+        }
+        Returns: number
+      }
       reajustar_plano: {
         Args: { p_antigos: Json; p_plano: string }
         Returns: number
       }
+      recusar_exclusao: { Args: { p_id: string }; Returns: number }
       registrar_pagamento: {
         Args: {
           p_data: string

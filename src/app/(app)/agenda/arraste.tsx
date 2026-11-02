@@ -11,6 +11,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type PointerEvent, type ReactNode } from "react";
 import type { AtendimentoAgenda } from "@/lib/agenda/dados";
 import { minutosNaPosicao, type Segmento } from "@/lib/agenda/layout";
+import type { OutroDoPaciente } from "@/lib/agenda/pessoal";
 
 export type AlvoDoArraste = { dia: string; profissionalId: string; minuto: number };
 
@@ -41,6 +42,8 @@ type Contexto = {
   modificador: boolean;
   /** Mensagem curta explicando o gesto certo. */
   dica: (texto: string) => void;
+  /** Calendário pessoal: horários dos pacientes com outros profissionais (cinza ao arrastar). */
+  outros: OutroDoPaciente[];
 };
 
 const ContextoDeArraste = createContext<Contexto | null>(null);
@@ -67,9 +70,12 @@ type Props = {
   children: ReactNode;
   aoSoltar: (atendimento: AtendimentoAgenda, de: string, alvo: AlvoDoArraste) => void;
   aoDica: (texto: string) => void;
+  outros?: OutroDoPaciente[];
 };
 
-export function ProvedorDeArraste({ children, aoSoltar, aoDica }: Props) {
+const SEM_OUTROS: OutroDoPaciente[] = [];
+
+export function ProvedorDeArraste({ children, aoSoltar, aoDica, outros = SEM_OUTROS }: Props) {
   const [estado, setEstadoReact] = useState<Estado | null>(null);
   // Espelho do estado para os eventos da janela lerem o valor atual sem efeitos
   // dentro de setState (o React pode executar atualizadores duas vezes).
@@ -243,8 +249,8 @@ export function ProvedorDeArraste({ children, aoSoltar, aoDica }: Props) {
   }, [arrastando]);
 
   const valor = useMemo<Contexto>(
-    () => ({ estado, iniciar, registrarColuna, cliqueSuprimido: () => suprimir.current, modificador, dica }),
-    [estado, iniciar, registrarColuna, modificador, dica],
+    () => ({ estado, iniciar, registrarColuna, cliqueSuprimido: () => suprimir.current, modificador, dica, outros }),
+    [estado, iniciar, registrarColuna, modificador, dica, outros],
   );
   return <ContextoDeArraste.Provider value={valor}>{children}</ContextoDeArraste.Provider>;
 }

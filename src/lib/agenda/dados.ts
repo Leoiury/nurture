@@ -51,6 +51,10 @@ export type AtendimentoAgenda = {
   aniversario?: boolean;
   /** Divergência com um atendimento do outro sistema (texto para o card). */
   divergencia?: string;
+  /** Calendário pessoal: já terminou e ninguém registrou se aconteceu (ícone "!"). */
+  pendente?: boolean;
+  /** Um profissional pediu a exclusão: fica apagado até a recepção ou um ADM decidir. */
+  exclusaoSolicitada?: boolean;
   /** Só no planejamento: como o atendimento difere da agenda real. */
   rascunho?: "novo" | "alterado" | "desmarcado";
 };
@@ -86,11 +90,11 @@ export async function carregarDiasEspeciais(primeiroDia: string, ultimoDia: stri
 }
 
 const SELECAO_DA_AGENDA =
-  "id, id_legado, paciente_id, tipo_id, inicio, fim, status, valor, recorrencia_id, profissionais:atendimento_profissionais(profissional:profissionais(id, nome)), paciente:pacientes(nome, nivel_cadastral), plano:planos(nome, cor, exige_guia), tipo:tipos_atendimento(nome, area, cor)";
+  "id, id_legado, paciente_id, tipo_id, inicio, fim, status, valor, recorrencia_id, exclusao_solicitada_em, profissionais:atendimento_profissionais(profissional:profissionais(id, nome)), paciente:pacientes(nome, nivel_cadastral), plano:planos(nome, cor, exige_guia), tipo:tipos_atendimento(nome, area, cor)";
 
 // A mesma seleção sem valores, para o perfil profissional.
 const SELECAO_DA_AGENDA_SEM_VALOR =
-  "id, id_legado, paciente_id, tipo_id, inicio, fim, status, recorrencia_id, profissionais:atendimento_profissionais(profissional:profissionais(id, nome)), paciente:pacientes(nome, nivel_cadastral), plano:planos_equipe(nome, cor, exige_guia), tipo:tipos_atendimento(nome, area, cor)" as typeof SELECAO_DA_AGENDA;
+  "id, id_legado, paciente_id, tipo_id, inicio, fim, status, recorrencia_id, exclusao_solicitada_em, profissionais:atendimento_profissionais(profissional:profissionais(id, nome)), paciente:pacientes(nome, nivel_cadastral), plano:planos_equipe(nome, cor, exige_guia), tipo:tipos_atendimento(nome, area, cor)" as typeof SELECAO_DA_AGENDA;
 
 type LinhaDaAgenda = {
   id: string;
@@ -106,6 +110,7 @@ type LinhaDaAgenda = {
   plano: { nome: string; cor: string; exige_guia: boolean } | null;
   tipo: { nome: string; area: string | null; cor: string | null } | null;
   valor: number | null;
+  exclusao_solicitada_em: string | null;
 };
 
 function paraAgenda(a: LinhaDaAgenda): AtendimentoAgenda {
@@ -132,6 +137,7 @@ function paraAgenda(a: LinhaDaAgenda): AtendimentoAgenda {
     importado: a.id_legado !== null,
     // Na visão sem valores, o campo nem vem: o filtro "sem valor" não se aplica.
     semValor: a.valor === null,
+    exclusaoSolicitada: !!a.exclusao_solicitada_em,
   };
 }
 

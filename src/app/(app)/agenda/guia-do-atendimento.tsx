@@ -104,7 +104,7 @@ export function GuiaDoAtendimento({ atendimentoId, status, versao, aoAlterar }: 
                 Renovar guia
               </button>
             )}
-            {status !== "desmarcado" && (
+            {guia.podeRelacionar && status !== "desmarcado" && (
               <button type="button" onClick={() => setModo("relacionar")} className={botaoSecundario}>
                 Relacionar atendimentos
               </button>

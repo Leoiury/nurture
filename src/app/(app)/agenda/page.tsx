@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { carregarAgenda, carregarAtendimentosCitados, carregarLembretes } from "@/lib/agenda/dados";
+import { separarCalendarioPessoal } from "@/lib/agenda/pessoal";
 import { sobreAtendimento, type Operacao } from "@/lib/agenda/planejamento";
-import { ehDataValida, hoje, inicioDaSemana, somarDias } from "@/lib/agenda/tempo";
+import { ehDataValida, hoje, inicioDaSemana, partesNoFuso, somarDias } from "@/lib/agenda/tempo";
 import { lerVisao, sufixoDaVisao, type Visao } from "@/lib/agenda/visao";
-import { ehAdm as usuarioEhAdm } from "@/lib/auth/usuario";
+import { ehAdm as usuarioEhAdm, usuarioAtual } from "@/lib/auth/usuario";
 import { createClient } from "@/lib/supabase/server";
 import { AgendaGrade } from "./agenda-grade";
 import { Navegacao } from "./navegacao";
@@ -16,7 +17,10 @@ export default async function AgendaPage({ searchParams }: PageProps<"/agenda">)
   const dataHoje = hoje();
   const dia = typeof params.dia === "string" && ehDataValida(params.dia) ? params.dia : null;
   const semanaParam = typeof params.semana === "string" && ehDataValida(params.semana) ? params.semana : null;
-  const visao = lerVisao(params.visao);
+  // Perfil profissional: só a própria coluna, com os dias lado a lado (colunas = dias).
+  const usuario = await usuarioAtual();
+  const pessoal = usuario?.perfil === "profissional";
+  const visao = pessoal ? "lado" : lerVisao(params.visao);
   const referencia = dia ?? semanaParam ?? dataHoje;
   const segunda = inicioDaSemana(referencia);
 
@@ -26,12 +30,15 @@ export default async function AgendaPage({ searchParams }: PageProps<"/agenda">)
   if (noPlanejamento && !ehAdm) redirect("/agenda");
 
   const semana = Array.from({ length: 7 }, (_, i) => somarDias(segunda, i));
-  const [{ profissionais, atendimentos, especiais }, rascunho, lembretes] = await Promise.all([
+  const [{ profissionais: todosOsProfissionais, atendimentos: daSemana, especiais }, rascunho, lembretes] = await Promise.all([
     carregarAgenda(semana[0], semana[6]),
     noPlanejamento ? supabase.from("planejamento").select("operacoes").maybeSingle() : null,
     carregarLembretes(dataHoje, dia ?? semana[0], dia ?? semana[6]),
   ]);
   if (rascunho?.error) throw rascunho.error;
+  const calendario = pessoal ? separarCalendarioPessoal(daSemana, usuario.profissionalId ?? "", partesNoFuso(new Date().toISOString())) : null;
+  const atendimentos = calendario?.meus ?? daSemana;
+  const profissionais = pessoal ? todosOsProfissionais.filter((p) => p.id === usuario.profissionalId) : todosOsProfissionais;
   const operacoes = (rascunho?.data?.operacoes ?? []) as unknown as Operacao[];
 
   // No planejamento, os atendimentos citados pelo rascunho podem estar em outra semana
@@ -84,6 +91,7 @@ export default async function AgendaPage({ searchParams }: PageProps<"/agenda">)
         atendimentos={dia ? atendimentos.filter((a) => a.data === dia) : atendimentos}
         especiais={especiais}
         lembretes={lembretes}
+        pessoal={calendario ? { outros: calendario.outros } : undefined}
         planejamento={noPlanejamento ? { operacoes, base, urlSair: url(visao, false) } : undefined}
         urlDoPlanejamento={ehAdm && !noPlanejamento ? url(visao, true) : undefined}
         navegacao={<Navegacao referencia={referencia} dia={dia} hoje={dataHoje} visao={visao} planejamento={noPlanejamento} />}

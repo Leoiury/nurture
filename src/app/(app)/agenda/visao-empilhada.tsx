@@ -314,7 +314,7 @@ function Card({ atendimento: a, modo, top, altura, ampliada, profissionalId, aoA
       data-atendimento={a.id}
       className={`pointer-events-auto absolute overflow-hidden rounded-xl text-left text-foreground ring-1 ring-black/[0.04] transition hover:z-10 hover:-translate-y-px hover:shadow-md focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-[var(--accent)] ${
         a.esmaecido ? "opacity-25 grayscale" : desmarcado ? "opacity-50" : sendoArrastado ? "opacity-30" : ""
-      } ${a.status === "faltou" ? "ring-2 ring-[var(--danger)]" : ""} ${a.rascunho ? MARCA_DO_RASCUNHO : ""}`}
+      } ${a.status === "faltou" ? "ring-2 ring-[var(--danger)]" : a.pendente ? "ring-2 ring-amber-500" : ""} ${a.rascunho ? MARCA_DO_RASCUNHO : ""}`}
       data-rascunho={a.rascunho}
       data-esmaecido={a.esmaecido ? "" : undefined}
       style={{
@@ -326,6 +326,11 @@ function Card({ atendimento: a, modo, top, altura, ampliada, profissionalId, aoA
     >
       <span className="absolute inset-y-1 left-1 w-1 rounded-full" style={{ background: cor }} aria-hidden />
       {a.divergencia && <span className="absolute right-1 bottom-1 size-2 rounded-full bg-red-600 ring-2 ring-white" aria-hidden />}
+{a.pendente && (
+        <span data-pendente title="Já terminou e ainda não tem registro" className="absolute right-1 bottom-1 flex size-4 items-center justify-center rounded-full bg-amber-500 text-[11px] leading-none font-bold text-white" aria-hidden>
+          !
+        </span>
+      )}
       {(a.guia || a.profissionalIds.length > 1) && (
         <span className="absolute top-1 right-1 flex items-center gap-1">
           {/* Atendimento conjunto: mais de um profissional (o card aparece em cada coluna). */}

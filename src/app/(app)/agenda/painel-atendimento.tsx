@@ -12,7 +12,9 @@ import { FUSO, partesNoFuso, formatarHora } from "@/lib/agenda/tempo";
 import {
   adicionarObservacao,
   alterarStatus,
+  confirmarExclusao,
   detalhesAtendimento,
+  recusarExclusao,
   type Alcance,
   type DetalhesAtendimento,
   type Resultado,
@@ -190,8 +192,30 @@ export function PainelAtendimento({ id, aoFechar, aoEditar, mostrarLinkDoPacient
               </section>
             )}
 
+            {/* Pedido de exclusão de um profissional: a recepção ou um ADM decide. */}
+            {a.exclusao_solicitada_em && !dados.semValores && (
+              <section aria-label="Pedido de exclusão" className="flex flex-col gap-2 rounded-xl bg-red-50 px-3 py-2.5 ring-1 ring-red-200">
+                <p className="font-semibold text-danger">Exclusão solicitada pelo profissional</p>
+                <p>{a.exclusao_motivo}</p>
+                {dados.pedido > 1 && <p className="text-xs text-muted">O pedido inclui {dados.pedido} atendimentos desta série.</p>}
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    disabled={trabalhando}
+                    onClick={() => executar(() => confirmarExclusao(a.id), aoFechar)}
+                    className="rounded-full bg-danger px-4 py-2 text-sm font-medium text-white hover:brightness-110 disabled:opacity-50"
+                  >
+                    Confirmar exclusão
+                  </button>
+                  <button type="button" disabled={trabalhando} onClick={() => executar(() => recusarExclusao(a.id), recarregar)} className={botaoSecundario}>
+                    Manter atendimento
+                  </button>
+                </div>
+              </section>
+            )}
+
             {/* Ações */}
-            {modo === "ver" && (
+            {modo === "ver" && dados.podeAlterar && (
               <section className="flex flex-col gap-3">
                 <div className="flex flex-wrap gap-2">
                   <button type="button" onClick={editar} className={botaoPrimario}>
@@ -240,6 +264,12 @@ export function PainelAtendimento({ id, aoFechar, aoEditar, mostrarLinkDoPacient
               </section>
             )}
 
+            {modo !== "ver" && dados.semValores && a.profissionais.length > 1 && (
+              <p role="note" className="rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-900 ring-1 ring-amber-200">
+                Atendimento em conjunto: isto também afeta {a.profissionais.map((x) => x.profissional.nome).join(", ")}.
+              </p>
+            )}
+
             {modo === "desmarcar" && (
               <FormDesmarcar
                 serie={dados.serie}
@@ -262,6 +292,7 @@ export function PainelAtendimento({ id, aoFechar, aoEditar, mostrarLinkDoPacient
 
             {modo === "excluir" && (
               <FormExcluir
+                comoPedido={dados.semValores}
                 serie={dados.serie}
                 pago={dados.financeiro?.recebido ?? 0}
                 trabalhando={trabalhando}
@@ -410,7 +441,7 @@ export function PainelAtendimento({ id, aoFechar, aoEditar, mostrarLinkDoPacient
             )}
 
             {/* Excluir: raro, fica discreto no fim */}
-            {modo === "ver" && (
+            {modo === "ver" && dados.podeAlterar && (
               <button type="button" onClick={() => setModo("excluir")} className="self-start text-xs text-muted underline-offset-2 hover:text-danger hover:underline">
                 Excluir atendimento…
               </button>
@@ -553,12 +584,15 @@ function FormDesmarcar({
 }
 
 function FormExcluir({
+  comoPedido,
   serie,
   pago,
   trabalhando,
   aoCancelar,
   aoConfirmar,
 }: {
+  /** Perfil profissional: a exclusão só vale depois de confirmada pela recepção ou por um ADM. */
+  comoPedido: boolean;
   serie: Serie;
   pago: number;
   trabalhando: boolean;
@@ -572,8 +606,9 @@ function FormExcluir({
     <section className="flex flex-col gap-3 rounded-2xl bg-red-50 p-4 ring-1 ring-red-200" aria-label="Excluir atendimento">
       <p className="font-semibold text-danger">Excluir atendimento</p>
       <p className="text-muted">
-        O atendimento some da agenda, mas fica guardado com esta observação, a data e quem excluiu. Para faltas e cancelamentos, use
-        “Desmarcar”.
+        {comoPedido
+          ? "O atendimento sai do seu calendário, e a recepção confirma a exclusão. Para faltas e cancelamentos, use “Desmarcar”."
+          : "O atendimento some da agenda, mas fica guardado com esta observação, a data e quem excluiu. Para faltas e cancelamentos, use “Desmarcar”."}
       </p>
       <AvisoDePago pago={pago} />
       <textarea
