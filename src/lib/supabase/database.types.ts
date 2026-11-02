@@ -34,6 +34,162 @@ export type Database = {
   }
   public: {
     Tables: {
+      anamnese_perguntas: {
+        Row: {
+          atualizado_em: string
+          criado_em: string
+          id: string
+          ordem: number
+          profissional_id: string
+          texto: string
+        }
+        Insert: {
+          atualizado_em?: string
+          criado_em?: string
+          id?: string
+          ordem: number
+          profissional_id: string
+          texto: string
+        }
+        Update: {
+          atualizado_em?: string
+          criado_em?: string
+          id?: string
+          ordem?: number
+          profissional_id?: string
+          texto?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "anamnese_perguntas_profissional_id_fkey"
+            columns: ["profissional_id"]
+            isOneToOne: false
+            referencedRelation: "profissionais"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      anamneses: {
+        Row: {
+          atualizado_em: string
+          autor_id: string | null
+          conteudo: Json
+          criado_em: string
+          id: string
+          observacoes: string
+          paciente_id: string
+          profissional_id: string
+          salva_em: string | null
+          versao: number
+        }
+        Insert: {
+          atualizado_em?: string
+          autor_id?: string | null
+          conteudo?: Json
+          criado_em?: string
+          id?: string
+          observacoes?: string
+          paciente_id: string
+          profissional_id: string
+          salva_em?: string | null
+          versao?: number
+        }
+        Update: {
+          atualizado_em?: string
+          autor_id?: string | null
+          conteudo?: Json
+          criado_em?: string
+          id?: string
+          observacoes?: string
+          paciente_id?: string
+          profissional_id?: string
+          salva_em?: string | null
+          versao?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "anamneses_paciente_id_fkey"
+            columns: ["paciente_id"]
+            isOneToOne: false
+            referencedRelation: "pacientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "anamneses_profissional_id_fkey"
+            columns: ["profissional_id"]
+            isOneToOne: false
+            referencedRelation: "profissionais"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      anamneses_rascunhos: {
+        Row: {
+          anamnese_id: string
+          atualizado_em: string
+          conteudo: Json
+          observacoes: string
+        }
+        Insert: {
+          anamnese_id: string
+          atualizado_em?: string
+          conteudo: Json
+          observacoes: string
+        }
+        Update: {
+          anamnese_id?: string
+          atualizado_em?: string
+          conteudo?: Json
+          observacoes?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "anamneses_rascunhos_anamnese_id_fkey"
+            columns: ["anamnese_id"]
+            isOneToOne: true
+            referencedRelation: "anamneses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      anamneses_versoes: {
+        Row: {
+          anamnese_id: string
+          autor_id: string | null
+          conteudo: Json
+          id: number
+          observacoes: string
+          salva_em: string
+          versao: number
+        }
+        Insert: {
+          anamnese_id: string
+          autor_id?: string | null
+          conteudo: Json
+          id?: never
+          observacoes: string
+          salva_em?: string
+          versao: number
+        }
+        Update: {
+          anamnese_id?: string
+          autor_id?: string | null
+          conteudo?: Json
+          id?: never
+          observacoes?: string
+          salva_em?: string
+          versao?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "anamneses_versoes_anamnese_id_fkey"
+            columns: ["anamnese_id"]
+            isOneToOne: false
+            referencedRelation: "anamneses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       atendimento_profissionais: {
         Row: {
           atendimento_id: string
@@ -1413,6 +1569,10 @@ export type Database = {
         Args: { p_intervalos: Json; p_profissional: string }
         Returns: number
       }
+      descartar_rascunho_anamnese: {
+        Args: { p_id: string }
+        Returns: undefined
+      }
       desmarcar_atendimentos: {
         Args: {
           p_alcance: Database["public"]["Enums"]["alcance_serie"]
@@ -1457,6 +1617,7 @@ export type Database = {
         Args: { fim: string; inicio: string }
         Returns: string
       }
+      garantir_autor_da_anamnese: { Args: { p_id: string }; Returns: undefined }
       garantir_meus_atendimentos: {
         Args: {
           p_alcance: Database["public"]["Enums"]["alcance_serie"]
@@ -1474,10 +1635,15 @@ export type Database = {
         }
         Returns: string
       }
+      guardar_rascunho_anamnese: {
+        Args: { p_conteudo: Json; p_id: string; p_observacoes: string }
+        Returns: undefined
+      }
       importar_agenda_legado: {
         Args: { p_linhas: Json; p_simular?: boolean }
         Returns: Json
       }
+      iniciar_anamnese: { Args: { p_paciente: string }; Returns: string }
       lancar_despesas_recorrentes: { Args: { p_ate: string }; Returns: number }
       meu_profissional: { Args: never; Returns: string }
       modificado_no_app: {
@@ -1505,6 +1671,7 @@ export type Database = {
         Args: { p_esperado: Json; p_id: string }
         Returns: boolean
       }
+      pode_ver_clinico: { Args: never; Returns: boolean }
       profissional_alterar_status: {
         Args: {
           p_id: string
@@ -1597,6 +1764,7 @@ export type Database = {
         Returns: string
       }
       saldo_do_atendimento: { Args: { p_id: string }; Returns: number }
+      salvar_anamnese: { Args: { p_id: string }; Returns: number }
       total_em_aberto: {
         Args: never
         Returns: {

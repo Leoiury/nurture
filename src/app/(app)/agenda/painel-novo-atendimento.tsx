@@ -4,7 +4,7 @@
 // um existente. Padrões automáticos (sempre editáveis): o plano vem do paciente;
 // duração e valor vêm do plano; o tipo vem do primeiro profissional (tipos que ele atende).
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ROTULO_TIPO_DIA, semExpediente, type DiaEspecial } from "@/lib/agenda/feriados";
 import {
   MAXIMO_DE_SESSOES,
@@ -55,7 +55,7 @@ export type DadosEdicao = {
 type Props = {
   aoFechar: () => void;
   /** Pré-preenchimento (ex.: ao clicar num horário vazio da grade). */
-  inicial?: { data?: string; hora?: string; profissionalId?: string };
+  inicial?: { data?: string; hora?: string; profissionalId?: string; pacienteId?: string };
   /** Se informado, o painel edita este atendimento em vez de criar um novo. */
   edicao?: DadosEdicao;
 };
@@ -139,6 +139,16 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
     // Só na abertura: o painel é recriado (key) a cada novo horário/edição.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Aberto a partir de um paciente (ex.: na anamnese): já vem escolhido, com o plano dele.
+  const pacienteAplicado = useRef(false);
+  useEffect(() => {
+    if (!opcoes || !inicial?.pacienteId || pacienteAplicado.current) return;
+    pacienteAplicado.current = true;
+    const p = opcoes.pacientes.find((x) => x.id === inicial.pacienteId);
+    if (p) escolherPaciente(p.id, p.nome, p.plano_id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- só quando as opções chegam
+  }, [opcoes]);
 
   useEffect(() => {
     const aoTeclar = (e: KeyboardEvent) => {
@@ -907,7 +917,7 @@ function PreviaDaSerie({ datas, puladas, especiais, comConflito, semDataFinal }:
 
 type PacienteCriado = OpcoesDoFormulario["pacientes"][number];
 
-function CadastroRapido({
+export function CadastroRapido({
   nomeInicial,
   planos,
   aoCancelar,

@@ -1,5 +1,6 @@
+import Link from "next/link";
 import type { Metadata } from "next";
-import { ehProfissional } from "@/lib/auth/usuario";
+import { ehProfissional, usuarioAtual } from "@/lib/auth/usuario";
 import { createClient } from "@/lib/supabase/server";
 import { ListaDePacientes, type PacienteDaLista } from "./lista-de-pacientes";
 
@@ -12,6 +13,7 @@ const LISTA_SEM_VALOR = "id, nome, responsavel, data_nascimento, celular, ativo,
 export default async function PacientesPage({ searchParams }: PageProps<"/pacientes">) {
   const { visao } = await searchParams;
   const supabase = await createClient();
+  const eu = await usuarioAtual();
   const { data, error } = await supabase
     .from("pacientes")
     .select((await ehProfissional()) ? LISTA_SEM_VALOR : LISTA)
@@ -33,6 +35,11 @@ export default async function PacientesPage({ searchParams }: PageProps<"/pacien
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 px-4 py-6 sm:px-6">
+      {eu?.profissionalId && eu.perfil !== "limitado" && (
+        <Link href="/anamnese" className="self-end rounded-full bg-black/[0.04] px-4 py-2 text-sm font-medium hover:bg-black/[0.07]">
+          Nova anamnese
+        </Link>
+      )}
       <ListaDePacientes pacientes={pacientes} visao={visao === "cadastro" ? "cadastro" : "lista"} />
     </div>
   );
