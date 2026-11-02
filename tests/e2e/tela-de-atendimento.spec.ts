@@ -277,6 +277,72 @@ test("quem não atende lê os salvos, mas não escreve; nada é apagado direto",
   expect((await admin.from("registros_versoes").select("versao").eq("registro_id", registro!.id)).data).toHaveLength(1);
 });
 
+test("ADM que também é profissional atende, com as mesmas funções, e vê os valores", async ({ browser }) => {
+  const { data: prof } = await admin.from("profissionais").insert({ nome: `Direção Atendimento ${n}` }).select("id").single();
+  await admin.from("atendimento_topicos").insert({ profissional_id: prof!.id, texto: "Evolução", ordem: 1 });
+  const direcao = await novaConta("direcao", "adm", prof!.id);
+  const segunda = segundaDaqui(34);
+  const dela = await novoAtendimento([prof!.id], segunda);
+  const deOutro = await novoAtendimento([colegaId], segunda, "14:00");
+
+  const page = await entrar(browser, direcao);
+
+  // Na agenda completa, o atendimento dela oferece realizar.
+  await page.goto(`/agenda?semana=${segunda}`);
+  await page.locator(`[data-atendimento="${dela}"]`).first().click();
+  await expect(painelDetalhes(page).getByText("Valor", { exact: true })).toBeVisible();
+  await painelDetalhes(page).getByRole("link", { name: "Realizar atendimento" }).click();
+  await expect(page).toHaveURL(new RegExp(`/atendimento/${dela}`));
+
+  await campo(page, "Evolução").click();
+  await page.keyboard.type("Registro da direção");
+  await guardado(page);
+  await page.getByRole("button", { name: "Finalizar atendimento" }).click();
+  await expect(page.getByRole("alertdialog", { name: "Atendimento finalizado" })).toBeVisible();
+  expect((await admin.from("atendimentos").select("status").eq("id", dela).single()).data!.status).toBe("atendido");
+  await page.getByRole("alertdialog").getByRole("button", { name: "Ver o registro" }).click();
+  await expect(page.getByRole("region", { name: "Evolução" })).toContainText("Registro da direção");
+
+  // Depois de começar, continua ou recomeça, também pelo calendário pessoal.
+  await page.goto(`/agenda?semana=${segunda}&visao=pessoal`);
+  await page.locator(`[data-atendimento="${dela}"]`).first().click();
+  await expect(painelDetalhes(page).getByRole("link", { name: "Continuar atendimento" })).toBeVisible();
+  await expect(painelDetalhes(page).getByRole("button", { name: "Recomeçar atendimento" })).toBeVisible();
+
+  // No atendimento de outro profissional, ela administra, mas o registro não é dela.
+  await page.goto(`/agenda?semana=${segunda}`);
+  await page.locator(`[data-atendimento="${deOutro}"]`).first().click();
+  await expect(painelDetalhes(page).getByRole("button", { name: "Editar" })).toBeVisible();
+  await expect(painelDetalhes(page).getByRole("link", { name: /Realizar atendimento|Continuar atendimento/ })).toHaveCount(0);
+  expect((await direcao.api.rpc("guardar_rascunho_registro", { p_atendimento: deOutro, p_conteudo: {} })).error?.message).toContain("próprios atendimentos");
+
+  // Anamnese e modelos também são dela.
+  await page.goto("/conta");
+  await expect(page.getByRole("link", { name: "Editar anamnese" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Editar tópicos" })).toBeVisible();
+  const anamnese = await direcao.api.rpc("iniciar_anamnese", { p_paciente: pacienteId });
+  expect(anamnese.error).toBeNull();
+  await page.goto(`/anamnese/${anamnese.data}`);
+  await expect(page.getByRole("button", { name: "Salvar no histórico" })).toBeVisible();
+  await page.context().close();
+});
+
+test("ADM sem profissional vinculado lê, mas não atende", async ({ browser }) => {
+  const id = await novoAtendimento([meuId], segundaDaqui(35));
+  const conteudo = { modelo: "relatorio", topicos: [], relatorio: null, observacoes: null };
+  expect((await eu.api.rpc("guardar_rascunho_registro", { p_atendimento: id, p_conteudo: conteudo })).error).toBeNull();
+  expect((await eu.api.rpc("salvar_registro", { p_atendimento: id })).error).toBeNull();
+
+  const adm = await novaConta("adm", "adm", null);
+  expect((await adm.api.rpc("guardar_rascunho_registro", { p_atendimento: id, p_conteudo: conteudo })).error?.message).toContain("profissional vinculado");
+  const page = await entrar(browser, adm);
+  await page.goto(`/agenda?semana=${segundaDaqui(35)}`);
+  await page.locator(`[data-atendimento="${id}"]`).first().click();
+  await expect(painelDetalhes(page).getByRole("link", { name: "Ver registros" })).toBeVisible();
+  await expect(painelDetalhes(page).getByRole("link", { name: "Realizar atendimento" })).toHaveCount(0);
+  await page.context().close();
+});
+
 test("a recepção e quem está sem login não veem nada", async ({ browser }) => {
   const { data: registro } = await admin.from("registros_atendimento").select("atendimento_id").limit(1).single();
   const anonimo = novoCliente(env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY);
