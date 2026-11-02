@@ -1,6 +1,9 @@
 // Conteúdo do registro de um atendimento. Os textos são documentos do editor (JSON):
 // assim, o que é exibido passa sempre pelas mesmas regras de formatação do editor.
 
+export const CORES_DO_TEXTO = ["#b91c1c", "#c2410c", "#15803d", "#1d4ed8", "#7e22ce"];
+export const CORES_DE_FUNDO = ["#fef08a", "#bbf7d0", "#bfdbfe", "#fbcfe8", "#fed7aa"];
+
 export type Documento = {
   type: string;
   text?: string;

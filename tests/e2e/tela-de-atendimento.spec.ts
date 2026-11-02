@@ -124,6 +124,14 @@ test("realiza o atendimento: formata, alterna o modelo, continua, recomeça e fi
   await page.getByRole("button", { name: "Sublinhado colorido: #b91c1c" }).click();
   await expect(evolucao.locator("u[data-sublinhado='#b91c1c']")).toBeVisible();
 
+  // A formatação sobrevive a salvar e reabrir (cores inclusive).
+  await guardado(page);
+  await page.reload();
+  await expect(campo(page, "Evolução").locator("strong")).toHaveText("Texto importante");
+  await expect(campo(page, "Evolução").locator("span[data-cor='#1d4ed8']")).toBeVisible();
+  await expect(campo(page, "Evolução").locator("mark[data-fundo='#fef08a']")).toBeVisible();
+  await expect(campo(page, "Evolução").locator("u[data-sublinhado='#b91c1c']")).toBeVisible();
+
   // Listas e linha horizontal.
   await campo(page, "Conduta").click();
   await page.getByRole("button", { name: "Lista com marcadores" }).click();

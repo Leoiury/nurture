@@ -18,7 +18,8 @@ import { dadosDeEdicao } from "../../agenda/painel-atendimento";
 import { PainelNovoAtendimento } from "../../agenda/painel-novo-atendimento";
 import { definirModeloPreferido, guardarRegistro, salvarRegistro } from "../actions";
 import { BarraDeFormatacao, EditorDeTexto } from "../editor-de-texto";
-import { horarioDoCabecalho, type CabecalhoDoAtendimento } from "./leitura";
+import { AcoesDeExportacao } from "../exportacao";
+import { dadosDoDocumento, horarioDoCabecalho, type CabecalhoDoAtendimento } from "./leitura";
 
 const ROTULO_GUIA: Record<SituacaoDaGuia, string> = { ok: "em dia", vencendo: "perto do fim", falta: "falta guia" };
 
@@ -32,9 +33,11 @@ type Props = {
   /** Já salvo: esta edição gera uma nova versão. */
   versao: number;
   statusAtual: Status;
+  /** Nome de quem está escrevendo, para os documentos exportados. */
+  profissional: string;
 };
 
-export function TelaDoAtendimento({ id, cabecalho, guia, sessaoDaGuia, detalhes, conteudoInicial, versao, statusAtual }: Props) {
+export function TelaDoAtendimento({ id, cabecalho, guia, sessaoDaGuia, detalhes, conteudoInicial, versao, statusAtual, profissional }: Props) {
   const router = useRouter();
   const [modelo, setModelo] = useState<ModeloDoRegistro>(conteudoInicial.modelo);
   const [editorAtivo, setEditorAtivo] = useState<Editor | null>(null);
@@ -110,7 +113,10 @@ export function TelaDoAtendimento({ id, cabecalho, guia, sessaoDaGuia, detalhes,
             </button>
           </div>
         </div>
-        <BarraDeFormatacao editor={editorAtivo} />
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <BarraDeFormatacao editor={editorAtivo} />
+          <AcoesDeExportacao dados={dadosDoDocumento(cabecalho, profissional)} obterConteudo={() => atual.current} />
+        </div>
       </header>
 
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-4 py-6 pb-28 sm:px-6">

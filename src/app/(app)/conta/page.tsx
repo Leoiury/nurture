@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { usuarioAtual } from "@/lib/auth/usuario";
 import { createClient } from "@/lib/supabase/server";
+import { PastaDeExportacao } from "./pasta-de-exportacao";
 import { TrocarSenha } from "./trocar-senha";
 
 export const metadata: Metadata = { title: "Minha conta · Nurture" };
@@ -55,6 +56,7 @@ export default async function ContaPage() {
           </Link>
         </section>
       )}
+      {u.profissionalId && u.perfil !== "limitado" && <PastaDeExportacao />}
       <TrocarSenha />
     </div>
   );

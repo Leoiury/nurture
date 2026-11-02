@@ -67,6 +67,7 @@ export default async function AtendimentoPage({ params, searchParams }: PageProp
         conteudoInicial={conteudo}
         versao={meu?.versao ?? 0}
         statusAtual={a.status}
+        profissional={a.profissionais.find((p) => p.profissional.id === eu?.profissionalId)?.profissional.nome ?? ""}
       />
     );
   }

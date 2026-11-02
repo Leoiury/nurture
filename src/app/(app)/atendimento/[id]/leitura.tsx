@@ -5,8 +5,10 @@
 import Link from "next/link";
 import { useState } from "react";
 import type { ConteudoDoRegistro } from "@/lib/atendimento/conteudo";
-import { FUSO } from "@/lib/agenda/tempo";
+import type { DadosDoDocumento } from "@/lib/atendimento/exportar";
+import { FUSO, partesNoFuso } from "@/lib/agenda/tempo";
 import { TextoDoRegistro } from "../editor-de-texto";
+import { AcoesDeExportacao } from "../exportacao";
 
 export type RegistroParaLer = {
   profissionalId: string;
@@ -22,6 +24,13 @@ const hora = new Intl.DateTimeFormat("pt-BR", { timeZone: FUSO, hour: "2-digit",
 const dataHoraCurta = new Intl.DateTimeFormat("pt-BR", { timeZone: FUSO, day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
 export const horarioDoCabecalho = (c: CabecalhoDoAtendimento) => `${dataHora.format(new Date(c.inicio))} – ${hora.format(new Date(c.fim))}`;
+
+export const dadosDoDocumento = (c: CabecalhoDoAtendimento, profissional: string): DadosDoDocumento => ({
+  paciente: c.paciente.nome,
+  quando: horarioDoCabecalho(c),
+  data: partesNoFuso(c.inicio).data,
+  profissional,
+});
 
 type Props = {
   id: string;
@@ -101,7 +110,10 @@ export function LeituraDosRegistros({ id, cabecalho, registros, profissionalInic
         {registro && exibida && (
           // A chave recria os textos ao trocar de versão ou de profissional.
           <div key={`${registro.profissionalId}${exibida.versao}`} className="flex flex-col gap-4">
-            {registros.length === 1 && <p className="text-sm text-muted">Registro de {registro.profissional}</p>}
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              {registros.length === 1 ? <p className="text-sm text-muted">Registro de {registro.profissional}</p> : <span />}
+              <AcoesDeExportacao dados={dadosDoDocumento(cabecalho, registro.profissional)} obterConteudo={() => exibida.conteudo} />
+            </div>
             {exibida.versao !== registro.versaoAtual && (
               <p role="status" className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900 ring-1 ring-amber-200">
                 Versão {exibida.versao} de {registro.versaoAtual}.

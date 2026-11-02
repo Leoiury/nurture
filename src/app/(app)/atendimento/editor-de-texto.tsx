@@ -7,10 +7,7 @@
 import { EditorContent, Mark, mergeAttributes, useEditor, useEditorState, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { useState, type ReactNode } from "react";
-import type { Documento } from "@/lib/atendimento/conteudo";
-
-export const CORES_DO_TEXTO = ["#b91c1c", "#c2410c", "#15803d", "#1d4ed8", "#7e22ce"];
-export const CORES_DE_FUNDO = ["#fef08a", "#bbf7d0", "#bfdbfe", "#fbcfe8", "#fed7aa"];
+import { CORES_DE_FUNDO, CORES_DO_TEXTO, type Documento } from "@/lib/atendimento/conteudo";
 
 const naPaleta = (paleta: string[], cor: unknown) => (typeof cor === "string" && paleta.includes(cor) ? cor : null);
 
@@ -69,7 +66,9 @@ export function EditorDeTexto({ valor, rotulo, aoMudar, aoFocar, aoSair }: Edito
     // O servidor não renderiza o editor (evita diferença na hidratação).
     immediatelyRender: false,
     editorProps: { attributes: { "aria-label": rotulo, role: "textbox", "aria-multiline": "true", class: `min-h-24 ${ESTILO_DO_TEXTO}` } },
-    onUpdate: ({ editor: e }) => aoMudar(e.getJSON() as Documento),
+    // JSON puro: os atributos do editor são objetos sem protótipo, e uma Server Action
+    // os trocaria por referências vazias (a cor se perderia ao salvar).
+    onUpdate: ({ editor: e }) => aoMudar(JSON.parse(JSON.stringify(e.getJSON())) as Documento),
     onFocus: ({ editor: e }) => aoFocar(e),
     onBlur: () => aoSair?.(),
   });
@@ -135,7 +134,10 @@ export function BarraDeFormatacao({ editor }: { editor: Editor | null }) {
       <BotaoDaBarra rotulo="Parágrafo" desativado={!editor} aoClicar={() => cadeia()?.splitBlock().run()}>
         ¶
       </BotaoDaBarra>
-      <BotaoDaBarra rotulo="Limpar formatação" desativado={!editor} aoClicar={() => cadeia()?.unsetAllMarks().run()}>
+      <BotaoDaBarra rotulo="Limpar formatação" desativado={!editor} aoClicar={() => cadeia()?.unsetAllMarks().command(({ tr }) => {
+          tr.setStoredMarks([]);
+          return true;
+        }).run()}>
         ⌫
       </BotaoDaBarra>
     </div>
