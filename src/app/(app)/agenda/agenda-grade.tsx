@@ -51,9 +51,11 @@ type Props = {
   urlDoPlanejamento?: string;
   /** Calendário pessoal do profissional: só a própria coluna; os horários dos pacientes dele com outros. */
   pessoal?: { outros: OutroDoPaciente[] };
+  /** ADM que também atende: alterna entre a agenda completa e o próprio calendário. */
+  alternarCalendario?: { href: string; rotulo: string };
 };
 
-export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais, atendimentos, especiais, lembretes, navegacao, navegacaoNoMenu, planejamento, urlDoPlanejamento, pessoal }: Props) {
+export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais, atendimentos, especiais, lembretes, navegacao, navegacaoNoMenu, planejamento, urlDoPlanejamento, pessoal, alternarCalendario }: Props) {
   // Profissionais sem atendimentos no período começam ocultos (podem ser exibidos no menu).
   const [ocultos, setOcultos] = useState<Set<string>>(
     () => new Set(pessoal ? [] : profissionais.filter((p) => !atendimentos.some((a) => a.profissionalIds.includes(p.id))).map((p) => p.id)),
@@ -264,7 +266,7 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
   }
 
   // A visão lado a lado só faz sentido para a semana; um dia usa a empilhada.
-  const visaoEfetiva: Visao = modo === "dia" && visao === "lado" ? "empilhada" : visao;
+  const visaoEfetiva: Visao = visao !== "lado" && visao !== "pessoal" ? visao : modo === "dia" ? "empilhada" : "lado";
   const ladoALado = visaoEfetiva === "lado";
   const sufixoUrl = sufixoDaVisao(visao, plano.ativo);
   // Ao abrir a semana atual, rola até o dia de hoje (nas visões empilhadas).
@@ -311,6 +313,15 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
         <div className="min-w-[18rem] flex-1">{navegacao}</div>
 
         <BotoesDeLembrete aniversarios={lembretes.proximos.aniversarios} comemoracoes={lembretes.proximos.comemoracoes} hoje={hoje} />
+
+        {alternarCalendario && (
+          <Link
+            href={alternarCalendario.href}
+            className="inline-flex h-9 items-center rounded-full bg-surface px-3 text-sm text-muted shadow-sm ring-1 ring-black/5 transition hover:text-foreground hover:shadow"
+          >
+            {alternarCalendario.rotulo}
+          </Link>
+        )}
 
         {urlDoPlanejamento && (
           <Link

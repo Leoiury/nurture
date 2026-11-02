@@ -256,6 +256,40 @@ test("excluir vira pedido: some para ele e fica apagado até a confirmação", a
   await expect.poll(async () => (await admin.from("atendimentos").select("excluido_em").eq("id", id).single()).data!.excluido_em).not.toBeNull();
 });
 
+test("ADM que também atende alterna entre a agenda completa e o próprio calendário", async ({ browser }) => {
+  const segunda = segundaDaqui(26);
+  await novoAtendimento([eu], segunda, "09:00");
+  await novoAtendimento([colega], segunda, "14:00");
+
+  const emailAdm = `adm.${n}@teste.local`;
+  const criado = await admin.auth.admin.createUser({ email: emailAdm, password: senha, email_confirm: true, app_metadata: { perfil: "adm" }, user_metadata: { nome: "Direção Teste" } });
+  if (criado.error) throw criado.error;
+  await admin.from("usuarios").update({ perfil: "adm", profissional_id: eu }).eq("id", criado.data.user.id);
+
+  const contexto = await browser.newContext({ storageState: { cookies: [], origins: [] }, locale: "pt-BR", timezoneId: "America/Sao_Paulo" });
+  const page = await contexto.newPage();
+  await page.goto("/login?manual");
+  await page.getByLabel("E-mail").fill(emailAdm);
+  await page.getByLabel("Senha").fill(senha);
+  await page.getByRole("button", { name: "Entrar" }).click();
+  await expect(page).toHaveURL(/\/agenda/);
+
+  await page.goto(`/agenda?semana=${segunda}`);
+  await expect(page.getByRole("link", { name: "Planejamento" })).toBeVisible();
+  await page.getByRole("link", { name: "Meu calendário" }).click();
+  await expect(page).toHaveURL(/visao=pessoal/);
+  await expect(page.locator("[data-coluna]")).toHaveCount(5);
+  await expect(cardDoPaciente(page, NOME_PACIENTE)).toHaveCount(1);
+  await expect(page.getByRole("link", { name: "Planejamento" })).toHaveCount(0);
+
+  await page.getByRole("link", { name: "Agenda completa" }).click();
+  await expect(page).not.toHaveURL(/visao=pessoal/);
+  await expect(page.getByRole("link", { name: "Meu calendário" })).toBeVisible();
+
+  await contexto.close();
+  await admin.auth.admin.deleteUser(criado.data.user.id);
+});
+
 test("recusar o pedido traz o atendimento de volta", async ({ page }) => {
   const segunda = segundaDaqui(25);
   const id = await novoAtendimento([eu], segunda, "09:00");

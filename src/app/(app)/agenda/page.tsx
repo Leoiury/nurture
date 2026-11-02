@@ -17,10 +17,14 @@ export default async function AgendaPage({ searchParams }: PageProps<"/agenda">)
   const dataHoje = hoje();
   const dia = typeof params.dia === "string" && ehDataValida(params.dia) ? params.dia : null;
   const semanaParam = typeof params.semana === "string" && ehDataValida(params.semana) ? params.semana : null;
-  // Perfil profissional: só a própria coluna, com os dias lado a lado (colunas = dias).
+  // Calendário pessoal: só a própria coluna, com os dias lado a lado (colunas = dias).
+  // É o único do perfil profissional; quem é ADM e também atende alterna com a agenda completa.
   const usuario = await usuarioAtual();
-  const pessoal = usuario?.perfil === "profissional";
-  const visao = pessoal ? "lado" : lerVisao(params.visao);
+  const soPessoal = usuario?.perfil === "profissional";
+  const visaoPedida = lerVisao(params.visao);
+  const podeAlternar = !soPessoal && !!usuario?.profissionalId && params.planejamento !== "1";
+  const pessoal = soPessoal || (podeAlternar && visaoPedida === "pessoal");
+  const visao = soPessoal ? "lado" : visaoPedida === "pessoal" && !pessoal ? "empilhada" : visaoPedida;
   const referencia = dia ?? semanaParam ?? dataHoje;
   const segunda = inicioDaSemana(referencia);
 
@@ -36,9 +40,9 @@ export default async function AgendaPage({ searchParams }: PageProps<"/agenda">)
     carregarLembretes(dataHoje, dia ?? semana[0], dia ?? semana[6]),
   ]);
   if (rascunho?.error) throw rascunho.error;
-  const calendario = pessoal ? separarCalendarioPessoal(daSemana, usuario.profissionalId ?? "", partesNoFuso(new Date().toISOString())) : null;
+  const calendario = pessoal ? separarCalendarioPessoal(daSemana, usuario?.profissionalId ?? "", partesNoFuso(new Date().toISOString())) : null;
   const atendimentos = calendario?.meus ?? daSemana;
-  const profissionais = pessoal ? todosOsProfissionais.filter((p) => p.id === usuario.profissionalId) : todosOsProfissionais;
+  const profissionais = pessoal ? todosOsProfissionais.filter((p) => p.id === usuario?.profissionalId) : todosOsProfissionais;
   const operacoes = (rascunho?.data?.operacoes ?? []) as unknown as Operacao[];
 
   // No planejamento, os atendimentos citados pelo rascunho podem estar em outra semana
@@ -76,6 +80,7 @@ export default async function AgendaPage({ searchParams }: PageProps<"/agenda">)
     empilhada: url("empilhada", noPlanejamento),
     ampliada: url("ampliada", noPlanejamento),
     lado: url("lado", noPlanejamento),
+    pessoal: url("pessoal", noPlanejamento),
   };
 
   return (
@@ -93,7 +98,8 @@ export default async function AgendaPage({ searchParams }: PageProps<"/agenda">)
         lembretes={lembretes}
         pessoal={calendario ? { outros: calendario.outros } : undefined}
         planejamento={noPlanejamento ? { operacoes, base, urlSair: url(visao, false) } : undefined}
-        urlDoPlanejamento={ehAdm && !noPlanejamento ? url(visao, true) : undefined}
+        urlDoPlanejamento={ehAdm && !noPlanejamento && !pessoal ? url(visao, true) : undefined}
+        alternarCalendario={podeAlternar ? (pessoal ? { href: url("empilhada", false), rotulo: "Agenda completa" } : { href: url("pessoal", false), rotulo: "Meu calendário" }) : undefined}
         navegacao={<Navegacao referencia={referencia} dia={dia} hoje={dataHoje} visao={visao} planejamento={noPlanejamento} />}
         navegacaoNoMenu={<Navegacao referencia={referencia} dia={dia} hoje={dataHoje} visao={visao} planejamento={noPlanejamento} variante="menu" />}
       />
