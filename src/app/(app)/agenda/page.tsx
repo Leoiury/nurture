@@ -29,6 +29,9 @@ export default async function AgendaPage({ searchParams }: PageProps<"/agenda">)
   const segunda = inicioDaSemana(referencia);
 
   const supabase = await createClient();
+  // Filtro por paciente vindo de fora (ex.: "Próximos atendimentos", na tela de atendimento).
+  const pacienteDaUrl = typeof params.paciente === "string" && /^[0-9a-f-]{36}$/i.test(params.paciente) ? params.paciente : null;
+  const pacienteFiltrado = pacienteDaUrl ? (await supabase.from("pacientes").select("id, nome").eq("id", pacienteDaUrl).maybeSingle()).data : null;
   const ehAdm = await usuarioEhAdm();
   const noPlanejamento = params.planejamento === "1";
   if (noPlanejamento && !ehAdm) redirect("/agenda");
@@ -73,7 +76,7 @@ export default async function AgendaPage({ searchParams }: PageProps<"/agenda">)
   // A página atual em cada visão, para o seletor de visualização.
   const periodo = dia ? `dia=${dia}` : semanaParam ? `semana=${semanaParam}` : "";
   const url = (v: Visao, planejamento: boolean) => {
-    const q = `${periodo}${sufixoDaVisao(v, planejamento)}`.replace(/^&/, "");
+    const q = `${periodo}${sufixoDaVisao(v, planejamento, pacienteFiltrado?.id)}`.replace(/^&/, "");
     return `/agenda${q ? `?${q}` : ""}`;
   };
   const urlDaVisao: Record<Visao, string> = {
@@ -97,11 +100,12 @@ export default async function AgendaPage({ searchParams }: PageProps<"/agenda">)
         especiais={especiais}
         lembretes={lembretes}
         pessoal={calendario ? { outros: calendario.outros } : undefined}
+        pacienteFiltrado={pacienteFiltrado}
         planejamento={noPlanejamento ? { operacoes, base, urlSair: url(visao, false) } : undefined}
         urlDoPlanejamento={ehAdm && !noPlanejamento && !pessoal ? url(visao, true) : undefined}
         alternarCalendario={podeAlternar ? (pessoal ? { href: url("empilhada", false), rotulo: "Agenda completa" } : { href: url("pessoal", false), rotulo: "Meu calendário" }) : undefined}
-        navegacao={<Navegacao referencia={referencia} dia={dia} hoje={dataHoje} visao={visao} planejamento={noPlanejamento} />}
-        navegacaoNoMenu={<Navegacao referencia={referencia} dia={dia} hoje={dataHoje} visao={visao} planejamento={noPlanejamento} variante="menu" />}
+        navegacao={<Navegacao referencia={referencia} dia={dia} hoje={dataHoje} visao={visao} planejamento={noPlanejamento} paciente={pacienteFiltrado?.id} />}
+        navegacaoNoMenu={<Navegacao referencia={referencia} dia={dia} hoje={dataHoje} visao={visao} planejamento={noPlanejamento} variante="menu" paciente={pacienteFiltrado?.id} />}
       />
     </div>
   );

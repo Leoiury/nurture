@@ -45,6 +45,15 @@ export default async function PacientePage({ params }: PageProps<"/pacientes/[id
         .order("criado_em", { ascending: false })
     : null;
   if (anamneses?.error) throw new Error("Não foi possível carregar as anamneses.");
+  const registros = clinico
+    ? await supabase
+        .from("registros_atendimento")
+        .select("id, atendimento_id, profissional_id, versao, salvo_em, profissional:profissionais(nome), atendimento:atendimentos_equipe!inner(inicio, paciente_id)")
+        .eq("atendimento.paciente_id", id)
+        .gt("versao", 0)
+        .order("salvo_em", { ascending: false })
+    : null;
+  if (registros?.error) throw new Error("Não foi possível carregar os registros.");
 
   const [paciente, atendimentos, planos] = await Promise.all([
     supabase
@@ -83,6 +92,24 @@ export default async function PacientePage({ params }: PageProps<"/pacientes/[id
         ← Pacientes
       </Link>
       <FichaDoPaciente paciente={paciente.data} planos={planos.data} />
+      {registros && registros.data.length > 0 && (
+        <section aria-label="Registros de atendimento" className="flex flex-col gap-3 rounded-3xl bg-surface p-5 shadow-sm ring-1 ring-black/5">
+          <h2 className="font-semibold">Registros de atendimento</h2>
+          <ul className="flex flex-col gap-1 text-sm">
+            {registros.data.map((r) => (
+              <li key={r.id}>
+                <Link href={`/atendimento/${r.atendimento_id}?profissional=${r.profissional_id}`} className="flex flex-wrap justify-between gap-x-3 rounded-lg px-2 py-1.5 hover:bg-background">
+                  <span className="font-medium">{r.profissional.nome}</span>
+                  <span className="text-muted">
+                    {dataDaAnamnese.format(new Date(r.atendimento.inicio!))}
+                    {r.versao > 1 && ` · versão ${r.versao}`}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       {anamneses && (
         <section aria-label="Anamneses" className="flex flex-col gap-3 rounded-3xl bg-surface p-5 shadow-sm ring-1 ring-black/5">
           <div className="flex items-center justify-between gap-3">

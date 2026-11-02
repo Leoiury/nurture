@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { AtendimentoAgenda, Lembretes, ProfissionalAgenda } from "@/lib/agenda/dados";
 import { semExpediente, type DiaEspecial } from "@/lib/agenda/feriados";
@@ -51,11 +52,13 @@ type Props = {
   urlDoPlanejamento?: string;
   /** Calendário pessoal do profissional: só a própria coluna; os horários dos pacientes dele com outros. */
   pessoal?: { outros: OutroDoPaciente[] };
+  /** Filtro por paciente vindo da URL: vale ao navegar entre as semanas. */
+  pacienteFiltrado?: { id: string; nome: string } | null;
   /** ADM que também atende: alterna entre a agenda completa e o próprio calendário. */
   alternarCalendario?: { href: string; rotulo: string };
 };
 
-export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais, atendimentos, especiais, lembretes, navegacao, navegacaoNoMenu, planejamento, urlDoPlanejamento, pessoal, alternarCalendario }: Props) {
+export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais, atendimentos, especiais, lembretes, navegacao, navegacaoNoMenu, planejamento, urlDoPlanejamento, pessoal, pacienteFiltrado, alternarCalendario }: Props) {
   // Profissionais sem atendimentos no período começam ocultos (podem ser exibidos no menu).
   const [ocultos, setOcultos] = useState<Set<string>>(
     () => new Set(pessoal ? [] : profissionais.filter((p) => !atendimentos.some((a) => a.profissionalIds.includes(p.id))).map((p) => p.id)),
@@ -74,7 +77,16 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
   // Calendário pessoal: pergunta antes de mover para um horário com impacto em outro profissional.
   const [confirmacao, setConfirmacao] = useState<{ textos: string[]; aoConfirmar: () => void } | null>(null);
   // Filtros avançados: não ficam salvos (zeram ao reabrir a agenda).
-  const [filtros, setFiltros] = useState<Filtros>(FILTROS_VAZIOS);
+  const [filtros, setFiltros] = useState<Filtros>(pacienteFiltrado ? { ...FILTROS_VAZIOS, pacientes: [pacienteFiltrado] } : FILTROS_VAZIOS);
+  // Tirou o paciente do filtro: sai também da URL, senão ele volta na próxima semana.
+  const router = useRouter();
+  const tirouPaciente = !!pacienteFiltrado && !filtros.pacientes.some((p) => p.id === pacienteFiltrado.id);
+  useEffect(() => {
+    if (!tirouPaciente) return;
+    const url = new URL(window.location.href);
+    url.searchParams.delete("paciente");
+    router.replace(`${url.pathname}${url.search}`, { scroll: false });
+  }, [tirouPaciente, router]);
   const [modoDoFiltro, setModoDoFiltro] = useState<ModoDoFiltro>("esmaecer");
   // Com filtro no modo "esconder": tira colunas sem resultado e condensa as horas sem resultado.
   const [ajustarAgenda, setAjustarAgenda] = useState(true);
@@ -268,7 +280,7 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
   // A visão lado a lado só faz sentido para a semana; um dia usa a empilhada.
   const visaoEfetiva: Visao = visao !== "lado" && visao !== "pessoal" ? visao : modo === "dia" ? "empilhada" : "lado";
   const ladoALado = visaoEfetiva === "lado";
-  const sufixoUrl = sufixoDaVisao(visao, plano.ativo);
+  const sufixoUrl = sufixoDaVisao(visao, plano.ativo, pacienteFiltrado?.id);
   // Ao abrir a semana atual, rola até o dia de hoje (nas visões empilhadas).
   useEffect(() => {
     if (ladoALado || modo !== "semana") return;

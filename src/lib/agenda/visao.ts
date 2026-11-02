@@ -14,6 +14,6 @@ export function lerVisao(valor: unknown): Visao {
 }
 
 /** Parâmetros de URL que preservam a visão e o planejamento ("" para a padrão). */
-export function sufixoDaVisao(visao: Visao, planejamento = false): string {
-  return (visao === "empilhada" ? "" : `&visao=${visao}`) + (planejamento ? "&planejamento=1" : "");
+export function sufixoDaVisao(visao: Visao, planejamento = false, paciente?: string | null): string {
+  return (visao === "empilhada" ? "" : `&visao=${visao}`) + (planejamento ? "&planejamento=1" : "") + (paciente ? `&paciente=${paciente}` : "");
 }

@@ -7,7 +7,7 @@ import { revalidatePath } from "next/cache";
 import type { ArgsEditar } from "@/lib/agenda/planejamento";
 import { instanteNoFuso } from "@/lib/agenda/tempo";
 import { ATENDIMENTOS_SEM_VALOR } from "@/lib/agenda/sem-valor";
-import { ehAdm, ehProfissional, usuarioAtual } from "@/lib/auth/usuario";
+import { ehAdm, ehProfissional, podeVerClinico, usuarioAtual } from "@/lib/auth/usuario";
 import type { Database } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
 
@@ -53,6 +53,14 @@ export async function detalhesAtendimento(id: string) {
   ]);
   if (serie?.error || observacoes.error) throw new Error("Não foi possível carregar o atendimento.");
 
+  // Registro do atendimento (recepção não vê): quem atende realiza; os demais, se houver, leem.
+  let registro: { atende: boolean; iniciado: boolean } | null = null;
+  if (await podeVerClinico()) {
+    const atende = !!eu?.profissionalId && atendimento.profissionais.some((x) => x.profissional.id === eu.profissionalId);
+    const { data: registros } = await supabase.from("registros_atendimento").select("profissional_id").eq("atendimento_id", id);
+    registro = { atende, iniciado: !!registros?.some((r) => !atende || r.profissional_id === eu?.profissionalId) };
+  }
+
   // Quantos atendimentos entram no pedido de exclusão (a série pedida de uma vez).
   let pedido = 0;
   if (atendimento.exclusao_solicitada_em) {
@@ -77,6 +85,7 @@ export async function detalhesAtendimento(id: string) {
     serie: serie ? { total: serie.data.length, seguintes: serie.data.filter((s) => s.inicio >= atendimento.inicio).length } : null,
     observacoes: observacoes.data,
     pedido,
+    registro,
     // Só a direção vê o financeiro.
     financeiro: adm ? await financeiroDoAtendimento(id) : null,
   };

@@ -17,5 +17,5 @@ export default async function EditarAnamnesePage({ searchParams }: PageProps<"/a
 
   // Só caminhos internos desta área ou da conta: o endereço vem da URL.
   const destino = typeof voltar === "string" && /^\/(anamnese|conta)(\/[0-9a-f-]*)?$/i.test(voltar) ? voltar : "/conta";
-  return <EditorDoModelo perguntasIniciais={data} voltar={destino} />;
+  return <EditorDoModelo modelo="anamnese" perguntasIniciais={data} voltar={destino} />;
 }

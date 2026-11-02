@@ -44,46 +44,50 @@ export async function descartarEdicao(id: string): Promise<Resultado> {
   return { ok: true };
 }
 
-// Modelo ---------------------------------------------------------------------------
+// Modelo: as perguntas da anamnese e os tópicos do atendimento seguem as mesmas regras ---
 
-export async function adicionarPergunta(texto: string): Promise<{ ok: true; id: string } | { ok: false; erro: string }> {
+export type TipoDeModelo = "anamnese" | "atendimento";
+const TABELA = { anamnese: "anamnese_perguntas", atendimento: "atendimento_topicos" } as const;
+const PAGINA = { anamnese: "/anamnese", atendimento: "/atendimento" } as const;
+
+export async function adicionarPergunta(tipo: TipoDeModelo, texto: string): Promise<{ ok: true; id: string } | { ok: false; erro: string }> {
   const eu = await usuarioAtual();
   if (!eu?.profissionalId) return { ok: false, erro: "Este login não tem um profissional vinculado." };
   if (!texto.trim()) return { ok: false, erro: "Escreva a pergunta." };
   const supabase = await createClient();
-  const { data: ultima } = await supabase.from("anamnese_perguntas").select("ordem").order("ordem", { ascending: false }).limit(1).maybeSingle();
+  const { data: ultima } = await supabase.from(TABELA[tipo]).select("ordem").order("ordem", { ascending: false }).limit(1).maybeSingle();
   const { data, error } = await supabase
-    .from("anamnese_perguntas")
+    .from(TABELA[tipo])
     .insert({ profissional_id: eu.profissionalId, texto: texto.trim(), ordem: (ultima?.ordem ?? 0) + 1 })
     .select("id")
     .single();
   if (error) return { ok: false, erro: "Não foi possível adicionar a pergunta." };
-  revalidatePath("/anamnese", "layout");
+  revalidatePath(PAGINA[tipo], "layout");
   return { ok: true, id: data.id };
 }
 
-export async function editarPergunta(id: string, texto: string): Promise<Resultado> {
+export async function editarPergunta(tipo: TipoDeModelo, id: string, texto: string): Promise<Resultado> {
   if (!texto.trim()) return { ok: false, erro: "A pergunta não pode ficar vazia." };
   const supabase = await createClient();
-  const { error } = await supabase.from("anamnese_perguntas").update({ texto: texto.trim() }).eq("id", id);
+  const { error } = await supabase.from(TABELA[tipo]).update({ texto: texto.trim() }).eq("id", id);
   if (error) return { ok: false, erro: "Não foi possível alterar a pergunta." };
-  revalidatePath("/anamnese", "layout");
+  revalidatePath(PAGINA[tipo], "layout");
   return { ok: true };
 }
 
-/** As anamneses já salvas têm a própria cópia das perguntas: não mudam. */
-export async function excluirPergunta(id: string): Promise<Resultado> {
+/** Anamneses e registros já salvos têm a própria cópia das perguntas: não mudam. */
+export async function excluirPergunta(tipo: TipoDeModelo, id: string): Promise<Resultado> {
   const supabase = await createClient();
-  const { error } = await supabase.from("anamnese_perguntas").delete().eq("id", id);
+  const { error } = await supabase.from(TABELA[tipo]).delete().eq("id", id);
   if (error) return { ok: false, erro: "Não foi possível excluir a pergunta." };
-  revalidatePath("/anamnese", "layout");
+  revalidatePath(PAGINA[tipo], "layout");
   return { ok: true };
 }
 
-export async function reordenarPerguntas(ids: string[]): Promise<Resultado> {
+export async function reordenarPerguntas(tipo: TipoDeModelo, ids: string[]): Promise<Resultado> {
   const supabase = await createClient();
-  const resultados = await Promise.all(ids.map((id, i) => supabase.from("anamnese_perguntas").update({ ordem: i + 1 }).eq("id", id)));
+  const resultados = await Promise.all(ids.map((id, i) => supabase.from(TABELA[tipo]).update({ ordem: i + 1 }).eq("id", id)));
   if (resultados.some((r) => r.error)) return { ok: false, erro: "Não foi possível salvar a nova ordem." };
-  revalidatePath("/anamnese", "layout");
+  revalidatePath(PAGINA[tipo], "layout");
   return { ok: true };
 }

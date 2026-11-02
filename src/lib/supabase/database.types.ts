@@ -241,6 +241,41 @@ export type Database = {
           },
         ]
       }
+      atendimento_topicos: {
+        Row: {
+          atualizado_em: string
+          criado_em: string
+          id: string
+          ordem: number
+          profissional_id: string
+          texto: string
+        }
+        Insert: {
+          atualizado_em?: string
+          criado_em?: string
+          id?: string
+          ordem: number
+          profissional_id: string
+          texto: string
+        }
+        Update: {
+          atualizado_em?: string
+          criado_em?: string
+          id?: string
+          ordem?: number
+          profissional_id?: string
+          texto?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "atendimento_topicos_profissional_id_fkey"
+            columns: ["profissional_id"]
+            isOneToOne: false
+            referencedRelation: "profissionais"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       atendimentos: {
         Row: {
           atualizado_em: string
@@ -1128,6 +1163,139 @@ export type Database = {
         }
         Relationships: []
       }
+      registros_atendimento: {
+        Row: {
+          atendimento_id: string
+          atualizado_em: string
+          autor_id: string | null
+          conteudo: Json
+          criado_em: string
+          id: string
+          profissional_id: string
+          salvo_em: string | null
+          versao: number
+        }
+        Insert: {
+          atendimento_id: string
+          atualizado_em?: string
+          autor_id?: string | null
+          conteudo?: Json
+          criado_em?: string
+          id?: string
+          profissional_id: string
+          salvo_em?: string | null
+          versao?: number
+        }
+        Update: {
+          atendimento_id?: string
+          atualizado_em?: string
+          autor_id?: string | null
+          conteudo?: Json
+          criado_em?: string
+          id?: string
+          profissional_id?: string
+          salvo_em?: string | null
+          versao?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "registros_atendimento_atendimento_id_fkey"
+            columns: ["atendimento_id"]
+            isOneToOne: false
+            referencedRelation: "atendimentos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "registros_atendimento_atendimento_id_fkey"
+            columns: ["atendimento_id"]
+            isOneToOne: false
+            referencedRelation: "atendimentos_em_aberto"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "registros_atendimento_atendimento_id_fkey"
+            columns: ["atendimento_id"]
+            isOneToOne: false
+            referencedRelation: "atendimentos_equipe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "registros_atendimento_atendimento_id_fkey"
+            columns: ["atendimento_id"]
+            isOneToOne: false
+            referencedRelation: "guias_dos_atendimentos"
+            referencedColumns: ["atendimento_id"]
+          },
+          {
+            foreignKeyName: "registros_atendimento_profissional_id_fkey"
+            columns: ["profissional_id"]
+            isOneToOne: false
+            referencedRelation: "profissionais"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      registros_rascunhos: {
+        Row: {
+          atualizado_em: string
+          conteudo: Json
+          registro_id: string
+        }
+        Insert: {
+          atualizado_em?: string
+          conteudo: Json
+          registro_id: string
+        }
+        Update: {
+          atualizado_em?: string
+          conteudo?: Json
+          registro_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "registros_rascunhos_registro_id_fkey"
+            columns: ["registro_id"]
+            isOneToOne: true
+            referencedRelation: "registros_atendimento"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      registros_versoes: {
+        Row: {
+          autor_id: string | null
+          conteudo: Json
+          id: number
+          registro_id: string
+          salva_em: string
+          versao: number
+        }
+        Insert: {
+          autor_id?: string | null
+          conteudo: Json
+          id?: never
+          registro_id: string
+          salva_em?: string
+          versao: number
+        }
+        Update: {
+          autor_id?: string | null
+          conteudo?: Json
+          id?: never
+          registro_id?: string
+          salva_em?: string
+          versao?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "registros_versoes_registro_id_fkey"
+            columns: ["registro_id"]
+            isOneToOne: false
+            referencedRelation: "registros_atendimento"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tipos_atendimento: {
         Row: {
           area: string | null
@@ -1195,6 +1363,7 @@ export type Database = {
           criado_em: string
           email: string
           id: string
+          modelo_atendimento: string
           nome: string
           perfil: Database["public"]["Enums"]["perfil_usuario"]
           profissional_id: string | null
@@ -1205,6 +1374,7 @@ export type Database = {
           criado_em?: string
           email: string
           id: string
+          modelo_atendimento?: string
           nome: string
           perfil?: Database["public"]["Enums"]["perfil_usuario"]
           profissional_id?: string | null
@@ -1215,6 +1385,7 @@ export type Database = {
           criado_em?: string
           email?: string
           id?: string
+          modelo_atendimento?: string
           nome?: string
           perfil?: Database["public"]["Enums"]["perfil_usuario"]
           profissional_id?: string | null
@@ -1569,6 +1740,10 @@ export type Database = {
         Args: { p_intervalos: Json; p_profissional: string }
         Returns: number
       }
+      definir_modelo_atendimento: {
+        Args: { p_modelo: string }
+        Returns: undefined
+      }
       descartar_rascunho_anamnese: {
         Args: { p_id: string }
         Returns: undefined
@@ -1637,6 +1812,10 @@ export type Database = {
       }
       guardar_rascunho_anamnese: {
         Args: { p_conteudo: Json; p_id: string; p_observacoes: string }
+        Returns: undefined
+      }
+      guardar_rascunho_registro: {
+        Args: { p_atendimento: string; p_conteudo: Json }
         Returns: undefined
       }
       importar_agenda_legado: {
@@ -1765,6 +1944,10 @@ export type Database = {
       }
       saldo_do_atendimento: { Args: { p_id: string }; Returns: number }
       salvar_anamnese: { Args: { p_id: string }; Returns: number }
+      salvar_registro: {
+        Args: { p_atendimento: string; p_finalizar?: boolean }
+        Returns: number
+      }
       total_em_aberto: {
         Args: never
         Returns: {

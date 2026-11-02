@@ -4,6 +4,7 @@
 // excluir e observações.
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import type { Status } from "@/lib/agenda/dados";
 import { idade } from "@/lib/pacientes";
@@ -20,6 +21,7 @@ import {
   type Resultado,
 } from "./actions";
 import { useAcoesDaAgenda } from "./acoes-da-agenda";
+import { recomecarAtendimento } from "../atendimento/actions";
 import { GuiaDoAtendimento } from "./guia-do-atendimento";
 import type { DadosEdicao } from "./painel-novo-atendimento";
 
@@ -63,6 +65,25 @@ function plural(n: number, singular: string, pluralTexto: string): string {
   return `${n} ${n === 1 ? singular : pluralTexto}`;
 }
 
+/** Os dados do atendimento no formato do formulário de edição. */
+export function dadosDeEdicao({ atendimento: a, serie }: DetalhesAtendimento): DadosEdicao {
+  const inicio = partesNoFuso(a.inicio);
+  return {
+    id: a.id,
+    recorrenciaId: a.recorrencia_id,
+    serie,
+    pacienteId: a.paciente_id ?? "",
+    pacienteNome: a.paciente?.nome ?? "",
+    profissionais: a.profissionais.map((x) => x.profissional.id),
+    data: inicio.data,
+    hora: formatarHora(inicio.minutos),
+    duracaoMin: Math.round((new Date(a.fim).getTime() - new Date(a.inicio).getTime()) / 60_000),
+    planoId: a.plano_id,
+    tipoId: a.tipo_id,
+    valor: a.valor,
+  };
+}
+
 type Props = {
   id: string;
   aoFechar: () => void;
@@ -74,6 +95,7 @@ type Props = {
 type Modo = "ver" | "desmarcar" | "excluir";
 
 export function PainelAtendimento({ id, aoFechar, aoEditar, mostrarLinkDoPaciente = true }: Props) {
+  const router = useRouter();
   const acoes = useAcoesDaAgenda();
   const pendencias = acoes.pendencias?.(id) ?? null;
   const [dados, setDados] = useState<DetalhesAtendimento | null>(null);
@@ -84,6 +106,7 @@ export function PainelAtendimento({ id, aoFechar, aoEditar, mostrarLinkDoPacient
   const [erro, setErro] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [novaObservacao, setNovaObservacao] = useState("");
+  const [confirmandoRecomeco, setConfirmandoRecomeco] = useState(false);
 
   useEffect(() => {
     let ativo = true;
@@ -125,22 +148,7 @@ export function PainelAtendimento({ id, aoFechar, aoEditar, mostrarLinkDoPacient
   const p = a?.paciente;
 
   function editar() {
-    if (!a || !dados) return;
-    const inicio = partesNoFuso(a.inicio);
-    aoEditar({
-      id: a.id,
-      recorrenciaId: a.recorrencia_id,
-      serie: dados.serie,
-      pacienteId: a.paciente_id ?? "",
-      pacienteNome: p?.nome ?? "",
-      profissionais: a.profissionais.map((x) => x.profissional.id),
-      data: inicio.data,
-      hora: formatarHora(inicio.minutos),
-      duracaoMin: Math.round((new Date(a.fim).getTime() - new Date(a.inicio).getTime()) / 60_000),
-      planoId: a.plano_id,
-      tipoId: a.tipo_id,
-      valor: a.valor,
-    });
+    if (dados) aoEditar(dadosDeEdicao(dados));
   }
 
   return (
@@ -211,6 +219,46 @@ export function PainelAtendimento({ id, aoFechar, aoEditar, mostrarLinkDoPacient
                     Manter atendimento
                   </button>
                 </div>
+              </section>
+            )}
+
+            {/* Realizar o atendimento (quem atende) ou ler os registros. */}
+            {modo === "ver" && !acoes.planejamento && dados.registro && (
+              <section aria-label="Registro do atendimento" className="flex flex-col gap-2">
+                {dados.registro.atende && dados.registro.iniciado ? (
+                  confirmandoRecomeco ? (
+                    <div role="alert" className="flex flex-col gap-2 rounded-xl bg-amber-50 p-3 text-amber-900 ring-1 ring-amber-200">
+                      <p>O texto em andamento será apagado, e você começa do zero. As versões já salvas continuam guardadas.</p>
+                      <div className="flex justify-end gap-2">
+                        <button type="button" onClick={() => setConfirmandoRecomeco(false)} className={botaoSecundario}>
+                          Cancelar
+                        </button>
+                        <button type="button" disabled={trabalhando} onClick={() => executar(() => recomecarAtendimento(a.id), () => router.push(`/atendimento/${a.id}?editar=1`))} className={botaoPrimario}>
+                          Recomeçar
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      <Link href={`/atendimento/${a.id}?editar=1`} className={botaoPrimario}>
+                        Continuar atendimento
+                      </Link>
+                      <button type="button" onClick={() => setConfirmandoRecomeco(true)} className={botaoSecundario}>
+                        Recomeçar atendimento
+                      </button>
+                    </div>
+                  )
+                ) : dados.registro.atende ? (
+                  <Link href={`/atendimento/${a.id}`} className={`${botaoPrimario} self-start`}>
+                    Realizar atendimento
+                  </Link>
+                ) : (
+                  dados.registro.iniciado && (
+                    <Link href={`/atendimento/${a.id}`} className={`${botaoSecundario} self-start`}>
+                      Ver registros
+                    </Link>
+                  )
+                )}
               </section>
             )}
 

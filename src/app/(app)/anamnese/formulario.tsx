@@ -5,12 +5,13 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import type { ItemDaAnamnese } from "@/lib/anamnese/conteudo";
+import { useGuardarSozinho } from "../guardar-sozinho";
 import { descartarEdicao, guardarRascunho, salvarAnamnese } from "./actions";
 import { CabecalhoDaAnamnese } from "./cabecalho";
 
-const ESPERA_PARA_GUARDAR = 800;
+type Texto = { itens: ItemDaAnamnese[]; observacoes: string };
 
 type Props = {
   id: string;
@@ -25,80 +26,25 @@ export function FormularioDaAnamnese({ id, paciente, itensIniciais, observacoesI
   const router = useRouter();
   const [itens, setItens] = useState(itensIniciais);
   const [observacoes, setObservacoes] = useState(observacoesIniciais);
-  const [situacao, setSituacao] = useState<"guardado" | "guardando" | "erro">("guardado");
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
-  // O último texto, para guardar ao sair da página (sem depender de um render).
-  const atual = useRef({ itens, observacoes });
-  const pendente = useRef(false);
-  const temporizador = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const emAndamento = useRef<Promise<void> | null>(null);
-
-  // Uma gravação por vez, na ordem: duas ao mesmo tempo poderiam chegar invertidas e
-  // sobrescrever o texto mais novo. O que mudar durante uma entra logo depois dela.
-  const guardarAgora = useCallback((): Promise<void> => {
-    const gravar = (): Promise<void> => {
-      if (temporizador.current) clearTimeout(temporizador.current);
-      temporizador.current = null;
-      if (emAndamento.current || !pendente.current) return emAndamento.current ?? Promise.resolve();
-      pendente.current = false;
-      setSituacao("guardando");
-      const gravacao = guardarRascunho(id, atual.current.itens, atual.current.observacoes)
-        .catch(() => ({ ok: false as const, erro: "" }))
-        .then((r) => {
-          emAndamento.current = null;
-          if (!r.ok) {
-            pendente.current = true; // tenta de novo na próxima mudança ou ao sair
-            return setSituacao("erro");
-          }
-          // Só está guardado quando não sobrou nada para gravar.
-          if (pendente.current) return gravar();
-          setSituacao("guardado");
-        });
-      emAndamento.current = gravacao;
-      return gravacao;
-    };
-    return gravar();
-  }, [id]);
+  const gravar = useCallback((t: Texto) => guardarRascunho(id, t.itens, t.observacoes), [id]);
+  const { situacao, mudou: guardar, guardarAgora, parar, retomar, atual } = useGuardarSozinho<Texto>({ itens: itensIniciais, observacoes: observacoesIniciais }, gravar);
 
   function mudou(novosItens: ItemDaAnamnese[], novasObservacoes: string) {
     setItens(novosItens);
     setObservacoes(novasObservacoes);
-    atual.current = { itens: novosItens, observacoes: novasObservacoes };
-    pendente.current = true;
-    setSituacao("guardando");
-    if (temporizador.current) clearTimeout(temporizador.current);
-    temporizador.current = setTimeout(() => void guardarAgora(), ESPERA_PARA_GUARDAR);
+    guardar({ itens: novosItens, observacoes: novasObservacoes });
   }
-
-  // Sair da página guarda o que faltava.
-  useEffect(() => {
-    const aoEsconder = () => {
-      if (document.visibilityState === "hidden") void guardarAgora();
-    };
-    document.addEventListener("visibilitychange", aoEsconder);
-    return () => {
-      document.removeEventListener("visibilitychange", aoEsconder);
-      void guardarAgora();
-    };
-  }, [guardarAgora]);
-
-  // Anamnese nova ou com perguntas sincronizadas: grava o estado de partida.
-  useEffect(() => {
-    pendente.current = true;
-    void guardarAgora();
-  }, [guardarAgora]);
 
   async function salvar() {
     setSalvando(true);
     setErro(null);
-    if (temporizador.current) clearTimeout(temporizador.current);
-    pendente.current = false;
-    await emAndamento.current;
+    await parar();
     const r = await salvarAnamnese(id, atual.current.itens, atual.current.observacoes).catch(() => ({ ok: false as const, erro: "Falha de conexão ao salvar." }));
     if (!r.ok) {
-      pendente.current = true;
+      retomar();
       setSalvando(false);
       return setErro(r.erro);
     }
@@ -107,9 +53,7 @@ export function FormularioDaAnamnese({ id, paciente, itensIniciais, observacoesI
   }
 
   async function descartar() {
-    if (temporizador.current) clearTimeout(temporizador.current);
-    pendente.current = false;
-    await emAndamento.current;
+    await parar();
     await descartarEdicao(id).catch(() => null);
     router.push(`/anamnese/${id}`);
     router.refresh();

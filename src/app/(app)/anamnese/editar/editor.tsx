@@ -1,14 +1,16 @@
 "use client";
 
-// Editor do modelo de anamnese do profissional: adicionar, editar, excluir e
+// Editor do modelo do profissional (anamnese ou tópicos do atendimento): adicionar, editar, excluir e
 // reordenar perguntas (segurando o ícone à esquerda e arrastando, ou com as setas).
 // Cada mudança é gravada na hora; as anamneses já salvas não mudam.
 
 import Link from "next/link";
 import { useEffect, useRef, useState, type PointerEvent } from "react";
-import { adicionarPergunta, editarPergunta, excluirPergunta, reordenarPerguntas } from "../actions";
+import { adicionarPergunta, editarPergunta, excluirPergunta, reordenarPerguntas, type TipoDeModelo } from "../actions";
 
 type Pergunta = { id: string; texto: string };
+
+const NOVA = "Novo item";
 
 const moverItem = (lista: Pergunta[], de: number, para: number) => {
   const nova = [...lista];
@@ -17,7 +19,29 @@ const moverItem = (lista: Pergunta[], de: number, para: number) => {
   return nova;
 };
 
-export function EditorDoModelo({ perguntasIniciais, voltar }: { perguntasIniciais: Pergunta[]; voltar: string }) {
+const TEXTOS: Record<TipoDeModelo, { titulo: string; acima: string; adicionar: string; rotulo: string; vazio: string; fim: string }> = {
+  anamnese: {
+    titulo: "Editar anamnese",
+    acima: "As perguntas são só suas. As mudanças valem para as próximas anamneses; as já salvas continuam como foram feitas.",
+    adicionar: "+ Adicionar pergunta",
+    rotulo: "Pergunta",
+    vazio: "Nenhuma pergunta ainda.",
+    fim: "Campo fixo, sempre no fim da anamnese.",
+  },
+  atendimento: {
+    titulo: "Editar tópicos do atendimento",
+    acima: "Os tópicos são só seus. As mudanças valem para os próximos atendimentos; os já salvos continuam como foram feitos.",
+    adicionar: "+ Adicionar tópico",
+    rotulo: "Tópico",
+    vazio: "Nenhum tópico ainda.",
+    fim: "Campo fixo, sempre no fim do atendimento.",
+  },
+};
+
+type EditorProps = { modelo: TipoDeModelo; perguntasIniciais: Pergunta[]; voltar: string };
+
+export function EditorDoModelo({ modelo, perguntasIniciais, voltar }: EditorProps) {
+  const textos = TEXTOS[modelo];
   const [perguntas, setPerguntas] = useState(perguntasIniciais);
   const [arrastando, setArrastando] = useState<string | null>(null);
   const [focar, setFocar] = useState<string | null>(null);
@@ -41,29 +65,29 @@ export function EditorDoModelo({ perguntasIniciais, voltar }: { perguntasIniciai
   }, [focar]);
 
   async function gravarOrdem() {
-    const r = await reordenarPerguntas(atual.current.map((p) => p.id)).catch(() => ({ ok: false as const, erro: "Falha de conexão." }));
+    const r = await reordenarPerguntas(modelo, atual.current.map((p) => p.id)).catch(() => ({ ok: false as const, erro: "Falha de conexão." }));
     setErro(r.ok ? null : r.erro);
   }
 
   async function adicionar() {
     setErro(null);
-    const r = await adicionarPergunta("Nova pergunta").catch(() => ({ ok: false as const, erro: "Falha de conexão." }));
+    const r = await adicionarPergunta(modelo, NOVA).catch(() => ({ ok: false as const, erro: "Falha de conexão." }));
     if (!r.ok) return setErro(r.erro);
-    gravados.current.set(r.id, "Nova pergunta");
-    setPerguntas((lista) => [...lista, { id: r.id, texto: "Nova pergunta" }]);
+    gravados.current.set(r.id, NOVA);
+    setPerguntas((lista) => [...lista, { id: r.id, texto: NOVA }]);
     setFocar(r.id);
   }
 
   async function renomear(id: string, texto: string) {
     if (texto === gravados.current.get(id)) return;
-    const r = await editarPergunta(id, texto).catch(() => ({ ok: false as const, erro: "Falha de conexão." }));
+    const r = await editarPergunta(modelo, id, texto).catch(() => ({ ok: false as const, erro: "Falha de conexão." }));
     if (r.ok) gravados.current.set(id, texto);
     setErro(r.ok ? null : r.erro);
   }
 
   async function excluir(id: string) {
     setExcluindo(id);
-    const r = await excluirPergunta(id).catch(() => ({ ok: false as const, erro: "Falha de conexão." }));
+    const r = await excluirPergunta(modelo, id).catch(() => ({ ok: false as const, erro: "Falha de conexão." }));
     setExcluindo(null);
     if (!r.ok) return setErro(r.erro);
     setErro(null);
@@ -114,23 +138,23 @@ export function EditorDoModelo({ perguntasIniciais, voltar }: { perguntasIniciai
           <Link href={voltar} className="text-sm text-muted hover:text-foreground">
             ← Voltar
           </Link>
-          <h1 className="text-lg font-semibold tracking-tight">Editar anamnese</h1>
+          <h1 className="text-lg font-semibold tracking-tight">{textos.titulo}</h1>
         </div>
         <button type="button" onClick={() => void adicionar()} className="shrink-0 rounded-full bg-accent px-4 py-2 text-sm font-medium text-white transition hover:brightness-110">
-          + Adicionar pergunta
+          {textos.adicionar}
         </button>
       </header>
 
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-4 py-6 sm:px-6">
-        <p className="text-sm text-muted">As perguntas são só suas. As mudanças valem para as próximas anamneses; as já salvas continuam como foram feitas.</p>
+        <p className="text-sm text-muted">{textos.acima}</p>
         {erro && (
           <p role="alert" className="text-sm text-danger">
             {erro}
           </p>
         )}
-        {perguntas.length === 0 && <p className="rounded-3xl bg-surface p-5 text-sm text-muted shadow-sm ring-1 ring-black/5">Nenhuma pergunta ainda.</p>}
+        {perguntas.length === 0 && <p className="rounded-3xl bg-surface p-5 text-sm text-muted shadow-sm ring-1 ring-black/5">{textos.vazio}</p>}
 
-        <ul aria-label="Perguntas" className="flex flex-col gap-3">
+        <ul aria-label={`${textos.rotulo}s`} className="flex flex-col gap-3">
           {perguntas.map((p, i) => (
             <li
               key={p.id}
@@ -158,7 +182,7 @@ export function EditorDoModelo({ perguntasIniciais, voltar }: { perguntasIniciai
               <div className="flex min-w-0 flex-1 flex-col gap-2">
                 <input
                   value={p.texto}
-                  aria-label={`Pergunta ${i + 1}`}
+                  aria-label={`${textos.rotulo} ${i + 1}`}
                   onChange={(e) => setPerguntas((lista) => lista.map((x) => (x.id === p.id ? { ...x, texto: e.target.value } : x)))}
                   onBlur={(e) => void renomear(p.id, e.target.value)}
                   className="w-full rounded-lg border border-transparent bg-transparent px-2 py-1 font-semibold outline-none hover:border-border focus:border-accent focus:ring-2 focus:ring-accent-soft"
@@ -169,7 +193,7 @@ export function EditorDoModelo({ perguntasIniciais, voltar }: { perguntasIniciai
                 type="button"
                 disabled={excluindo === p.id}
                 aria-label={`Excluir: ${p.texto}`}
-                title="Excluir pergunta"
+                title={`Excluir ${textos.rotulo.toLowerCase()}`}
                 onClick={() => void excluir(p.id)}
                 className="mt-1 shrink-0 rounded-full px-2 py-1 text-muted hover:bg-red-50 hover:text-danger disabled:opacity-50"
               >
@@ -182,7 +206,7 @@ export function EditorDoModelo({ perguntasIniciais, voltar }: { perguntasIniciai
         <section aria-label="Observações" className="flex flex-col gap-2 rounded-3xl bg-black/[0.03] p-4 pl-11">
           <p className="font-semibold text-muted">Observações</p>
           <div aria-hidden className="h-14 rounded-xl border border-dashed border-border" />
-          <p className="text-xs text-muted">Campo fixo, sempre no fim da anamnese.</p>
+          <p className="text-xs text-muted">{textos.fim}</p>
         </section>
       </div>
     </>
