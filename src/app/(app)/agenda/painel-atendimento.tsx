@@ -292,8 +292,12 @@ export function PainelAtendimento({ id, aoFechar, aoEditar, mostrarLinkDoPacient
               </dd>
               <dt className="text-muted">Tipo</dt>
               <dd>{a.tipo?.nome ?? "—"}</dd>
-              <dt className="text-muted">Valor</dt>
-              <dd>{a.valor != null ? moeda.format(a.valor) : "—"}</dd>
+              {!dados.semValores && (
+                <>
+                  <dt className="text-muted">Valor</dt>
+                  <dd>{a.valor != null ? moeda.format(a.valor) : "—"}</dd>
+                </>
+              )}
               {dados.financeiro && (a.valor ?? 0) > 0 && (
                 <>
                   <dt className="text-muted">Pagamento</dt>

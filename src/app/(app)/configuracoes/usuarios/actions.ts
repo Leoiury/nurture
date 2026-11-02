@@ -19,7 +19,7 @@ function senhaProvisoria(): string {
   return Array.from(randomBytes(12), (b) => letras[b % letras.length]).join("");
 }
 
-const PERFIS: Perfil[] = ["adm", "limitado"];
+const PERFIS: Perfil[] = ["adm", "limitado", "profissional"];
 /** Login bloqueado enquanto o usuário estiver inativo (~100 anos). */
 const BLOQUEIO = "876000h";
 
@@ -34,6 +34,7 @@ export async function criarUsuario(u: NovoUsuario): Promise<{ ok: true; email: s
   if (nome.length < 3) return { ok: false, erro: "Informe o nome." };
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { ok: false, erro: "E-mail inválido." };
   if (!PERFIS.includes(u.perfil)) return { ok: false, erro: "Perfil inválido." };
+  if (u.perfil === "profissional" && !u.profissionalId) return { ok: false, erro: "Escolha o profissional vinculado a este login." };
 
   const admin = createAdminClient();
   const senha = senhaProvisoria();
@@ -62,6 +63,7 @@ export async function atualizarUsuario(u: EdicaoDeUsuario): Promise<{ ok: true }
   const nome = u.nome.trim().replace(/\s+/g, " ");
   if (nome.length < 3) return { ok: false, erro: "Informe o nome." };
   if (!PERFIS.includes(u.perfil)) return { ok: false, erro: "Perfil inválido." };
+  if (u.perfil === "profissional" && !u.profissionalId) return { ok: false, erro: "Escolha o profissional vinculado a este login." };
 
   const eu = await usuarioAtual();
   if (u.id === eu?.id && (u.perfil !== "adm" || !u.ativo)) return { ok: false, erro: "Você não pode tirar o seu próprio acesso de administrador." };

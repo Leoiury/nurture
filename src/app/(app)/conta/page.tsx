@@ -22,7 +22,7 @@ export default async function ContaPage() {
           <dt className="text-muted">E-mail</dt>
           <dd className="break-words">{u.email}</dd>
           <dt className="text-muted">Perfil</dt>
-          <dd>{u.perfil === "adm" ? "Administrador" : "Limitado"}</dd>
+          <dd>{u.perfil === "adm" ? "Administrador" : u.perfil === "profissional" ? "Profissional" : "Limitado"}</dd>
           {profissional && (
             <>
               <dt className="text-muted">Profissional</dt>

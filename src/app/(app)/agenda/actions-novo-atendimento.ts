@@ -2,6 +2,7 @@
 
 // Ações do painel "Novo atendimento".
 
+import { ATENDIMENTOS_SEM_VALOR } from "@/lib/agenda/sem-valor";
 import { revalidatePath } from "next/cache";
 import { carregarDiasEspeciais, carregarEscalas } from "@/lib/agenda/dados";
 import { escalaDoDia, intersecao } from "@/lib/agenda/escala";
@@ -103,7 +104,7 @@ export async function verificarConflitos(
 
   const supabase = await createClient();
   const { data, error } = await supabase
-    .from("atendimentos")
+    .from(ATENDIMENTOS_SEM_VALOR)
     .select("id, recorrencia_id, inicio, fim, paciente_id, paciente:pacientes(nome), profissionais:atendimento_profissionais(profissional:profissionais(id, nome))")
     .is("excluido_em", null)
     .neq("status", "desmarcado")
@@ -278,7 +279,7 @@ export async function buscarHorariosLivres(b: BuscaDeHorarios): Promise<{ sugest
     carregarDiasEspeciais(inicio, fim),
     carregarEscalas([...new Set(grupos.flat())]),
     supabase
-      .from("atendimentos")
+      .from(ATENDIMENTOS_SEM_VALOR)
       .select("id, inicio, fim, paciente_id, profissionais:atendimento_profissionais(profissional_id)")
       .is("excluido_em", null)
       .neq("status", "desmarcado")

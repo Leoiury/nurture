@@ -4,6 +4,7 @@
 // A cobertura (que atendimentos cada guia cobre) é calculada no banco
 // (guias_dos_atendimentos); aqui ficam as datas dos atendimentos que faltam.
 
+import { ATENDIMENTOS_SEM_VALOR } from "@/lib/agenda/sem-valor";
 import { revalidatePath } from "next/cache";
 import { carregarDiasEspeciais } from "@/lib/agenda/dados";
 import { semExpediente } from "@/lib/agenda/feriados";
@@ -18,8 +19,8 @@ type Resultado = { ok: true; quantidade?: number } | { ok: false; erro: string }
 export async function guiaDoAtendimento(id: string) {
   const supabase = await createClient();
   const { data: a, error } = await supabase
-    .from("atendimentos")
-    .select("id, inicio, status, recorrencia_id, plano:planos(exige_guia)")
+    .from(ATENDIMENTOS_SEM_VALOR)
+    .select("id, inicio, status, recorrencia_id, plano:planos_equipe(exige_guia)" as "id, inicio, status, recorrencia_id, plano:planos(exige_guia)")
     .eq("id", id)
     .single();
   if (error) throw new Error("Atendimento não encontrado.");

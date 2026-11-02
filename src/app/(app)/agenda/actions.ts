@@ -6,7 +6,8 @@
 import { revalidatePath } from "next/cache";
 import type { ArgsEditar } from "@/lib/agenda/planejamento";
 import { instanteNoFuso } from "@/lib/agenda/tempo";
-import { ehAdm } from "@/lib/auth/usuario";
+import { ATENDIMENTOS_SEM_VALOR } from "@/lib/agenda/sem-valor";
+import { ehAdm, ehProfissional } from "@/lib/auth/usuario";
 import type { Database } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
 
@@ -14,20 +15,29 @@ type Status = Database["public"]["Enums"]["status_atendimento"];
 export type Alcance = Database["public"]["Enums"]["alcance_serie"];
 export type Resultado = { ok: true; quantidade?: number } | { ok: false; erro: string };
 
-/** Detalhes para o painel lateral, com a série (se houver) e as observações. */
-export async function detalhesAtendimento(id: string) {
-  const supabase = await createClient();
-
-  const { data: atendimento, error } = await supabase
-    .from("atendimentos")
-    .select(
-      `id, inicio, fim, status, valor, observacao, motivo_desmarcacao, recorrencia_id, paciente_id, plano_id, tipo_id,
+const DETALHES = `id, inicio, fim, status, valor, observacao, motivo_desmarcacao, recorrencia_id, paciente_id, plano_id, tipo_id,
        profissionais:atendimento_profissionais(profissional:profissionais(id, nome, especialidade)),
        plano:planos(nome, cor),
        tipo:tipos_atendimento(nome),
        recorrencia:recorrencias(frequencia),
-       paciente:pacientes(id, nome, responsavel, data_nascimento, celular, email, plano:planos(nome))`,
-    )
+       paciente:pacientes(id, nome, responsavel, data_nascimento, celular, email, plano:planos(nome))`;
+
+// Os mesmos detalhes sem valores, para o perfil profissional.
+const DETALHES_SEM_VALOR = `id, inicio, fim, status, observacao, motivo_desmarcacao, recorrencia_id, paciente_id, plano_id, tipo_id,
+       profissionais:atendimento_profissionais(profissional:profissionais(id, nome, especialidade)),
+       plano:planos_equipe(nome, cor),
+       tipo:tipos_atendimento(nome),
+       recorrencia:recorrencias(frequencia),
+       paciente:pacientes(id, nome, responsavel, data_nascimento, celular, email, plano:planos_equipe(nome))` as typeof DETALHES;
+
+/** Detalhes para o painel lateral, com a série (se houver) e as observações. */
+export async function detalhesAtendimento(id: string) {
+  const supabase = await createClient();
+  const semValores = await ehProfissional();
+
+  const { data: atendimento, error } = await supabase
+    .from(semValores ? ATENDIMENTOS_SEM_VALOR : "atendimentos")
+    .select(semValores ? DETALHES_SEM_VALOR : DETALHES)
     .eq("id", id)
     .is("excluido_em", null)
     .single();
@@ -35,7 +45,7 @@ export async function detalhesAtendimento(id: string) {
 
   const [serie, observacoes, adm] = await Promise.all([
     atendimento.recorrencia_id
-      ? supabase.from("atendimentos").select("inicio").eq("recorrencia_id", atendimento.recorrencia_id).is("excluido_em", null)
+      ? supabase.from(ATENDIMENTOS_SEM_VALOR).select("inicio").eq("recorrencia_id", atendimento.recorrencia_id).is("excluido_em", null)
       : null,
     supabase.from("atendimentos_observacoes").select("id, criado_em, texto, automatica").eq("atendimento_id", id).order("criado_em", { ascending: false }),
     ehAdm(),
@@ -44,6 +54,7 @@ export async function detalhesAtendimento(id: string) {
 
   return {
     atendimento,
+    semValores,
     // Tamanho da série e quantos vêm a partir deste (inclusive), para as opções de alcance.
     serie: serie ? { total: serie.data.length, seguintes: serie.data.filter((s) => s.inicio >= atendimento.inicio).length } : null,
     observacoes: observacoes.data,
@@ -75,7 +86,9 @@ function concluir(error: { message: string } | null, quantidade?: number): Resul
 /** Status rápido (confirmado, atendido, faltou, ou de volta a marcado). Desmarcar tem ação própria. */
 export async function alterarStatus(id: string, status: Exclude<Status, "desmarcado">): Promise<Resultado> {
   const supabase = await createClient();
-  const { error } = await supabase.from("atendimentos").update({ status, motivo_desmarcacao: null }).eq("id", id);
+  // Sem permissão, o RLS não dá erro: simplesmente nenhuma linha muda.
+  const { data, error } = await supabase.from("atendimentos").update({ status, motivo_desmarcacao: null }).eq("id", id).select("id");
+  if (!error && data.length === 0) return { ok: false, erro: "Não foi possível alterar este atendimento." };
   return concluir(error);
 }
 

@@ -66,6 +66,13 @@ export type Database = {
             foreignKeyName: "atendimento_profissionais_atendimento_id_fkey"
             columns: ["atendimento_id"]
             isOneToOne: false
+            referencedRelation: "atendimentos_equipe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "atendimento_profissionais_atendimento_id_fkey"
+            columns: ["atendimento_id"]
+            isOneToOne: false
             referencedRelation: "guias_dos_atendimentos"
             referencedColumns: ["atendimento_id"]
           },
@@ -152,6 +159,13 @@ export type Database = {
             columns: ["plano_id"]
             isOneToOne: false
             referencedRelation: "planos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "atendimentos_plano_id_fkey"
+            columns: ["plano_id"]
+            isOneToOne: false
+            referencedRelation: "planos_equipe"
             referencedColumns: ["id"]
           },
           {
@@ -244,6 +258,13 @@ export type Database = {
             foreignKeyName: "atendimentos_observacoes_atendimento_id_fkey"
             columns: ["atendimento_id"]
             isOneToOne: false
+            referencedRelation: "atendimentos_equipe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "atendimentos_observacoes_atendimento_id_fkey"
+            columns: ["atendimento_id"]
+            isOneToOne: false
             referencedRelation: "guias_dos_atendimentos"
             referencedColumns: ["atendimento_id"]
           },
@@ -299,6 +320,13 @@ export type Database = {
             foreignKeyName: "baixas_atendimentos_atendimento_id_fkey"
             columns: ["atendimento_id"]
             isOneToOne: false
+            referencedRelation: "atendimentos_equipe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "baixas_atendimentos_atendimento_id_fkey"
+            columns: ["atendimento_id"]
+            isOneToOne: false
             referencedRelation: "guias_dos_atendimentos"
             referencedColumns: ["atendimento_id"]
           },
@@ -332,6 +360,13 @@ export type Database = {
             columns: ["plano_id"]
             isOneToOne: false
             referencedRelation: "planos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "convenios_legado_plano_id_fkey"
+            columns: ["plano_id"]
+            isOneToOne: false
+            referencedRelation: "planos_equipe"
             referencedColumns: ["id"]
           },
         ]
@@ -660,6 +695,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "pacientes_plano_id_fkey"
+            columns: ["plano_id"]
+            isOneToOne: false
+            referencedRelation: "planos_equipe"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "pacientes_profissional_responsavel_id_fkey"
             columns: ["profissional_responsavel_id"]
             isOneToOne: false
@@ -717,6 +759,13 @@ export type Database = {
             referencedRelation: "planos"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "pagamentos_plano_id_fkey"
+            columns: ["plano_id"]
+            isOneToOne: false
+            referencedRelation: "planos_equipe"
+            referencedColumns: ["id"]
+          },
         ]
       }
       pagamentos_atendimentos: {
@@ -748,6 +797,13 @@ export type Database = {
             columns: ["atendimento_id"]
             isOneToOne: false
             referencedRelation: "atendimentos_em_aberto"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pagamentos_atendimentos_atendimento_id_fkey"
+            columns: ["atendimento_id"]
+            isOneToOne: false
+            referencedRelation: "atendimentos_equipe"
             referencedColumns: ["id"]
           },
           {
@@ -1054,6 +1110,109 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "atendimentos_plano_id_fkey"
+            columns: ["plano_id"]
+            isOneToOne: false
+            referencedRelation: "planos_equipe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "atendimentos_tipo_id_fkey"
+            columns: ["tipo_id"]
+            isOneToOne: false
+            referencedRelation: "tipos_atendimento"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      atendimentos_equipe: {
+        Row: {
+          atualizado_em: string | null
+          criado_em: string | null
+          excluido_em: string | null
+          excluido_por: string | null
+          fim: string | null
+          id: string | null
+          id_legado: number | null
+          importado_em: string | null
+          inicio: string | null
+          motivo_desmarcacao: string | null
+          motivo_exclusao: string | null
+          observacao: string | null
+          paciente_id: string | null
+          plano_id: string | null
+          recorrencia_id: string | null
+          status: Database["public"]["Enums"]["status_atendimento"] | null
+          tipo_id: string | null
+        }
+        Insert: {
+          atualizado_em?: string | null
+          criado_em?: string | null
+          excluido_em?: string | null
+          excluido_por?: string | null
+          fim?: string | null
+          id?: string | null
+          id_legado?: number | null
+          importado_em?: string | null
+          inicio?: string | null
+          motivo_desmarcacao?: string | null
+          motivo_exclusao?: string | null
+          observacao?: string | null
+          paciente_id?: string | null
+          plano_id?: string | null
+          recorrencia_id?: string | null
+          status?: Database["public"]["Enums"]["status_atendimento"] | null
+          tipo_id?: string | null
+        }
+        Update: {
+          atualizado_em?: string | null
+          criado_em?: string | null
+          excluido_em?: string | null
+          excluido_por?: string | null
+          fim?: string | null
+          id?: string | null
+          id_legado?: number | null
+          importado_em?: string | null
+          inicio?: string | null
+          motivo_desmarcacao?: string | null
+          motivo_exclusao?: string | null
+          observacao?: string | null
+          paciente_id?: string | null
+          plano_id?: string | null
+          recorrencia_id?: string | null
+          status?: Database["public"]["Enums"]["status_atendimento"] | null
+          tipo_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "atendimentos_paciente_id_fkey"
+            columns: ["paciente_id"]
+            isOneToOne: false
+            referencedRelation: "pacientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "atendimentos_plano_id_fkey"
+            columns: ["plano_id"]
+            isOneToOne: false
+            referencedRelation: "planos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "atendimentos_plano_id_fkey"
+            columns: ["plano_id"]
+            isOneToOne: false
+            referencedRelation: "planos_equipe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "atendimentos_recorrencia_id_fkey"
+            columns: ["recorrencia_id"]
+            isOneToOne: false
+            referencedRelation: "recorrencias"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "atendimentos_tipo_id_fkey"
             columns: ["tipo_id"]
             isOneToOne: false
@@ -1083,6 +1242,33 @@ export type Database = {
           },
         ]
       }
+      planos_equipe: {
+        Row: {
+          ativo: boolean | null
+          cor: string | null
+          duracao_padrao_min: number | null
+          exige_guia: boolean | null
+          id: string | null
+          nome: string | null
+        }
+        Insert: {
+          ativo?: boolean | null
+          cor?: string | null
+          duracao_padrao_min?: number | null
+          exige_guia?: boolean | null
+          id?: string | null
+          nome?: string | null
+        }
+        Update: {
+          ativo?: boolean | null
+          cor?: string | null
+          duracao_padrao_min?: number | null
+          exige_guia?: boolean | null
+          id?: string | null
+          nome?: string | null
+        }
+        Relationships: []
+      }
       quitacoes_a_revisar: {
         Row: {
           atendimento_id: string | null
@@ -1103,6 +1289,13 @@ export type Database = {
             columns: ["atendimento_id"]
             isOneToOne: false
             referencedRelation: "atendimentos_em_aberto"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pagamentos_atendimentos_atendimento_id_fkey"
+            columns: ["atendimento_id"]
+            isOneToOne: false
+            referencedRelation: "atendimentos_equipe"
             referencedColumns: ["id"]
           },
           {
@@ -1230,6 +1423,7 @@ export type Database = {
         Returns: number
       }
       eh_adm: { Args: never; Returns: boolean }
+      eh_profissional: { Args: never; Returns: boolean }
       excluir_atendimentos: {
         Args: {
           p_alcance: Database["public"]["Enums"]["alcance_serie"]
@@ -1258,6 +1452,7 @@ export type Database = {
         Returns: Json
       }
       lancar_despesas_recorrentes: { Args: { p_ate: string }; Returns: number }
+      meu_profissional: { Args: never; Returns: string }
       modificado_no_app: {
         Args: { p_id: string; p_importado_em: string }
         Returns: boolean
@@ -1274,6 +1469,10 @@ export type Database = {
       mudar_plano_dos_futuros: {
         Args: { p_ignorar?: string; p_paciente: string; p_plano: string }
         Returns: number
+      }
+      perfil_do_login: {
+        Args: { p_perfil: string }
+        Returns: Database["public"]["Enums"]["perfil_usuario"]
       }
       planejamento_confere: {
         Args: { p_esperado: Json; p_id: string }
@@ -1329,7 +1528,7 @@ export type Database = {
       alcance_serie: "este" | "seguintes" | "todos"
       frequencia_recorrencia: "semanal" | "quinzenal" | "mensal"
       nivel_cadastral: "completo" | "falta_informacao" | "critico"
-      perfil_usuario: "adm" | "limitado"
+      perfil_usuario: "adm" | "limitado" | "profissional"
       status_atendimento:
         | "marcado"
         | "confirmado"
@@ -1470,7 +1669,7 @@ export const Constants = {
       alcance_serie: ["este", "seguintes", "todos"],
       frequencia_recorrencia: ["semanal", "quinzenal", "mensal"],
       nivel_cadastral: ["completo", "falta_informacao", "critico"],
-      perfil_usuario: ["adm", "limitado"],
+      perfil_usuario: ["adm", "limitado", "profissional"],
       status_atendimento: [
         "marcado",
         "confirmado",

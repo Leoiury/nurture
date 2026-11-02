@@ -1,39 +1,52 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ATENDIMENTOS_SEM_VALOR } from "@/lib/agenda/sem-valor";
+import { ehProfissional } from "@/lib/auth/usuario";
 import { createClient } from "@/lib/supabase/server";
 import { FichaDoPaciente } from "./ficha-do-paciente";
 import { HistoricoDoPaciente, type AtendimentoDoHistorico } from "./historico-do-paciente";
 
 export const metadata: Metadata = { title: "Paciente · Nurture" };
 
+const FICHA =
+  "id, nome, responsavel, data_nascimento, cpf, celular, email, endereco, bairro, cidade, uf, cep, plano_id, ativo, nivel_cadastral, pendencias_cadastrais, plano:planos(nome, cor)";
+// A mesma ficha para o perfil profissional, sem acesso à tabela de planos.
+const FICHA_SEM_VALOR =
+  "id, nome, responsavel, data_nascimento, cpf, celular, email, endereco, bairro, cidade, uf, cep, plano_id, ativo, nivel_cadastral, pendencias_cadastrais, plano:planos_equipe(nome, cor)" as typeof FICHA;
+
+const HISTORICO = `id, inicio, fim, status, motivo_desmarcacao, recorrencia_id,
+         profissionais:atendimento_profissionais(profissional:profissionais(nome)),
+         tipo:tipos_atendimento(nome),
+         plano:planos(nome, cor),
+         observacoes:atendimentos_observacoes(count)`;
+const HISTORICO_SEM_VALOR = `id, inicio, fim, status, motivo_desmarcacao, recorrencia_id,
+         profissionais:atendimento_profissionais(profissional:profissionais(nome)),
+         tipo:tipos_atendimento(nome),
+         plano:planos_equipe(nome, cor),
+         observacoes:atendimentos_observacoes(count)` as typeof HISTORICO;
+
 export default async function PacientePage({ params }: PageProps<"/pacientes/[id]">) {
   const { id } = await params;
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
   const supabase = await createClient();
 
+  const semValores = await ehProfissional();
+
   const [paciente, atendimentos, planos] = await Promise.all([
     supabase
       .from("pacientes")
-      .select(
-        "id, nome, responsavel, data_nascimento, cpf, celular, email, endereco, bairro, cidade, uf, cep, plano_id, ativo, nivel_cadastral, pendencias_cadastrais, plano:planos(nome, cor)",
-      )
+      .select(semValores ? FICHA_SEM_VALOR : FICHA)
       .eq("id", id)
       .maybeSingle(),
     supabase
-      .from("atendimentos")
-      .select(
-        `id, inicio, fim, status, motivo_desmarcacao, recorrencia_id,
-         profissionais:atendimento_profissionais(profissional:profissionais(nome)),
-         tipo:tipos_atendimento(nome),
-         plano:planos(nome, cor),
-         observacoes:atendimentos_observacoes(count)`,
-      )
+      .from(semValores ? ATENDIMENTOS_SEM_VALOR : "atendimentos")
+      .select(semValores ? HISTORICO_SEM_VALOR : HISTORICO)
       .eq("paciente_id", id)
       .is("excluido_em", null)
       .order("inicio", { ascending: false })
       .limit(1000),
-    supabase.from("planos").select("id, nome, ativo").order("nome"),
+    supabase.from((semValores ? "planos_equipe" : "planos") as "planos").select("id, nome, ativo").order("nome"),
   ]);
   if (paciente.error || atendimentos.error || planos.error) throw new Error("Não foi possível carregar o paciente.");
   if (!paciente.data) notFound();

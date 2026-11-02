@@ -1,4 +1,5 @@
 import "server-only";
+import { ehProfissional } from "@/lib/auth/usuario";
 import type { Database } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
 import { escalaDasJornadas, escalaDoDia, type Escala, type Intervalo } from "./escala";
@@ -6,6 +7,7 @@ import { diasEspeciais, type DiaEspecial } from "./feriados";
 import { situacaoDaGuia, type SituacaoDaGuia } from "./guias";
 import { ANTECEDENCIA_DIAS, aniversarios, comemoracoes, type Aniversario, type Comemoracao } from "./lembretes";
 import { mapearPeriodo, type MapaDoPeriodo } from "./ocupacao";
+import { ATENDIMENTOS_SEM_VALOR } from "./sem-valor";
 import { inicioDoDiaISO, partesNoFuso, somarDias } from "./tempo";
 
 export type Status = Database["public"]["Enums"]["status_atendimento"];
@@ -86,6 +88,10 @@ export async function carregarDiasEspeciais(primeiroDia: string, ultimoDia: stri
 const SELECAO_DA_AGENDA =
   "id, id_legado, paciente_id, tipo_id, inicio, fim, status, valor, recorrencia_id, profissionais:atendimento_profissionais(profissional:profissionais(id, nome)), paciente:pacientes(nome, nivel_cadastral), plano:planos(nome, cor, exige_guia), tipo:tipos_atendimento(nome, area, cor)";
 
+// A mesma seleção sem valores, para o perfil profissional.
+const SELECAO_DA_AGENDA_SEM_VALOR =
+  "id, id_legado, paciente_id, tipo_id, inicio, fim, status, recorrencia_id, profissionais:atendimento_profissionais(profissional:profissionais(id, nome)), paciente:pacientes(nome, nivel_cadastral), plano:planos_equipe(nome, cor, exige_guia), tipo:tipos_atendimento(nome, area, cor)" as typeof SELECAO_DA_AGENDA;
+
 type LinhaDaAgenda = {
   id: string;
   inicio: string;
@@ -124,6 +130,7 @@ function paraAgenda(a: LinhaDaAgenda): AtendimentoAgenda {
     corDoTipo: a.tipo?.cor ?? null,
     area: a.tipo?.area ?? null,
     importado: a.id_legado !== null,
+    // Na visão sem valores, o campo nem vem: o filtro "sem valor" não se aplica.
     semValor: a.valor === null,
   };
 }
@@ -147,13 +154,14 @@ async function comGuias(linhas: LinhaDaAgenda[]): Promise<AtendimentoAgenda[]> {
 /** Profissionais ativos, atendimentos e dias especiais entre as datas (inclusive). */
 export async function carregarAgenda(primeiroDia: string, ultimoDia: string) {
   const supabase = await createClient();
+  const semValores = await ehProfissional();
 
   const [profissionais, atendimentos, especiais] = await Promise.all([
     comNovaTentativa(() => supabase.from("profissionais").select("id, nome, especialidade").eq("ativo", true).order("nome")),
     comNovaTentativa(() =>
       supabase
-        .from("atendimentos")
-        .select(SELECAO_DA_AGENDA)
+        .from(semValores ? ATENDIMENTOS_SEM_VALOR : "atendimentos")
+        .select(semValores ? SELECAO_DA_AGENDA_SEM_VALOR : SELECAO_DA_AGENDA)
         .is("excluido_em", null)
         .gte("inicio", inicioDoDiaISO(primeiroDia))
         .lt("inicio", inicioDoDiaISO(somarDias(ultimoDia, 1)))
@@ -209,7 +217,7 @@ export async function carregarMapaDeOcupacao(profissionalIds: string[], primeiro
     carregarEscalas(profissionalIds),
     carregarDiasEspeciais(primeiroDia, ultimoDia),
     supabase
-      .from("atendimentos")
+      .from(ATENDIMENTOS_SEM_VALOR)
       .select("inicio, fim, ap:atendimento_profissionais!inner(profissional_id)")
       .in("ap.profissional_id", profissionalIds)
       .is("excluido_em", null)
