@@ -17,7 +17,7 @@ import {
   type Frequencia,
 } from "@/lib/agenda/recorrencia";
 import { hoje as dataDeHoje, nomeCurtoDoDia, partesNoFuso } from "@/lib/agenda/tempo";
-import { AREAS, lerValor, valorCobrado, valorSugerido } from "@/lib/agenda/valores";
+import { AREAS, lerValor, valorSugerido } from "@/lib/agenda/valores";
 import { horariosDaSequencia } from "@/lib/agenda/horarios-livres";
 import { atendeOTipo, tipoSugerido } from "@/lib/agenda/tipos";
 import { paraBusca } from "@/lib/pacientes";
@@ -72,7 +72,6 @@ const STATUS_INICIAIS = [
   { valor: "atendido", rotulo: "Atendido" },
 ] as const;
 
-const moeda = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 const formatoData = new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit", timeZone: "UTC" });
 const dataCurta = (d: string) => `${nomeCurtoDoDia(d)} ${formatoData.format(new Date(`${d}T12:00:00Z`))}`;
 
@@ -187,19 +186,22 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao, realizar }: P
   // Datas da série que caíram em feriado/recesso e foram puladas (até a última data mantida).
   const puladas = serie?.pularFeriados ? candidatas.filter((d) => bloqueado(d) && d <= (datas.at(-1) ?? d)) : [];
 
-  // Em sequência: um atendimento por profissional, na ordem escolhida, cada um com o
-  // tipo que ele atende (o do formulário, se ele atende; senão o sugerido) e o valor da área.
-  const sequencia = !edicao && emSequencia && profissionais.length > 1;
+  // Com vários profissionais: um atendimento para cada, juntos ou em sequência (na ordem
+  // escolhida), cada um com o tipo que ele atende (o do formulário, se ele atende; senão
+  // o sugerido) e o valor da área.
+  const separados = !edicao && profissionais.length > 1;
+  const sequencia = separados && emSequencia;
   const itensDaSequencia = useMemo(() => {
-    const horas = sequencia && hora ? horariosDaSequencia(hora, duracao, profissionais.length) : null;
-    if (!horas || !opcoes) return [];
+    if (!separados || !hora || !opcoes) return [];
+    const horas = sequencia ? horariosDaSequencia(hora, duracao, profissionais.length) : profissionais.map(() => hora);
+    if (!horas) return [];
     const doFormulario = opcoes.tipos.find((t) => t.id === tipoId);
     return profissionais.map((id, i) => {
       const tipo =
         doFormulario && atendeOTipo(doFormulario, id) ? doFormulario.id : (tipoSugerido(opcoes.profissionais.find((p) => p.id === id), opcoes.tipos) ?? tipoId);
       return { profissionalId: id, hora: horas[i], tipo: opcoes.tipos.find((t) => t.id === tipo) ?? null };
     });
-  }, [sequencia, hora, duracao, profissionais, tipoId, opcoes]);
+  }, [separados, sequencia, hora, duracao, profissionais, tipoId, opcoes]);
 
   // Feriados e recessos do período das datas candidatas.
   useEffect(() => {
@@ -224,8 +226,8 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao, realizar }: P
     const temporizador = setTimeout(() => {
       // Na edição, o próprio atendimento (e a série, se o alcance for além dele) não conta.
       const ignorar = edicao ? { id: edicao.id, recorrenciaId: alcance === "este" ? null : edicao.recorrenciaId } : undefined;
-      // Em sequência: cada atendimento no seu horário, só com o seu profissional.
-      const consultas = sequencia
+      // Com vários: cada atendimento no seu horário, só com o seu profissional.
+      const consultas = separados
         ? itensDaSequencia.map((i) => verificarConflitos({ data, hora: i.hora, duracaoMin: duracao, serie, profissionais: [i.profissionalId], pacienteId }))
         : [verificarConflitos({ data, hora, duracaoMin: duracao, serie, profissionais, pacienteId, ignorar })];
       Promise.all(consultas)
@@ -234,7 +236,7 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao, realizar }: P
     }, 400);
     return () => clearTimeout(temporizador);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, hora, duracao, repetir, frequencia, fimPor, ate, sessoes, pularFeriados, profissionais, pacienteId, alcance, sequencia]);
+  }, [data, hora, duracao, repetir, frequencia, fimPor, ate, sessoes, pularFeriados, profissionais, pacienteId, alcance, separados, itensDaSequencia]);
 
   const paciente = opcoes?.pacientes.find((p) => p.id === pacienteId) ?? null;
   const sugestoes = useMemo(() => {
@@ -279,7 +281,8 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao, realizar }: P
     if (profissionais.length === 0 && !tipoId && opcoes) {
       escolherTipo(tipoSugerido(opcoes.profissionais.find((p) => p.id === id), opcoes.tipos));
     }
-    setProfissionais([...profissionais, id]);
+    // Cada atendimento tem um profissional: na edição, escolher outro é trocar.
+    setProfissionais(edicao ? [id] : [...profissionais, id]);
   }
 
   // Plano e valor: perguntas ao salvar (plano padrão, plano dos futuros, alcance do valor).
@@ -316,7 +319,7 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao, realizar }: P
     // Com a pergunta do valor, ela decide o alcance do valor (o resto da série mantém o seu).
     const valorSoNeste = perguntarValor && alcance !== "este";
     const novo = { ...comuns, serie, status, observacao: observacao.trim() };
-    const resultado = await (sequencia
+    const resultado = await (separados
       ? acoes.criarEmSequencia(
           itensDaSequencia.map((i) => ({
             ...novo,
@@ -363,7 +366,7 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao, realizar }: P
   const conflitosPorData = new Set(conflitos.map((c) => partesNoFuso(c.inicio).data));
   const especialDaData = especiais[data];
   const podeSalvar =
-    (realizar !== "anamnese" || !!tipoAtual) && !!pacienteId && profissionais.length > 0 && !!data && !!hora && datas.length > 0 && !salvando && (!sequencia || itensDaSequencia.length > 0);
+    (realizar !== "anamnese" || !!tipoAtual) && !!pacienteId && profissionais.length > 0 && !!data && !!hora && datas.length > 0 && !salvando && (!separados || itensDaSequencia.length > 0);
 
   return (
     <>
@@ -513,14 +516,14 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao, realizar }: P
               </Campo>
 
               {/* Profissionais */}
-              <Campo rotulo="Profissionais" id="campo-profissional">
+              <Campo rotulo={edicao || realizar ? "Profissional" : "Profissionais"} id="campo-profissional">
                 <div className="flex flex-wrap gap-1.5">
                   {profissionais.map((id) => {
                     const p = opcoes.profissionais.find((x) => x.id === id);
                     return (
                       <span key={id} className="inline-flex items-center gap-1 rounded-full bg-accent-soft py-1 pr-1 pl-3 text-sm text-accent">
                         {p ? nomeAbreviado(p.nome) : "—"}
-                        {id !== opcoes.meuProfissional && (
+                        {id !== opcoes.meuProfissional && !edicao && !realizar && (
                           <button
                             type="button"
                             onClick={() => setProfissionais(profissionais.filter((x) => x !== id))}
@@ -534,8 +537,8 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao, realizar }: P
                     );
                   })}
                 </div>
-                <select id="campo-profissional" value="" onChange={(e) => adicionarProfissional(e.target.value)} className={entrada}>
-                  <option value="">{profissionais.length ? "+ Adicionar outro profissional" : "Escolher profissional…"}</option>
+                {!realizar && !(edicao && semValores) && <select id="campo-profissional" value="" onChange={(e) => adicionarProfissional(e.target.value)} className={entrada}>
+                  <option value="">{edicao ? "Trocar de profissional" : profissionais.length ? "+ Adicionar outro profissional" : "Escolher profissional…"}</option>
                   {opcoes.profissionais
                     .filter((p) => !profissionais.includes(p.id))
                     .map((p) => (
@@ -544,16 +547,10 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao, realizar }: P
                         {p.especialidade ? ` — ${p.especialidade}` : ""}
                       </option>
                     ))}
-                </select>
+                </select>}
               </Campo>
 
-              {semValores && edicao && profissionais.length > 1 && (
-                <p role="note" className="-mt-2 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-900 ring-1 ring-amber-200">
-                  Atendimento em conjunto: as mudanças valem para todos os profissionais e ficam registradas nas observações.
-                </p>
-              )}
-
-              {!semValores && !edicao && profissionais.length > 1 && (
+              {separados && (
                 <fieldset className="-mt-2 flex flex-col gap-1.5 text-sm">
                   <legend className="sr-only">Como marcar com vários profissionais</legend>
                   <label className="flex cursor-pointer items-center gap-2">
@@ -577,8 +574,8 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao, realizar }: P
                 </Campo>
               </div>
 
-              {sequencia && (
-                <section aria-label="Sequência" className="-mt-2 flex flex-col gap-1 rounded-xl bg-black/[0.03] px-3 py-2 text-sm">
+              {separados && (
+                <section aria-label={sequencia ? "Sequência" : "Atendimentos"} className="-mt-2 flex flex-col gap-1 rounded-xl bg-black/[0.03] px-3 py-2 text-sm">
                   {itensDaSequencia.length === 0 ? (
                     <p className="text-xs text-muted">{hora ? "A sequência passa da meia-noite." : "Escolha o início (ou um horário livre abaixo)."}</p>
                   ) : (
@@ -588,7 +585,7 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao, realizar }: P
                           <span className="tabular-nums text-muted">{i.hora}</span>
                           <span className="font-medium">{nomeAbreviado(opcoes.profissionais.find((p) => p.id === i.profissionalId)?.nome ?? "")}</span>
                           <span className="truncate text-xs text-muted">{i.tipo?.nome ?? "sem tipo"}</span>
-                          {n > 0 && (
+                          {sequencia && n > 0 && (
                             <button
                               type="button"
                               onClick={() => setProfissionais(profissionais.map((id, k) => (k === n - 1 ? profissionais[n] : k === n ? profissionais[n - 1] : id)))}
@@ -602,7 +599,7 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao, realizar }: P
                       ))}
                     </ol>
                   )}
-                  <p className="text-[11px] text-muted">Um atendimento com cada profissional, colados, cada um com a duração abaixo.</p>
+                  <p className="text-[11px] text-muted">{sequencia ? "Um atendimento com cada profissional, colados, cada um com a duração abaixo." : "Um atendimento separado com cada profissional: cada um tem o próprio status, valor, registro e guia."}</p>
                 </section>
               )}
 
@@ -664,11 +661,6 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao, realizar }: P
                 </Campo>}
               </div>
               {!semValores && tipoAtual?.cobrar === false && <p className="-mt-2 text-xs text-muted">Este tipo não é cobrado: o atendimento fica sem valor.</p>}
-              {!semValores && !sequencia && profissionais.length > 1 && (lerValor(valor) ?? 0) > 0 && (
-                <p className="-mt-2 text-xs text-muted">
-                  Valor por profissional. Total cobrado: {profissionais.length} × R$ {valor} = {moeda.format(valorCobrado(lerValor(valor)!, profissionais.length))}
-                </p>
-              )}
               {/* Editando um atendimento com plano diferente do padrão do paciente. */}
               {edicao && planoDoPaciente && planoId === edicao.planoId && planoId !== planoDoPaciente && (
                 <div role="note" className="-mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-900 ring-1 ring-amber-200">
@@ -722,8 +714,8 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao, realizar }: P
               {(() => {
                 // Só avisa: a clínica pode ter exceções (ex.: cobrir um colega).
                 const tipo = opcoes.tipos.find((t) => t.id === tipoId);
-                // Em sequência, cada um recebe o tipo que atende: o aviso não se aplica.
-                const fora = tipo && !sequencia ? profissionais.filter((id) => !atendeOTipo(tipo, id)) : [];
+                // Com vários, cada um recebe o tipo que atende: o aviso não se aplica.
+                const fora = tipo && !separados ? profissionais.filter((id) => !atendeOTipo(tipo, id)) : [];
                 return fora.length > 0 ? (
                   <p className="-mt-2 text-xs text-muted">
                     {fora.map((id) => nomeAbreviado(opcoes.profissionais.find((p) => p.id === id)?.nome ?? "")).join(", ")}{" "}
@@ -869,8 +861,8 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao, realizar }: P
                     ? quantidadeNaEdicao(edicao, alcance) > 1
                       ? `Salvar ${quantidadeNaEdicao(edicao, alcance)} atendimentos`
                       : "Salvar alterações"
-                    : datas.length * (sequencia ? profissionais.length : 1) > 1
-                      ? `Salvar ${datas.length * (sequencia ? profissionais.length : 1)} atendimentos`
+                    : datas.length * (separados ? profissionais.length : 1) > 1
+                      ? `Salvar ${datas.length * (separados ? profissionais.length : 1)} atendimentos`
                       : "Salvar"}
               </button>
             </div>

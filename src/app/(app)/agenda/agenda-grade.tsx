@@ -216,8 +216,7 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
 
   /** Card solto em outro horário/coluna: move na hora e oferece desfazer. */
   async function moverCard(a: AtendimentoAgenda, de: string, alvo: AlvoDoArraste) {
-    // Soltar na coluna de outro profissional do mesmo atendimento conjunto: só muda o horário.
-    const para = alvo.profissionalId !== de && a.profissionalIds.includes(alvo.profissionalId) ? de : alvo.profissionalId;
+    const para = alvo.profissionalId;
     if (alvo.dia === a.data && alvo.minuto === a.inicio && para === de) return;
 
     if (plano.ativo) {
