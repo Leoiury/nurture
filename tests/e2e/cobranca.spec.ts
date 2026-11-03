@@ -1,9 +1,8 @@
 import { readFileSync } from "node:fs";
 import { createClient } from "@supabase/supabase-js";
 import { expect, test } from "@playwright/test";
-import { cardDoPaciente, painelDetalhes } from "./ajudantes";
 
-// Cobrança: cada profissional conta como um atendimento, e cada tipo diz se é cobrado.
+// Cobrança: um atendimento para cada profissional, e cada tipo diz se é cobrado.
 
 const env = Object.fromEntries(
   readFileSync(".env.development.local", "utf8")
@@ -28,27 +27,68 @@ async function atendimento(pacienteId: string, profissionais: string[], extras: 
 
 const profissional = async (nome: string) => (await admin.from("profissionais").insert({ nome }).select("id").single()).data!.id as string;
 const paciente = async (nome: string) => (await admin.from("pacientes").insert({ nome }).select("id").single()).data!.id as string;
-const cobrado = async (id: string) => Number((await admin.from("atendimentos").select("cobrado:valor_cobrado").eq("id", id).single()).data!.cobrado);
 const valor = async (id: string) => (await admin.from("atendimentos").select("valor").eq("id", id).single()).data!.valor as number | null;
 
-test("cada profissional conta como um atendimento: no total, no saldo e na tela", async ({ page }) => {
+test("com vários profissionais, cada um tem o próprio atendimento, valor e série (e guia)", async () => {
   const [a, b] = [await profissional(`Prof A ${n}`), await profissional(`Prof B ${n}`)];
-  const nome = `Cobrança Conjunta ${n}`;
-  const id = await atendimento(await paciente(nome), [a, b], { valor: 150, status: "atendido", inicio: "2027-04-07T13:00:00Z", fim: "2027-04-07T13:45:00Z" });
-  expect(await cobrado(id)).toBe(300);
-  expect(Number((await admin.rpc("saldo_do_atendimento", { p_id: id })).data)).toBe(300);
-  expect(Number((await admin.from("atendimentos_em_aberto").select("valor").eq("id", id).single()).data!.valor)).toBe(300);
+  const pacienteId = await paciente(`Separados ${n}`);
+  const { data: ids, error } = await admin.rpc("criar_atendimentos", {
+    p_paciente_id: pacienteId,
+    p_profissionais: [a, b],
+    p_inicios: ["2027-04-07T13:00:00Z", "2027-04-14T13:00:00Z"],
+    p_duracao_min: 45,
+    p_valor: 150,
+    p_frequencia: "semanal",
+    p_sessoes: 2,
+  });
+  expect(error).toBeNull();
+  expect(ids).toHaveLength(4);
 
-  // Com um só profissional, o valor é o de sempre.
-  await admin.from("atendimento_profissionais").delete().eq("atendimento_id", id).eq("profissional_id", b);
-  expect(await cobrado(id)).toBe(150);
-  expect(Number((await admin.rpc("saldo_do_atendimento", { p_id: id })).data)).toBe(150);
-  await admin.from("atendimento_profissionais").insert({ atendimento_id: id, profissional_id: b });
+  const { data } = await admin.from("atendimentos").select("id, valor, recorrencia_id, profissionais:atendimento_profissionais(profissional_id)").in("id", ids!);
+  for (const linha of data!) {
+    expect(linha.profissionais).toHaveLength(1);
+    expect(Number(linha.valor)).toBe(150);
+    expect(Number((await admin.rpc("saldo_do_atendimento", { p_id: linha.id })).data)).toBe(150);
+  }
+  // Uma série por profissional: é nela que a guia fica.
+  const serieDe = (p: string) => new Set(data!.filter((l) => l.profissionais[0].profissional_id === p).map((l) => l.recorrencia_id));
+  expect(serieDe(a).size).toBe(1);
+  expect(serieDe(b).size).toBe(1);
+  expect([...serieDe(a)][0]).not.toBe([...serieDe(b)][0]);
 
-  await page.goto("/agenda?semana=2027-04-07");
-  await cardDoPaciente(page, nome).first().click();
-  await expect(painelDetalhes(page)).toContainText("R$ 300,00");
-  await expect(painelDetalhes(page)).toContainText("2 × R$ 150,00");
+  // O banco não aceita um segundo profissional no mesmo atendimento.
+  expect((await admin.from("atendimento_profissionais").insert({ atendimento_id: ids![0], profissional_id: await profissional(`Prof C ${n}`) })).error).not.toBeNull();
+});
+
+test("no formulário, marcar com dois profissionais cria dois atendimentos, com o tipo de cada um", async ({ page }) => {
+  const [a, b] = [await profissional(`Fono ${n}`), await profissional(`Psico ${n}`)];
+  const tipoDe = async (nome: string, prof: string) => {
+    const { data } = await admin.from("tipos_atendimento").insert({ nome }).select("id").single();
+    await admin.from("tipos_atendimento_profissionais").insert({ tipo_id: data!.id, profissional_id: prof });
+    return data!.id as string;
+  };
+  const [tipoA, tipoB] = [await tipoDe(`Tipo Fono ${n}`, a), await tipoDe(`Tipo Psico ${n}`, b)];
+  const nome = `Formulário Dois ${n}`;
+  const pacienteId = await paciente(nome);
+
+  await page.goto("/agenda?semana=2027-04-05");
+  await page.getByRole("button", { name: "Novo atendimento" }).click();
+  const painel = page.getByRole("dialog", { name: "Novo atendimento" });
+  await painel.getByLabel("Paciente").fill(nome);
+  await painel.getByRole("option", { name: nome }).click();
+  await painel.getByLabel("Profissionais").selectOption({ label: `Fono ${n}` });
+  await painel.getByLabel("Profissionais").selectOption({ label: `Psico ${n}` });
+  await painel.getByLabel("Data").fill("2027-04-07");
+  await painel.getByLabel("Início").fill("10:00");
+  await expect(painel.getByRole("region", { name: "Atendimentos" })).toContainText(`Tipo Fono ${n}`);
+  await painel.getByRole("button", { name: "Salvar 2 atendimentos" }).click();
+  await expect(painel).toBeHidden();
+
+  const { data } = await admin.from("atendimentos").select("tipo_id, inicio, profissionais:atendimento_profissionais(profissional_id)").eq("paciente_id", pacienteId);
+  expect(data).toHaveLength(2);
+  expect(new Set(data!.map((l) => l.inicio)).size).toBe(1);
+  expect(data!.find((l) => l.profissionais[0].profissional_id === a)!.tipo_id).toBe(tipoA);
+  expect(data!.find((l) => l.profissionais[0].profissional_id === b)!.tipo_id).toBe(tipoB);
 });
 
 test("tipo sem cobrança: novos e futuros ficam sem valor; o passado não muda", async () => {

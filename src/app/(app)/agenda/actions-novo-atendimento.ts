@@ -246,7 +246,7 @@ export async function criarAtendimentos(novo: NovoAtendimento): Promise<Resultad
  * Cada item já vem com o seu profissional e horário.
  */
 export async function criarEmSequencia(novos: NovoAtendimento[]): Promise<ResultadoCriacao> {
-  if (novos.length < 2) return { ok: false, erro: "A sequência precisa de ao menos dois profissionais." };
+  if (novos.length < 2) return { ok: false, erro: "Informe ao menos dois profissionais." };
   const itens: ArgsCriar[] = [];
   for (const novo of novos) {
     const preparado = await argsDeCriacao(novo);
@@ -254,7 +254,10 @@ export async function criarEmSequencia(novos: NovoAtendimento[]): Promise<Result
     itens.push(preparado.args);
   }
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc("criar_atendimentos_em_sequencia", { p_itens: itens });
+  // O valor do profissional vem do plano, no banco.
+  const { data, error } = (await ehProfissional())
+    ? await supabase.rpc("profissional_criar_em_lote", { p_itens: itens })
+    : await supabase.rpc("criar_atendimentos_em_sequencia", { p_itens: itens });
   if (error) return { ok: false, erro: `Não foi possível salvar: ${error.message}` };
   revalidatePath("/agenda");
   return { ok: true, quantidade: data };

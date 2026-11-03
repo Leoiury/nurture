@@ -1507,7 +1507,7 @@ export type Database = {
           plano_id?: string | null
           status?: Database["public"]["Enums"]["status_atendimento"] | null
           tipo_id?: string | null
-          valor?: never
+          valor?: number | null
         }
         Update: {
           id?: string | null
@@ -1516,7 +1516,7 @@ export type Database = {
           plano_id?: string | null
           status?: Database["public"]["Enums"]["status_atendimento"] | null
           tipo_id?: string | null
-          valor?: never
+          valor?: number | null
         }
         Relationships: [
           {
@@ -1966,6 +1966,7 @@ export type Database = {
         }
         Returns: string[]
       }
+      profissional_criar_em_lote: { Args: { p_itens: Json }; Returns: number }
       profissional_desmarcar_atendimentos: {
         Args: {
           p_alcance: Database["public"]["Enums"]["alcance_serie"]
@@ -2046,10 +2047,6 @@ export type Database = {
           quantidade: number
           valor: number
         }[]
-      }
-      valor_cobrado: {
-        Args: { a: Database["public"]["Tables"]["atendimentos"]["Row"] }
-        Returns: number
       }
       valor_do_plano: {
         Args: { p_area: string; p_plano: string }

@@ -3,7 +3,6 @@
 // Painel lateral de um atendimento: detalhes, status rápido, editar, desmarcar,
 // excluir e observações.
 
-import { valorCobrado } from "@/lib/agenda/valores";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
@@ -325,12 +324,6 @@ export function PainelAtendimento({ id, aoFechar, aoEditar, mostrarLinkDoPacient
               </section>
             )}
 
-            {modo !== "ver" && dados.semValores && a.profissionais.length > 1 && (
-              <p role="note" className="rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-900 ring-1 ring-amber-200">
-                Atendimento em conjunto: isto também afeta {a.profissionais.map((x) => x.profissional.nome).join(", ")}.
-              </p>
-            )}
-
             {modo === "desmarcar" && (
               <FormDesmarcar
                 serie={dados.serie}
@@ -387,17 +380,14 @@ export function PainelAtendimento({ id, aoFechar, aoEditar, mostrarLinkDoPacient
               {!dados.semValores && (
                 <>
                   <dt className="text-muted">Valor</dt>
-                  <dd>
-                    {a.valor != null ? moeda.format(valorCobrado(a.valor, a.profissionais.length)) : "—"}
-                    {a.valor != null && a.profissionais.length > 1 && <span className="text-muted"> ({a.profissionais.length} × {moeda.format(a.valor)})</span>}
-                  </dd>
+                  <dd>{a.valor != null ? moeda.format(a.valor) : "—"}</dd>
                 </>
               )}
               {dados.financeiro && (a.valor ?? 0) > 0 && (
                 <>
                   <dt className="text-muted">Pagamento</dt>
                   <dd>
-                    <SeloDoPagamento valor={valorCobrado(a.valor ?? 0, a.profissionais.length)} {...dados.financeiro} />
+                    <SeloDoPagamento valor={a.valor ?? 0} {...dados.financeiro} />
                   </dd>
                 </>
               )}

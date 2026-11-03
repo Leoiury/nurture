@@ -89,8 +89,10 @@ test("marca só com ele incluído, e o valor vem do plano", async () => {
 
   expect((await api.rpc("profissional_criar_atendimentos", { ...args, p_profissionais: [colega] })).error?.message).toContain("dos quais participa");
 
+  // Com um colega: um atendimento para cada um.
   const conjunto = await api.rpc("profissional_criar_atendimentos", { ...args, p_profissionais: [eu, colega] });
   expect(conjunto.error).toBeNull();
+  expect(conjunto.data).toHaveLength(2);
   const salvo = await admin.from("atendimentos").select("valor").eq("id", conjunto.data[0]).single();
   expect(Number(salvo.data!.valor)).toBe(Number(plano.valor_padrao));
 });

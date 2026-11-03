@@ -143,16 +143,6 @@ select id, paciente_id, plano_id, tipo_id, inicio, fim, valor, status from agend
 insert into atendimento_profissionais (atendimento_id, profissional_id)
 select id, profissional_id from agenda_gerada;
 
--- Atendimento conjunto: um por dia com dois profissionais (o card aparece nas
--- duas colunas).
-insert into atendimento_profissionais (atendimento_id, profissional_id)
-select distinct on ((g.inicio at time zone 'America/Sao_Paulo')::date)
-  g.id,
-  (select id from profissionais where id <> g.profissional_id order by nome limit 1)
-from agenda_gerada g
-where to_char(g.inicio at time zone 'America/Sao_Paulo', 'HH24:MI') = '09:30'
-order by (g.inicio at time zone 'America/Sao_Paulo')::date, g.inicio;
-
 drop table agenda_gerada;
 
 -- Uma série recorrente (semanal, 8 sessões) às quartas 17:15, criada pela mesma

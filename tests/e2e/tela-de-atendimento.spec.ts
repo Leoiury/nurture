@@ -250,22 +250,14 @@ test("editar depois de salvo gera versão; a anterior e os tópicos originais co
   await page.context().close();
 });
 
-test("em conjunto, cada profissional tem o próprio registro, e o status é um só", async ({ browser }) => {
-  const id = await novoAtendimento([meuId, colegaId], segundaDaqui(32));
-  for (const [conta, texto] of [[eu, "Registro do autor"], [colega, "Registro do colega"]] as const) {
-    const conteudo = { modelo: "relatorio", topicos: [], relatorio: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: texto }] }] }, observacoes: null };
-    expect((await conta.api.rpc("guardar_rascunho_registro", { p_atendimento: id, p_conteudo: conteudo })).error).toBeNull();
-    expect((await conta.api.rpc("salvar_registro", { p_atendimento: id, p_finalizar: conta === eu })).error).toBeNull();
-  }
-  expect((await admin.from("atendimentos").select("status").eq("id", id).single()).data!.status).toBe("atendido");
-  expect((await admin.from("registros_atendimento").select("id").eq("atendimento_id", id)).data).toHaveLength(2);
-
-  const page = await entrar(browser, colega);
-  await page.goto(`/atendimento/${id}?profissional=${meuId}`);
-  await expect(page.getByRole("region", { name: "Relatório" })).toContainText("Registro do autor");
-  await page.getByRole("tab", { name: `Colega Atendimento ${n}` }).click();
-  await expect(page.getByRole("region", { name: "Relatório" })).toContainText("Registro do colega");
-  await page.context().close();
+test("com dois profissionais, são dois atendimentos: cada um finaliza o seu", async () => {
+  const dia = segundaDaqui(32);
+  const [meu, doColega] = [await novoAtendimento([meuId], dia), await novoAtendimento([colegaId], dia)];
+  const conteudo = { modelo: "relatorio", topicos: [], relatorio: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Registro do autor" }] }] }, observacoes: null };
+  expect((await eu.api.rpc("guardar_rascunho_registro", { p_atendimento: meu, p_conteudo: conteudo })).error).toBeNull();
+  expect((await eu.api.rpc("salvar_registro", { p_atendimento: meu, p_finalizar: true })).error).toBeNull();
+  expect((await admin.from("atendimentos").select("status").eq("id", meu).single()).data!.status).toBe("atendido");
+  expect((await admin.from("atendimentos").select("status").eq("id", doColega).single()).data!.status).toBe("marcado");
 });
 
 test("quem não atende lê os salvos, mas não escreve; nada é apagado direto", async () => {
