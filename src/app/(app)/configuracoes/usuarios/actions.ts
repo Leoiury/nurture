@@ -1,10 +1,11 @@
 "use server";
 
 // Usuários (só ADM): criar login com senha provisória, mudar perfil/vínculo,
-// desativar (bloqueia o login) e gerar nova senha provisória.
+// desativar (bloqueia o login), gerar nova senha provisória e convidar profissionais.
 
 import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
+import { novoToken } from "@/lib/auth/convite";
 import { ehAdm, usuarioAtual, type Perfil } from "@/lib/auth/usuario";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -91,4 +92,31 @@ export async function gerarNovaSenha(id: string): Promise<{ ok: true; senha: str
   const { error } = await createAdminClient().auth.admin.updateUserById(id, { password: senha });
   if (error) return { ok: false, erro: "Não foi possível gerar a senha." };
   return { ok: true, senha };
+}
+
+/** Link para o profissional criar o próprio login. Gerar outro invalida o anterior. */
+export async function gerarConvite(profissionalId: string): Promise<{ ok: true; token: string; expiraEm: string } | Falha> {
+  const eu = await usuarioAtual();
+  if (!(await ehAdm())) return { ok: false, erro: "Apenas administradores geram convites." };
+
+  const admin = createAdminClient();
+  const { count } = await admin.from("usuarios").select("id", { count: "exact", head: true }).eq("profissional_id", profissionalId).eq("ativo", true);
+  if (count) return { ok: false, erro: "Este profissional já tem um login." };
+
+  const { error: erroAnterior } = await admin.from("convites").update({ revogado_em: new Date().toISOString() }).eq("profissional_id", profissionalId).is("usado_em", null).is("revogado_em", null);
+  if (erroAnterior) return { ok: false, erro: "Não foi possível gerar o link." };
+  const { token, hash, expiraEm } = novoToken();
+  const { error } = await admin.from("convites").insert({ profissional_id: profissionalId, token_hash: hash, expira_em: expiraEm, criado_por: eu?.id });
+  if (error) return { ok: false, erro: "Não foi possível gerar o link." };
+
+  revalidar();
+  return { ok: true, token, expiraEm };
+}
+
+export async function cancelarConvite(id: string): Promise<{ ok: true } | Falha> {
+  if (!(await ehAdm())) return { ok: false, erro: "Apenas administradores cancelam convites." };
+  const { error } = await createAdminClient().from("convites").update({ revogado_em: new Date().toISOString() }).eq("id", id).is("usado_em", null);
+  if (error) return { ok: false, erro: "Não foi possível cancelar o link." };
+  revalidar();
+  return { ok: true };
 }

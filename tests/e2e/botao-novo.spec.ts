@@ -192,7 +192,11 @@ test("agendamento do tipo Anamnese abre a anamnese, e salvar a marca como atendi
   expect((await admin.from("anamneses").select("atendimento_id").eq("id", anamneseId).single()).data!.atendimento_id).toBe(id);
 
   await page.goto("/agenda");
-  await cardDoPaciente(page, paciente).click();
+  // A agenda pode ainda não responder ao clique logo depois de carregar.
+  await expect(async () => {
+    await cardDoPaciente(page, paciente).click();
+    await expect(painelDetalhes(page)).toBeVisible({ timeout: 2000 });
+  }).toPass();
   await expect(painelDetalhes(page).getByRole("link", { name: "Ver anamnese" })).toHaveAttribute("href", `/anamnese/${anamneseId}`);
   await page.context().close();
 });

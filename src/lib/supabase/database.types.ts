@@ -602,6 +602,57 @@ export type Database = {
           },
         ]
       }
+      convites: {
+        Row: {
+          criado_em: string
+          criado_por: string | null
+          expira_em: string
+          id: string
+          profissional_id: string
+          revogado_em: string | null
+          token_hash: string
+          usado_em: string | null
+          usuario_id: string | null
+        }
+        Insert: {
+          criado_em?: string
+          criado_por?: string | null
+          expira_em: string
+          id?: string
+          profissional_id: string
+          revogado_em?: string | null
+          token_hash: string
+          usado_em?: string | null
+          usuario_id?: string | null
+        }
+        Update: {
+          criado_em?: string
+          criado_por?: string | null
+          expira_em?: string
+          id?: string
+          profissional_id?: string
+          revogado_em?: string | null
+          token_hash?: string
+          usado_em?: string | null
+          usuario_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "convites_profissional_id_fkey"
+            columns: ["profissional_id"]
+            isOneToOne: false
+            referencedRelation: "profissionais"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "convites_usuario_id_fkey"
+            columns: ["usuario_id"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       datas_comemorativas: {
         Row: {
           criado_em: string
