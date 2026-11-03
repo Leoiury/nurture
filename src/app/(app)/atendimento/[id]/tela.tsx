@@ -1,7 +1,7 @@
 "use client";
 
 // Tela de atendimento: cabeçalho fixo com os dados e as funções, os tópicos ou o
-// relatório, e as observações. O texto é guardado sozinho; finalizar grava uma versão
+// relatório (uma folha em branco), e as observações. O texto é guardado sozinho; finalizar grava uma versão
 // e marca o atendimento como atendido.
 
 import type { Editor } from "@tiptap/react";
@@ -17,8 +17,9 @@ import { IconeGuia } from "../../agenda/icone-guia";
 import { dadosDeEdicao } from "../../agenda/painel-atendimento";
 import { PainelNovoAtendimento } from "../../agenda/painel-novo-atendimento";
 import { definirModeloPreferido, guardarRegistro, salvarRegistro } from "../actions";
-import { BarraDeFormatacao, EditorDeTexto } from "../editor-de-texto";
+import { BarraDeFormatacao, EditorDeTexto, LARGURA_COM_FOLHA } from "../editor-de-texto";
 import { AcoesDeExportacao } from "../exportacao";
+import { ITEM_DO_MENU, MenuSuspenso } from "../menu-suspenso";
 import { dadosDoDocumento, horarioDoCabecalho, type CabecalhoDoAtendimento } from "./leitura";
 
 const ROTULO_GUIA: Record<SituacaoDaGuia, string> = { ok: "em dia", vencendo: "perto do fim", falta: "falta guia" };
@@ -52,8 +53,8 @@ export function TelaDoAtendimento({ id, cabecalho, guia, sessaoDaGuia, detalhes,
   const mudarTopico = (perguntaId: string, resposta: Documento) =>
     mudar({ topicos: atual.current.topicos.map((t) => (t.perguntaId === perguntaId ? { ...t, resposta } : t)) });
 
-  function trocarModelo() {
-    const novo: ModeloDoRegistro = modelo === "topicos" ? "relatorio" : "topicos";
+  function trocarModelo(novo: ModeloDoRegistro) {
+    if (novo === modelo) return;
     setModelo(novo);
     setEditorAtivo(null); // o campo em que se escrevia pode ter saído da tela
     mudar({ modelo: novo });
@@ -86,7 +87,11 @@ export function TelaDoAtendimento({ id, cabecalho, guia, sessaoDaGuia, detalhes,
       <header className="sticky top-0 z-20 flex flex-col gap-2 border-b border-border bg-surface/95 px-4 py-3 backdrop-blur sm:px-6">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
           <div className="min-w-0 flex-1">
-            <h1 className="truncate text-lg font-semibold tracking-tight">{cabecalho.paciente.nome}</h1>
+            <h1 className="truncate text-lg font-semibold tracking-tight">
+              <Link href={`/pacientes/${cabecalho.paciente.id}`} title="Ver o histórico do paciente" className="hover:text-accent hover:underline">
+                {cabecalho.paciente.nome}
+              </Link>
+            </h1>
             <p className="flex flex-wrap items-center gap-x-2 text-sm text-muted">
               <span className="first-letter:uppercase">{horarioDoCabecalho(cabecalho)}</span>
               {guia && (
@@ -98,37 +103,44 @@ export function TelaDoAtendimento({ id, cabecalho, guia, sessaoDaGuia, detalhes,
               {versao > 0 && <span>· editando a versão {versao}</span>}
             </p>
           </div>
-          <div className="flex flex-wrap gap-1.5">
-            <Link href={urlDoModelo} className={botao}>
-              Editar tópicos
-            </Link>
-            <Link href={`/pacientes/${cabecalho.paciente.id}`} className={botao}>
-              Histórico do paciente
-            </Link>
-            <button type="button" onClick={() => setEditandoDados(true)} className={botao}>
-              Editar dados
-            </button>
-            <button type="button" onClick={trocarModelo} className={botao}>
-              {modelo === "topicos" ? "Usar relatório" : "Usar tópicos"}
-            </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <div role="tablist" aria-label="Modelo do registro" className="flex gap-1 rounded-full bg-black/[0.04] p-1">
+              {MODELOS.map(({ valor, rotulo }) => (
+                <button key={valor} type="button" role="tab" aria-selected={modelo === valor} onClick={() => trocarModelo(valor)} className={`rounded-full px-3 py-1 text-sm ${modelo === valor ? "bg-surface font-medium shadow-sm" : "text-muted hover:text-foreground"}`}>
+                  {rotulo}
+                </button>
+              ))}
+            </div>
+            <MenuSuspenso
+              rotulo="Editar"
+              estilo="inline-flex size-9 items-center justify-center rounded-full text-muted hover:bg-black/[0.05] hover:text-foreground"
+              conteudoDoBotao={
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
+                  <path d="M10.8 2.6a1.6 1.6 0 0 1 2.3 2.3l-8 8-3.1.8.8-3.1 8-8Z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
+                </svg>
+              }
+            >
+              <button type="button" role="menuitem" onClick={() => setEditandoDados(true)} className={ITEM_DO_MENU}>
+                Editar atendimento
+              </button>
+              <Link href={urlDoModelo} role="menuitem" className={ITEM_DO_MENU}>
+                Editar tópicos
+              </Link>
+            </MenuSuspenso>
+            <AcoesDeExportacao dados={dadosDoDocumento(cabecalho, profissional)} obterConteudo={() => atual.current} />
           </div>
         </div>
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <BarraDeFormatacao editor={editorAtivo} />
-          <AcoesDeExportacao dados={dadosDoDocumento(cabecalho, profissional)} obterConteudo={() => atual.current} />
-        </div>
+        <BarraDeFormatacao editor={editorAtivo} />
       </header>
 
-      <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-4 py-6 pb-28 sm:px-6">
+      <div className={`mx-auto flex w-full flex-col gap-4 px-4 py-6 pb-28 sm:px-6 ${modelo === "relatorio" ? LARGURA_COM_FOLHA : "max-w-3xl"}`}>
         {modelo === "relatorio" ? (
-          <Campo titulo="Relatório">
-            <EditorDeTexto key="relatorio" rotulo="Relatório" valor={atual.current.relatorio} aoMudar={(relatorio) => mudar({ relatorio })} aoFocar={setEditorAtivo} aoSair={() => void guardarAgora()} />
-          </Campo>
+          <EditorDeTexto key="relatorio" folha rotulo="Relatório" valor={atual.current.relatorio} aoMudar={(relatorio) => mudar({ relatorio })} aoFocar={setEditorAtivo} aoSair={() => void guardarAgora()} />
         ) : (
           <>
             {conteudoInicial.topicos.length === 0 && (
               <p className="rounded-3xl bg-surface p-5 text-sm text-muted shadow-sm ring-1 ring-black/5">
-                Você ainda não tem tópicos. Use “Editar tópicos” para criá-los, ou “Usar relatório” para escrever um texto livre.
+                Você ainda não tem tópicos. Use o lápis, no alto, para criá-los, ou escolha “Relatório” para escrever um texto livre.
               </p>
             )}
             {conteudoInicial.topicos.map((t) => (
@@ -181,7 +193,10 @@ export function TelaDoAtendimento({ id, cabecalho, guia, sessaoDaGuia, detalhes,
   );
 }
 
-const botao = "shrink-0 rounded-full bg-black/[0.04] px-3 py-1.5 text-sm font-medium hover:bg-black/[0.07]";
+const MODELOS: { valor: ModeloDoRegistro; rotulo: string }[] = [
+  { valor: "topicos", rotulo: "Tópicos" },
+  { valor: "relatorio", rotulo: "Relatório" },
+];
 
 function Campo({ titulo, children }: { titulo: string; children: React.ReactNode }) {
   return (

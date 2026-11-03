@@ -7,7 +7,7 @@ import { useState } from "react";
 import type { ConteudoDoRegistro } from "@/lib/atendimento/conteudo";
 import type { DadosDoDocumento } from "@/lib/atendimento/exportar";
 import { FUSO, partesNoFuso } from "@/lib/agenda/tempo";
-import { TextoDoRegistro } from "../editor-de-texto";
+import { LARGURA_COM_FOLHA, TextoDoRegistro } from "../editor-de-texto";
 import { AcoesDeExportacao } from "../exportacao";
 
 export type RegistroParaLer = {
@@ -84,7 +84,7 @@ export function LeituraDosRegistros({ id, cabecalho, registros, profissionalInic
         </>
       )}
 
-      <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-4 py-6 sm:px-6">
+      <div className={`mx-auto flex w-full flex-col gap-4 px-4 py-6 sm:px-6 ${exibida?.conteudo.modelo === "relatorio" ? LARGURA_COM_FOLHA : "max-w-3xl"}`}>
         {registros.length === 0 && <p className="rounded-3xl bg-surface p-5 text-sm text-muted shadow-sm ring-1 ring-black/5">Nenhum registro salvo neste atendimento.</p>}
 
         {registros.length > 1 && (
@@ -120,7 +120,9 @@ export function LeituraDosRegistros({ id, cabecalho, registros, profissionalInic
               </p>
             )}
             {exibida.conteudo.modelo === "relatorio" ? (
-              <Bloco titulo="Relatório" conteudo={exibida.conteudo.relatorio} />
+              <section aria-label="Relatório">
+                <TextoDoRegistro folha valor={exibida.conteudo.relatorio} rotulo="Texto do relatório" />
+              </section>
             ) : (
               exibida.conteudo.topicos.map((t) => <Bloco key={t.perguntaId} titulo={t.pergunta} conteudo={t.resposta} />)
             )}

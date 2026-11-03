@@ -74,7 +74,7 @@ export function paraWord(d: DadosDoDocumento, secoes: Secao[]): Document {
           linhaDeDado("Data", d.quando),
           linhaDeDado("Profissional", d.profissional, 200),
           ...secoes.flatMap((s) => [
-            new Paragraph({ children: [new TextRun({ text: s.titulo, bold: true, size: 26 })], spacing: { before: 200, after: 80 }, keepNext: true }),
+            ...(s.titulo ? [new Paragraph({ children: [new TextRun({ text: s.titulo, bold: true, size: 26 })], spacing: { before: 200, after: 80 }, keepNext: true })] : []),
             ...(temConteudo(s.texto) ? blocoEmWord(s.texto!, novaInstancia) : [new Paragraph({ children: [new TextRun({ text: "Sem texto.", color: "6B7280" })] })]),
           ]),
         ],

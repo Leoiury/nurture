@@ -58,6 +58,11 @@ test.afterAll(async () => {
   if (usuarioId) await admin.auth.admin.deleteUser(usuarioId);
 });
 
+async function salvarComo(page: Page, opcao: string) {
+  await page.getByRole("button", { name: "Salvar como" }).click();
+  await page.getByRole("menuitem", { name: opcao }).click();
+}
+
 async function abrirComTexto(browser: Browser): Promise<Page> {
   const contexto = await browser.newContext({ storageState: { cookies: [], origins: [] }, locale: "pt-BR", timezoneId: "America/Sao_Paulo", viewport: { width: 1300, height: 900 }, acceptDownloads: true });
   await contexto.grantPermissions(["clipboard-read", "clipboard-write"]);
@@ -76,7 +81,7 @@ async function abrirComTexto(browser: Browser): Promise<Page> {
 test("baixa o PDF, com pop-up de carregamento", async ({ browser }) => {
   const page = await abrirComTexto(browser);
   const download = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Baixar PDF" }).click();
+  await salvarComo(page, "PDF");
   const arquivo = await download;
   expect(arquivo.suggestedFilename()).toBe(`${NOME_DO_ARQUIVO}.pdf`);
   const conteudo = readFileSync(await arquivo.path());
@@ -90,7 +95,7 @@ test("baixa o PDF, com pop-up de carregamento", async ({ browser }) => {
 test("baixa o Word, com texto e formatação", async ({ browser }) => {
   const page = await abrirComTexto(browser);
   const download = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Baixar Word" }).click();
+  await salvarComo(page, "Word");
   const arquivo = await download;
   expect(arquivo.suggestedFilename()).toBe(`${NOME_DO_ARQUIVO}.docx`);
   const zip = await JSZip.loadAsync(readFileSync(await arquivo.path()));
@@ -107,7 +112,7 @@ test("baixa o Word, com texto e formatação", async ({ browser }) => {
 
 test("copia o texto com a formatação", async ({ browser }) => {
   const page = await abrirComTexto(browser);
-  await page.getByRole("button", { name: "Copiar" }).click();
+  await salvarComo(page, "Copiar texto");
   await expect(page.getByRole("status", { name: "Exportação" })).toContainText("Texto copiado");
   const copiado = await page.evaluate(async () => {
     const [item] = await navigator.clipboard.read();
@@ -124,7 +129,7 @@ test("copia o texto com a formatação", async ({ browser }) => {
 
 test("imprime só o documento, por um quadro à parte", async ({ browser }) => {
   const page = await abrirComTexto(browser);
-  await page.getByRole("button", { name: "Imprimir" }).click();
+  await salvarComo(page, "Imprimir");
   const quadro = page.frameLocator("iframe[data-impressao]");
   await expect(quadro.locator("h1")).toHaveText("Registro de atendimento");
   await expect(quadro.locator("body")).toContainText("Coração em avaliação");
@@ -147,7 +152,7 @@ test("com pasta configurada, salva nela e não baixa", async ({ browser }) => {
   await page.goto(`/atendimento/${atendimentoId}`);
   let baixou = false;
   page.on("download", () => (baixou = true));
-  await page.getByRole("button", { name: "Baixar PDF" }).click();
+  await salvarComo(page, "PDF");
   // A biblioteca de PDF carrega só agora, e o servidor de desenvolvimento a compila na hora.
   await expect(page.getByRole("status", { name: "Exportação" })).toContainText(`Salvo em Pacientes: ${NOME_DO_ARQUIVO}.pdf`, { timeout: 30_000 });
   expect(baixou).toBe(false);
@@ -168,7 +173,7 @@ test("na leitura, exporta a versão exibida", async ({ browser }) => {
   const page = await abrirComTexto(browser);
   await page.getByRole("button", { name: "Finalizar atendimento" }).click();
   await page.getByRole("alertdialog").getByRole("button", { name: "Ver o registro" }).click();
-  await page.getByRole("button", { name: "Copiar" }).click();
+  await salvarComo(page, "Copiar texto");
   await expect(page.getByRole("status", { name: "Exportação" })).toContainText("Texto copiado");
   const html = await page.evaluate(async () => {
     const [item] = await navigator.clipboard.read();
@@ -176,7 +181,7 @@ test("na leitura, exporta a versão exibida", async ({ browser }) => {
   });
   expect(html).toContain("Coração em avaliação");
   const download = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Baixar Word" }).click();
+  await salvarComo(page, "Word");
   expect((await download).suggestedFilename()).toBe(`${NOME_DO_ARQUIVO}.docx`);
   await page.context().close();
 });

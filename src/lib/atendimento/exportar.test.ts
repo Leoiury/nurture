@@ -36,9 +36,17 @@ describe("secoesDoRegistro", () => {
     observacoes: null,
   };
 
-  it("entra só o modelo em uso, sempre com as observações", () => {
+  it("entra só o modelo em uso, com as observações nos tópicos", () => {
     expect(secoesDoRegistro(base).map((s) => s.titulo)).toEqual(["Evolução", "Observações"]);
-    expect(secoesDoRegistro({ ...base, modelo: "relatorio" }).map((s) => s.titulo)).toEqual(["Relatório", "Observações"]);
+  });
+
+  it("o relatório é o próprio documento: sem título, e observações só se houver", () => {
+    const relatorio: ConteudoDoRegistro = { ...base, modelo: "relatorio" };
+    expect(secoesDoRegistro(relatorio).map((s) => s.titulo)).toEqual([null]);
+    expect(secoesDoRegistro({ ...relatorio, observacoes: doc(paragrafo(texto("nota"))) }).map((s) => s.titulo)).toEqual([null, "Observações"]);
+    const html = paraHtml(dados, secoesDoRegistro(relatorio));
+    expect(html).toContain("relatório</p>");
+    expect(html).not.toContain("<h2>");
   });
 });
 

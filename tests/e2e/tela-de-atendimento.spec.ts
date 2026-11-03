@@ -104,8 +104,17 @@ test("realiza o atendimento: formata, alterna o modelo, continua, recomeça e fi
 
   // Cabeçalho e funções.
   await expect(page.getByRole("heading", { name: NOME_PACIENTE })).toBeVisible();
-  for (const nome of ["Editar tópicos", "Histórico do paciente"]) await expect(page.getByRole("link", { name: nome })).toBeVisible();
-  for (const nome of ["Editar dados", "Usar relatório"]) await expect(page.getByRole("button", { name: nome })).toBeVisible();
+  await expect(page.getByRole("heading", { name: NOME_PACIENTE }).getByRole("link")).toHaveAttribute("href", /\/pacientes\//);
+  await expect(page.getByRole("tab", { name: "Tópicos" })).toHaveAttribute("aria-selected", "true");
+  await page.getByRole("button", { name: "Editar", exact: true }).click();
+  await expect(page.getByRole("menuitem", { name: "Editar atendimento" })).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: "Editar tópicos" })).toHaveAttribute("href", /\/atendimento\/modelo/);
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("menu")).toHaveCount(0);
+  await page.getByRole("button", { name: "Salvar como" }).click();
+  for (const nome of ["PDF", "Word", "Imprimir", "Copiar texto"]) await expect(page.getByRole("menuitem", { name: nome })).toBeVisible();
+  await page.mouse.click(5, 500); // clicar fora fecha
+  await expect(page.getByRole("menu")).toHaveCount(0);
 
   // Formatação sobre o texto selecionado.
   const evolucao = campo(page, "Evolução");
@@ -143,14 +152,17 @@ test("realiza o atendimento: formata, alterna o modelo, continua, recomeça e fi
   // Sem fonte nem tamanho.
   await expect(page.getByRole("toolbar", { name: "Formatação" }).getByRole("button", { name: /fonte|tamanho/i })).toHaveCount(0);
 
-  // Alternar o modelo não apaga nada.
-  await page.getByRole("button", { name: "Usar relatório" }).click();
+  // Alternar o modelo não apaga nada. O relatório é uma folha em branco, já pronta para escrever.
+  await page.getByRole("tab", { name: "Relatório" }).click();
   await expect(campo(page, "Evolução")).toHaveCount(0);
-  await campo(page, "Relatório").click();
+  await expect(page.getByRole("heading", { name: "Relatório" })).toHaveCount(0);
+  await expect(campo(page, "Relatório")).toBeFocused();
+  await expect(page.getByRole("button", { name: "Negrito" })).toBeEnabled();
+  expect((await campo(page, "Relatório").boundingBox())!.height).toBeGreaterThan(1000);
   await page.keyboard.type("Texto livre do relatório");
-  await page.getByRole("button", { name: "Usar tópicos" }).click();
+  await page.getByRole("tab", { name: "Tópicos" }).click();
   await expect(campo(page, "Evolução")).toContainText("Texto importante");
-  await page.getByRole("button", { name: "Usar relatório" }).click();
+  await page.getByRole("tab", { name: "Relatório" }).click();
   await expect(campo(page, "Relatório")).toContainText("Texto livre do relatório");
   await guardado(page);
 
@@ -161,7 +173,7 @@ test("realiza o atendimento: formata, alterna o modelo, continua, recomeça e fi
   await expect(painelDetalhes(page).getByRole("button", { name: "Recomeçar atendimento" })).toBeVisible();
   await painelDetalhes(page).getByRole("link", { name: "Continuar atendimento" }).click();
   await expect(campo(page, "Relatório")).toContainText("Texto livre do relatório");
-  await page.getByRole("button", { name: "Usar tópicos" }).click();
+  await page.getByRole("tab", { name: "Tópicos" }).click();
   await expect(campo(page, "Evolução").locator("strong")).toHaveText("Texto importante");
   await guardado(page);
 

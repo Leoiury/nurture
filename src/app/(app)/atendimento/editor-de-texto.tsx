@@ -49,7 +49,12 @@ const EXTENSOES = [
 ];
 
 const ESTILO_DO_TEXTO =
-  "text-sm outline-none [&_p]:my-1 [&_ul]:my-1 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:my-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_hr]:my-3 [&_hr]:border-border [&_strong]:font-semibold";
+  "outline-none [&_p]:my-1 [&_ul]:my-1 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:my-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_hr]:my-3 [&_hr]:border-border [&_strong]:font-semibold";
+
+/** A folha do relatório: um documento em branco, com as proporções de uma A4. */
+const FOLHA = "rounded-sm bg-surface shadow-md ring-1 ring-black/5";
+const TEXTO_NA_FOLHA = "px-6 py-8 text-[15px] leading-relaxed sm:px-16 sm:py-16";
+export const LARGURA_COM_FOLHA = "max-w-[calc(794px+3rem)]";
 
 type EditorProps = {
   valor: Documento | null;
@@ -57,34 +62,38 @@ type EditorProps = {
   aoMudar: (doc: Documento) => void;
   aoFocar: (editor: Editor) => void;
   aoSair?: () => void;
+  /** Escreve em uma folha inteira, já com o cursor nela. */
+  folha?: boolean;
 };
 
-export function EditorDeTexto({ valor, rotulo, aoMudar, aoFocar, aoSair }: EditorProps) {
+export function EditorDeTexto({ valor, rotulo, aoMudar, aoFocar, aoSair, folha }: EditorProps) {
   const editor = useEditor({
     extensions: EXTENSOES,
     content: valor ?? undefined,
     // O servidor não renderiza o editor (evita diferença na hidratação).
     immediatelyRender: false,
-    editorProps: { attributes: { "aria-label": rotulo, role: "textbox", "aria-multiline": "true", class: `min-h-24 ${ESTILO_DO_TEXTO}` } },
+    autofocus: folha ? "end" : false,
+    // Na folha, o campo ocupa a página toda: clicar em qualquer ponto dela já escreve.
+    editorProps: { attributes: { "aria-label": rotulo, role: "textbox", "aria-multiline": "true", class: folha ? `min-h-[1123px] ${TEXTO_NA_FOLHA} ${ESTILO_DO_TEXTO}` : `min-h-24 text-sm ${ESTILO_DO_TEXTO}` } },
     // JSON puro: os atributos do editor são objetos sem protótipo, e uma Server Action
     // os trocaria por referências vazias (a cor se perderia ao salvar).
     onUpdate: ({ editor: e }) => aoMudar(JSON.parse(JSON.stringify(e.getJSON())) as Documento),
     onFocus: ({ editor: e }) => aoFocar(e),
     onBlur: () => aoSair?.(),
   });
-  return <EditorContent editor={editor} className="rounded-xl border border-border bg-surface px-3 py-2 focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-soft" />;
+  return <EditorContent editor={editor} className={folha ? FOLHA : "rounded-xl border border-border bg-surface px-3 py-2 focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-soft"} />;
 }
 
 /** O texto já salvo, com as mesmas regras de formatação do editor. */
-export function TextoDoRegistro({ valor, rotulo }: { valor: Documento | null; rotulo: string }) {
+export function TextoDoRegistro({ valor, rotulo, folha }: { valor: Documento | null; rotulo: string; folha?: boolean }) {
   const editor = useEditor({
     extensions: EXTENSOES,
     content: valor ?? undefined,
     editable: false,
     immediatelyRender: false,
-    editorProps: { attributes: { "aria-label": rotulo, class: ESTILO_DO_TEXTO } },
+    editorProps: { attributes: { "aria-label": rotulo, class: folha ? `min-h-96 ${TEXTO_NA_FOLHA} ${ESTILO_DO_TEXTO}` : `text-sm ${ESTILO_DO_TEXTO}` } },
   });
-  return <EditorContent editor={editor} />;
+  return <EditorContent editor={editor} className={folha ? FOLHA : undefined} />;
 }
 
 /** Barra única, que age sobre o último campo em que se escreveu. */

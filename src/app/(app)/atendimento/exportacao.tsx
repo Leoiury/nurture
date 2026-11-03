@@ -5,6 +5,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ConteudoDoRegistro } from "@/lib/atendimento/conteudo";
 import { TITULO_DO_DOCUMENTO, nomeDoArquivo, paraHtml, paraPdf, paraTexto, secoesDoRegistro, type DadosDoDocumento } from "@/lib/atendimento/exportar";
+import { ITEM_DO_MENU, MenuSuspenso } from "./menu-suspenso";
 import { pastaLiberada, salvarArquivo } from "./pasta-de-arquivos";
 
 type Formato = "pdf" | "docx";
@@ -104,20 +105,31 @@ export function AcoesDeExportacao({ dados, obterConteudo }: Props) {
   const gerando = situacao?.tipo === "gerando";
   return (
     <>
-      <div role="group" aria-label="Exportar" className="flex flex-wrap gap-1.5">
-        <button type="button" onClick={() => imprimir(dados, obterConteudo())} className={botao}>
+      <MenuSuspenso
+        rotulo="Salvar como"
+        estilo="inline-flex items-center gap-1.5 rounded-full bg-surface px-3.5 py-1.5 text-sm font-medium ring-1 ring-border hover:bg-background"
+        conteudoDoBotao={
+          <>
+            Salvar como
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden>
+              <path d="m3 4.5 3 3 3-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </>
+        }
+      >
+        <button type="button" role="menuitem" disabled={gerando} onClick={() => void baixar("pdf")} className={ITEM_DO_MENU}>
+          PDF
+        </button>
+        <button type="button" role="menuitem" disabled={gerando} onClick={() => void baixar("docx")} className={ITEM_DO_MENU}>
+          Word
+        </button>
+        <button type="button" role="menuitem" onClick={() => imprimir(dados, obterConteudo())} className={ITEM_DO_MENU}>
           Imprimir
         </button>
-        <button type="button" disabled={gerando} onClick={() => void baixar("pdf")} className={botao}>
-          Baixar PDF
+        <button type="button" role="menuitem" onClick={() => void aoCopiar()} className={ITEM_DO_MENU}>
+          Copiar texto
         </button>
-        <button type="button" disabled={gerando} onClick={() => void baixar("docx")} className={botao}>
-          Baixar Word
-        </button>
-        <button type="button" onClick={() => void aoCopiar()} className={botao}>
-          Copiar
-        </button>
-      </div>
+      </MenuSuspenso>
       {situacao && (
         <div role={situacao.tipo === "erro" ? "alert" : "status"} aria-label="Exportação" className="fixed top-20 left-1/2 z-50 flex max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center gap-3 rounded-full bg-foreground px-5 py-2.5 text-sm text-white shadow-lg">
           {gerando && <span aria-hidden className="size-4 shrink-0 animate-spin rounded-full border-2 border-white/30 border-t-white" />}
@@ -127,5 +139,3 @@ export function AcoesDeExportacao({ dados, obterConteudo }: Props) {
     </>
   );
 }
-
-const botao = "shrink-0 rounded-full bg-black/[0.04] px-3 py-1.5 text-sm font-medium hover:bg-black/[0.07] disabled:opacity-50";

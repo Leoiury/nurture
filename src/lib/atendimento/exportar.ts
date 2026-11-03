@@ -13,15 +13,17 @@ export type DadosDoDocumento = {
   profissional: string;
 };
 
-export type Secao = { titulo: string; texto: Documento | null };
+/** Sem título, a seção é o próprio documento (o relatório). */
+export type Secao = { titulo: string | null; texto: Documento | null };
 
 export const TITULO_DO_DOCUMENTO = "Registro de atendimento";
 const SEM_TEXTO = "Sem texto.";
 
-/** O que entra no documento: o modelo em uso e as observações. */
+/** O que entra no documento: o modelo em uso e as observações (no relatório, só se houver). */
 export function secoesDoRegistro(c: ConteudoDoRegistro): Secao[] {
-  const corpo = c.modelo === "relatorio" ? [{ titulo: "Relatório", texto: c.relatorio }] : c.topicos.map((t) => ({ titulo: t.pergunta, texto: t.resposta }));
-  return [...corpo, { titulo: "Observações", texto: c.observacoes }];
+  const observacoes = { titulo: "Observações", texto: c.observacoes };
+  if (c.modelo === "relatorio") return [{ titulo: null, texto: c.relatorio }, ...(temConteudo(c.observacoes) ? [observacoes] : [])];
+  return [...c.topicos.map((t) => ({ titulo: t.pergunta, texto: t.resposta })), observacoes];
 }
 
 /** Sem caracteres que os sistemas de arquivos recusam. */
@@ -82,7 +84,7 @@ function blocoEmHtml(no: Documento): string {
 
 /** Título, dados do atendimento e seções. É o que vai para a área de transferência e para a impressão. */
 export function paraHtml(d: DadosDoDocumento, secoes: Secao[]): string {
-  const corpo = secoes.map((s) => `<h2>${escapar(s.titulo)}</h2>${temConteudo(s.texto) ? blocoEmHtml(s.texto!) : `<p>${SEM_TEXTO}</p>`}`).join("");
+  const corpo = secoes.map((s) => `${s.titulo ? `<h2>${escapar(s.titulo)}</h2>` : ""}${temConteudo(s.texto) ? blocoEmHtml(s.texto!) : `<p>${SEM_TEXTO}</p>`}`).join("");
   return `<h1>${TITULO_DO_DOCUMENTO}</h1><p><strong>Paciente:</strong> ${escapar(d.paciente)}<br><strong>Data:</strong> ${escapar(d.quando)}<br><strong>Profissional:</strong> ${escapar(d.profissional)}</p>${corpo}`;
 }
 
@@ -98,7 +100,7 @@ function blocoEmTexto(no: Documento): string {
 
 /** Versão sem formatação, para quem cola onde não há HTML. */
 export function paraTexto(d: DadosDoDocumento, secoes: Secao[]): string {
-  const corpo = secoes.map((s) => `${s.titulo}\n${temConteudo(s.texto) ? blocoEmTexto(s.texto!).trim() : SEM_TEXTO}`).join("\n\n");
+  const corpo = secoes.map((s) => `${s.titulo ? `${s.titulo}\n` : ""}${temConteudo(s.texto) ? blocoEmTexto(s.texto!).trim() : SEM_TEXTO}`).join("\n\n");
   return `${TITULO_DO_DOCUMENTO}\nPaciente: ${d.paciente}\nData: ${d.quando}\nProfissional: ${d.profissional}\n\n${corpo}\n`;
 }
 
@@ -151,7 +153,7 @@ export function paraPdf(d: DadosDoDocumento, secoes: Secao[]): TDocumentDefiniti
       { text: [{ text: "Data: ", bold: true }, d.quando] },
       { text: [{ text: "Profissional: ", bold: true }, d.profissional], margin: [0, 0, 0, 10] },
       ...secoes.flatMap((s): Content[] => [
-        { text: s.titulo, fontSize: 13, bold: true, margin: [0, 10, 0, 4], keepWithNext: true } as Content,
+        ...(s.titulo ? [{ text: s.titulo, fontSize: 13, bold: true, margin: [0, 10, 0, 4], keepWithNext: true } as Content] : []),
         ...(temConteudo(s.texto) ? blocoEmPdf(s.texto!) : [{ text: SEM_TEXTO, color: "#6b7280" } as Content]),
       ]),
     ],
