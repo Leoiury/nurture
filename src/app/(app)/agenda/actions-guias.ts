@@ -4,6 +4,8 @@
 // A cobertura (que atendimentos cada guia cobre) é calculada no banco
 // (guias_dos_atendimentos); aqui ficam as datas dos atendimentos que faltam.
 
+import { ATENDIMENTOS_SEM_VALOR } from "@/lib/agenda/sem-valor";
+import { ehProfissional } from "@/lib/auth/usuario";
 import { revalidatePath } from "next/cache";
 import { carregarDiasEspeciais } from "@/lib/agenda/dados";
 import { semExpediente } from "@/lib/agenda/feriados";
@@ -18,8 +20,8 @@ type Resultado = { ok: true; quantidade?: number } | { ok: false; erro: string }
 export async function guiaDoAtendimento(id: string) {
   const supabase = await createClient();
   const { data: a, error } = await supabase
-    .from("atendimentos")
-    .select("id, inicio, status, recorrencia_id, plano:planos(exige_guia)")
+    .from(ATENDIMENTOS_SEM_VALOR)
+    .select("id, inicio, status, recorrencia_id, plano:planos_equipe(exige_guia)" as "id, inicio, status, recorrencia_id, plano:planos(exige_guia)")
     .eq("id", id)
     .single();
   if (error) throw new Error("Atendimento não encontrado.");
@@ -32,6 +34,8 @@ export async function guiaDoAtendimento(id: string) {
   ]);
   if (cobertura.error || cadeia?.error) throw new Error("Não foi possível carregar a guia.");
 
+  // O profissional vê a situação da guia; gerar e renovar ficam com a recepção.
+  const somenteLeitura = await ehProfissional();
   const guias = cadeia?.data ?? [];
   const ultima = guias.at(-1) ?? null;
   const atual = cobertura.data;
@@ -42,11 +46,12 @@ export async function guiaDoAtendimento(id: string) {
     exigeGuia: a.plano?.exige_guia ?? false,
     atual: atual && { id: atual.guia_id!, numero: atual.numero, ordem: atual.ordem!, posicao: atual.posicao!, quantidade: atual.quantidade!, renovada: atual.renovada! },
     serie: !!a.recorrencia_id,
-    podeGerar: !desmarcado && guias.length === 0,
+    podeGerar: !somenteLeitura && !desmarcado && guias.length === 0,
+    podeRelacionar: !somenteLeitura,
     /** Guia a renovar: a última da cadeia, se este atendimento está nela ou depois do fim. */
-    renovar: !desmarcado && ultima && !antesDaCadeia && (!atual || atual.guia_id === ultima.id) ? { id: ultima.id, numero: ultima.numero } : null,
+    renovar: !somenteLeitura && !desmarcado && ultima && !antesDaCadeia && (!atual || atual.guia_id === ultima.id) ? { id: ultima.id, numero: ultima.numero } : null,
     /** Excluir: só a última guia da cadeia. */
-    excluir: atual && ultima && atual.guia_id === ultima.id ? ultima.id : null,
+    excluir: !somenteLeitura && atual && ultima && atual.guia_id === ultima.id ? ultima.id : null,
     inicioDaCadeia: antesDaCadeia ? guias[0].a_partir_de : null,
   };
 }

@@ -11,6 +11,7 @@ export type TipoDaLista = {
   ativo: boolean;
   /** Qual valor do plano o tipo usa; null = o valor padrão. */
   area: string | null;
+  cobrar: boolean;
   atendimentos: number;
   /** Quem atende; vazio = qualquer profissional. */
   profissionais: string[];
@@ -54,7 +55,7 @@ export function ListaDeTipos({ tipos, profissionais }: { tipos: TipoDaLista[]; p
                   {!t.ativo && <span className="ml-2 rounded-full bg-black/5 px-2 py-px text-[11px] font-normal text-muted">inativo</span>}
                 </span>
                 <span className="block truncate text-muted">
-                  {quemAtende(t)} · valor {AREAS.find((a) => a.valor === t.area)?.rotulo.toLowerCase() ?? "padrão"}
+                  {quemAtende(t)} · {t.cobrar ? `valor ${AREAS.find((a) => a.valor === t.area)?.rotulo.toLowerCase() ?? "padrão"}` : "sem cobrança"}
                 </span>
               </span>
               <span className="hidden text-right text-xs text-muted sm:block">{plural(t.atendimentos, "atendimento", "atendimentos")}</span>
@@ -83,6 +84,7 @@ function PainelDoTipo({ tipo, profissionais, aoFechar }: { tipo: TipoDaLista | n
   const [nome, setNome] = useState(tipo?.nome ?? "");
   const [ativo, setAtivo] = useState(tipo?.ativo ?? true);
   const [area, setArea] = useState<Area | null>((tipo?.area as Area | null) ?? null);
+  const [cobrar, setCobrar] = useState(tipo?.cobrar ?? true);
   // Guarda também vínculos com profissionais inativos (não aparecem aqui, mas não se perdem ao salvar).
   const [escolhidos, setEscolhidos] = useState<string[]>(tipo?.profissionais ?? []);
   const [salvando, setSalvando] = useState(false);
@@ -128,7 +130,7 @@ function PainelDoTipo({ tipo, profissionais, aoFechar }: { tipo: TipoDaLista | n
           className="flex min-h-0 flex-1 flex-col"
           onSubmit={(e) => {
             e.preventDefault();
-            void executar(() => salvarTipo({ id: tipo?.id, nome, ativo, area, profissionais: escolhidos }));
+            void executar(() => salvarTipo({ id: tipo?.id, nome, ativo, area, cobrar, profissionais: escolhidos }));
           }}
         >
           <div className="flex flex-1 flex-col gap-5 overflow-y-auto px-5 py-4 text-sm">
@@ -163,6 +165,14 @@ function PainelDoTipo({ tipo, profissionais, aoFechar }: { tipo: TipoDaLista | n
                 {nenhumAtivo ? "Ninguém marcado: qualquer profissional atende este tipo." : "Usado para sugerir o tipo e buscar horários livres."}
               </p>
             </fieldset>
+
+            <label className="flex cursor-pointer items-center gap-2">
+              <input type="checkbox" checked={cobrar} onChange={(e) => setCobrar(e.target.checked)} className="size-4 accent-[var(--accent)]" />
+              <span>
+                Cobrar
+                <span className="block text-xs text-muted">Desligado: os novos atendimentos e os futuros ficam sem valor. O que já aconteceu não muda.</span>
+              </span>
+            </label>
 
             {tipo && (
               <label className="flex cursor-pointer items-center gap-2">

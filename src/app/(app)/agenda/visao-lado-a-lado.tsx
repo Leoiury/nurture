@@ -35,6 +35,7 @@ const ESCALA = { padrao: 12, min: 8, max: 26 };
 // Com zoom, as subcolunas encolhem até este mínimo antes de a grade rolar na horizontal.
 const LARGURA_MIN_SUBCOLUNA = 30;
 const CARD = { min: 26, max: 140 };
+const CARD_LARGO = 600;
 const LARGURA_EIXO = 48;
 const ALTURA_CABECALHO = 60;
 const ESPACO_ENTRE_DIAS = 10;
@@ -61,9 +62,11 @@ type Props = {
   divergencias: Map<string, Divergencia[]>;
   /** Datas comemorativas por dia (estrela no cabeçalho). */
   comemoracoes: Record<string, string[]>;
+  /** Calendário pessoal: uma só coluna por dia, sem o nome do profissional e com cards largos. */
+  colunaUnica?: boolean;
 };
 
-export function VisaoLadoALado({ dias, hoje, colunas, visiveis, porColuna, compactar, expandidos, aoExpandir, aoAbrir, sufixoUrl, alturaVisivel, especiais, aoCriarEm, divergencias, comemoracoes }: Props) {
+export function VisaoLadoALado({ dias, hoje, colunas, visiveis, porColuna, compactar, expandidos, aoExpandir, aoAbrir, sufixoUrl, alturaVisivel, especiais, aoCriarEm, divergencias, comemoracoes, colunaUnica }: Props) {
   const px = escalaParaCaber(alturaVisivel && alturaVisivel - ALTURA_CABECALHO - 8, ESCALA);
   const segmentos = useMemo(
     () =>
@@ -136,7 +139,7 @@ export function VisaoLadoALado({ dias, hoje, colunas, visiveis, porColuna, compa
                 <EtiquetaComemoracao nomes={comemoracoes[dia]} compacta />
               </Link>
               <div className="flex px-0.5 pb-1.5">
-                {colunas.map((p, i) => (
+                {!colunaUnica && colunas.map((p, i) => (
                   <div key={p.id} className={`flex min-w-0 flex-1 justify-center px-px ${classeDaColuna(i)}`} title={p.nome}>
                     <span className="truncate text-[10px] font-semibold text-muted">{nomeAbreviado(p.nome)}</span>
                   </div>
@@ -179,6 +182,7 @@ export function VisaoLadoALado({ dias, hoje, colunas, visiveis, porColuna, compa
                         top={posicaoY(a.inicio, segmentos, px)}
                         altura={posicaoY(a.fim, segmentos, px) - posicaoY(a.inicio, segmentos, px)}
                         profissionalId={p.id}
+                        colunaUnica={colunaUnica}
                         aoAbrir={() => aoAbrir(a.id)}
                       />
                     ))}
@@ -199,10 +203,11 @@ type CardProps = {
   altura: number;
   /** Coluna em que este card está (de onde sai, se arrastado). */
   profissionalId: string;
+  colunaUnica?: boolean;
   aoAbrir: () => void;
 };
 
-function CardCompacto({ atendimento: a, top, altura, profissionalId, aoAbrir }: CardProps) {
+function CardCompacto({ atendimento: a, top, altura, profissionalId, colunaUnica, aoAbrir }: CardProps) {
   const { estado: arraste, iniciar, cliqueSuprimido } = useArraste();
   const sendoArrastado = arraste?.ativo && arraste.atendimento.id === a.id;
   const cor = corDoCard(a);
@@ -223,18 +228,23 @@ function CardCompacto({ atendimento: a, top, altura, profissionalId, aoAbrir }: 
       data-atendimento={a.id}
       className={`pointer-events-auto absolute overflow-hidden rounded-md text-left text-foreground transition hover:z-10 hover:shadow-md focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-[var(--accent)] ${
         a.esmaecido ? "opacity-25 grayscale" : desmarcado ? "opacity-50" : sendoArrastado ? "opacity-30" : ""
-      } ${a.status === "faltou" ? "ring-2 ring-[var(--danger)]" : ""} ${a.rascunho ? MARCA_DO_RASCUNHO : ""}`}
+      } ${a.status === "faltou" ? "ring-2 ring-[var(--danger)]" : a.pendente ? "ring-2 ring-amber-500" : ""} ${a.rascunho ? MARCA_DO_RASCUNHO : ""}`}
       data-rascunho={a.rascunho}
       data-esmaecido={a.esmaecido ? "" : undefined}
       style={{
         top: top + 1,
         height: Math.max(altura - 2, 12),
-        ...geometriaDoCard(a.faixa, a.faixas, CARD.min, CARD.max),
+        ...geometriaDoCard(a.faixa, a.faixas, CARD.min, colunaUnica ? CARD_LARGO : CARD.max),
         background: fundoDoCard(cor),
         boxShadow: `inset 3px 0 0 ${cor}`,
       }}
     >
       {a.divergencia && <span className="absolute right-0.5 bottom-0.5 size-1.5 rounded-full bg-red-600" aria-hidden />}
+{a.pendente && (
+        <span data-pendente title="Já terminou e ainda não tem registro" className="absolute right-0.5 bottom-0.5 flex size-4 items-center justify-center rounded-full bg-amber-500 text-[11px] leading-none font-bold text-white" aria-hidden>
+          !
+        </span>
+      )}
       {a.guia && (
         <span className="absolute top-0.5 right-0.5">
           <IconeGuia situacao={a.guia} tamanho={10} />
@@ -246,7 +256,7 @@ function CardCompacto({ atendimento: a, top, altura, profissionalId, aoAbrir }: 
             <IconeBolo tamanho={10} />
           </span>
         )}
-        {a.paciente?.split(" ")[0] ?? "—"}
+        {(colunaUnica ? a.paciente : a.paciente?.split(" ")[0]) ?? "—"}
       </span>
       {/* Horário de início, quando o card tem altura para uma segunda linha. */}
       {altura >= 30 && <span className="block truncate pr-0.5 pl-[6px] text-[10px] leading-tight tabular-nums text-muted">{formatarHora(a.inicio)}</span>}

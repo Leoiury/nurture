@@ -1,10 +1,11 @@
 "use server";
 
 // Usuários (só ADM): criar login com senha provisória, mudar perfil/vínculo,
-// desativar (bloqueia o login) e gerar nova senha provisória.
+// desativar (bloqueia o login), gerar nova senha provisória e convidar profissionais.
 
 import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
+import { novoToken } from "@/lib/auth/convite";
 import { ehAdm, usuarioAtual, type Perfil } from "@/lib/auth/usuario";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -19,7 +20,7 @@ function senhaProvisoria(): string {
   return Array.from(randomBytes(12), (b) => letras[b % letras.length]).join("");
 }
 
-const PERFIS: Perfil[] = ["adm", "limitado"];
+const PERFIS: Perfil[] = ["adm", "limitado", "profissional"];
 /** Login bloqueado enquanto o usuário estiver inativo (~100 anos). */
 const BLOQUEIO = "876000h";
 
@@ -34,6 +35,7 @@ export async function criarUsuario(u: NovoUsuario): Promise<{ ok: true; email: s
   if (nome.length < 3) return { ok: false, erro: "Informe o nome." };
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { ok: false, erro: "E-mail inválido." };
   if (!PERFIS.includes(u.perfil)) return { ok: false, erro: "Perfil inválido." };
+  if (u.perfil === "profissional" && !u.profissionalId) return { ok: false, erro: "Escolha o profissional vinculado a este login." };
 
   const admin = createAdminClient();
   const senha = senhaProvisoria();
@@ -62,6 +64,7 @@ export async function atualizarUsuario(u: EdicaoDeUsuario): Promise<{ ok: true }
   const nome = u.nome.trim().replace(/\s+/g, " ");
   if (nome.length < 3) return { ok: false, erro: "Informe o nome." };
   if (!PERFIS.includes(u.perfil)) return { ok: false, erro: "Perfil inválido." };
+  if (u.perfil === "profissional" && !u.profissionalId) return { ok: false, erro: "Escolha o profissional vinculado a este login." };
 
   const eu = await usuarioAtual();
   if (u.id === eu?.id && (u.perfil !== "adm" || !u.ativo)) return { ok: false, erro: "Você não pode tirar o seu próprio acesso de administrador." };
@@ -89,4 +92,31 @@ export async function gerarNovaSenha(id: string): Promise<{ ok: true; senha: str
   const { error } = await createAdminClient().auth.admin.updateUserById(id, { password: senha });
   if (error) return { ok: false, erro: "Não foi possível gerar a senha." };
   return { ok: true, senha };
+}
+
+/** Link para o profissional criar o próprio login. Gerar outro invalida o anterior. */
+export async function gerarConvite(profissionalId: string): Promise<{ ok: true; token: string; expiraEm: string } | Falha> {
+  const eu = await usuarioAtual();
+  if (!(await ehAdm())) return { ok: false, erro: "Apenas administradores geram convites." };
+
+  const admin = createAdminClient();
+  const { count } = await admin.from("usuarios").select("id", { count: "exact", head: true }).eq("profissional_id", profissionalId).eq("ativo", true);
+  if (count) return { ok: false, erro: "Este profissional já tem um login." };
+
+  const { error: erroAnterior } = await admin.from("convites").update({ revogado_em: new Date().toISOString() }).eq("profissional_id", profissionalId).is("usado_em", null).is("revogado_em", null);
+  if (erroAnterior) return { ok: false, erro: "Não foi possível gerar o link." };
+  const { token, hash, expiraEm } = novoToken();
+  const { error } = await admin.from("convites").insert({ profissional_id: profissionalId, token_hash: hash, expira_em: expiraEm, criado_por: eu?.id });
+  if (error) return { ok: false, erro: "Não foi possível gerar o link." };
+
+  revalidar();
+  return { ok: true, token, expiraEm };
+}
+
+export async function cancelarConvite(id: string): Promise<{ ok: true } | Falha> {
+  if (!(await ehAdm())) return { ok: false, erro: "Apenas administradores cancelam convites." };
+  const { error } = await createAdminClient().from("convites").update({ revogado_em: new Date().toISOString() }).eq("id", id).is("usado_em", null);
+  if (error) return { ok: false, erro: "Não foi possível cancelar o link." };
+  revalidar();
+  return { ok: true };
 }

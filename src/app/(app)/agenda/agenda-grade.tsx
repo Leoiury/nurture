@@ -1,14 +1,16 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { AtendimentoAgenda, Lembretes, ProfissionalAgenda } from "@/lib/agenda/dados";
 import { semExpediente, type DiaEspecial } from "@/lib/agenda/feriados";
 import type { Segmento } from "@/lib/agenda/layout";
-import { formatarHora, nomeCurtoDoDia } from "@/lib/agenda/tempo";
+import { formatarHora, nomeCurtoDoDia, partesNoFuso } from "@/lib/agenda/tempo";
 import { sufixoDaVisao, type Visao } from "@/lib/agenda/visao";
 import { encontrarDivergencias, textosDasDivergencias, type Divergencia } from "@/lib/agenda/divergencias";
 import { FILTROS_VAZIOS, ajustarAoFiltro, aplicarFiltros, quantosFiltros, type Filtros, type ModoDoFiltro } from "@/lib/agenda/filtros";
+import { conflitosDoPaciente, type OutroDoPaciente } from "@/lib/agenda/pessoal";
 import { lerIdNovo, quando as quandoFormatado, type Operacao } from "@/lib/agenda/planejamento";
 import { ProvedorDeAcoes } from "./acoes-da-agenda";
 import { mover } from "./actions";
@@ -19,10 +21,13 @@ import { FiltrosAvancados, type OpcoesDosFiltros } from "./filtros-avancados";
 import { MenuLateral } from "./menu-lateral";
 import { PainelAtendimento } from "./painel-atendimento";
 import { BotoesDeLembrete } from "./lembretes";
+import { BotaoNovo } from "./botao-novo";
 import { PainelNovoAtendimento, type DadosEdicao } from "./painel-novo-atendimento";
 import { FaixaDoPlanejamento, PainelDoNovo, usePlanejamento } from "./planejamento";
 import { VisaoEmpilhada } from "./visao-empilhada";
 import { VisaoLadoALado } from "./visao-lado-a-lado";
+
+const ESTILO_DO_MAIS = "size-14 items-center justify-center rounded-full bg-accent text-white shadow-lg shadow-black/20 transition hover:brightness-110 active:scale-95";
 
 type Props = {
   modo: "semana" | "dia";
@@ -48,25 +53,47 @@ type Props = {
   planejamento?: { operacoes: Operacao[]; base: AtendimentoAgenda[]; urlSair: string };
   /** Fora do planejamento, para ADMs: endereço do planejamento nesta semana/dia. */
   urlDoPlanejamento?: string;
+  /** Calendário pessoal do profissional: só a própria coluna; os horários dos pacientes dele com outros. */
+  pessoal?: { outros: OutroDoPaciente[] };
+  /** Filtro por paciente vindo da URL: vale ao navegar entre as semanas. */
+  pacienteFiltrado?: { id: string; nome: string } | null;
+  /** ADM que também atende: alterna entre a agenda completa e o próprio calendário. */
+  alternarCalendario?: { href: string; rotulo: string };
+  /** Quem atende: o "+" oferece também realizar um atendimento ou uma anamnese. */
+  meuProfissional?: string;
 };
 
-export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais, atendimentos, especiais, lembretes, navegacao, navegacaoNoMenu, planejamento, urlDoPlanejamento }: Props) {
+export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais, atendimentos, especiais, lembretes, navegacao, navegacaoNoMenu, planejamento, urlDoPlanejamento, pessoal, pacienteFiltrado, alternarCalendario, meuProfissional }: Props) {
   // Profissionais sem atendimentos no período começam ocultos (podem ser exibidos no menu).
   const [ocultos, setOcultos] = useState<Set<string>>(
-    () => new Set(profissionais.filter((p) => !atendimentos.some((a) => a.profissionalIds.includes(p.id))).map((p) => p.id)),
+    () => new Set(pessoal ? [] : profissionais.filter((p) => !atendimentos.some((a) => a.profissionalIds.includes(p.id))).map((p) => p.id)),
   );
-  const [compactar, setCompactar] = useState(true);
+  // No calendário pessoal, o dia inteiro aparece: com poucos atendimentos, quase tudo ficaria compactado.
+  const [compactar, setCompactar] = useState(!pessoal);
   const [mostrarDesmarcados, setMostrarDesmarcados] = useState(false);
   const [expandidos, setExpandidos] = useState<Set<string>>(new Set());
   const [menuAberto, setMenuAberto] = useState(false);
   const [selecionado, setSelecionado] = useState<string | null>(null);
   // true: botão "+" (formulário vazio); objeto: clique num horário da grade (pré-preenchido).
   const [criando, setCriando] = useState<boolean | NovoNoHorario>(false);
+  // Avulso: o que vai ser realizado, com a data e a hora de quando foi aberto.
+  const [realizando, setRealizando] = useState<{ qual: "atendimento" | "anamnese"; data: string; hora: string } | null>(null);
   const [editando, setEditando] = useState<DadosEdicao | null>(null);
   const [foco, setFoco] = useModoFoco();
   const [aviso, setAviso] = useState<{ texto: string; desfazer?: () => void } | null>(null);
+  // Calendário pessoal: pergunta antes de mover para um horário com impacto em outro profissional.
+  const [confirmacao, setConfirmacao] = useState<{ textos: string[]; aoConfirmar: () => void } | null>(null);
   // Filtros avançados: não ficam salvos (zeram ao reabrir a agenda).
-  const [filtros, setFiltros] = useState<Filtros>(FILTROS_VAZIOS);
+  const [filtros, setFiltros] = useState<Filtros>(pacienteFiltrado ? { ...FILTROS_VAZIOS, pacientes: [pacienteFiltrado] } : FILTROS_VAZIOS);
+  // Tirou o paciente do filtro: sai também da URL, senão ele volta na próxima semana.
+  const router = useRouter();
+  const tirouPaciente = !!pacienteFiltrado && !filtros.pacientes.some((p) => p.id === pacienteFiltrado.id);
+  useEffect(() => {
+    if (!tirouPaciente) return;
+    const url = new URL(window.location.href);
+    url.searchParams.delete("paciente");
+    router.replace(`${url.pathname}${url.search}`, { scroll: false });
+  }, [tirouPaciente, router]);
   const [modoDoFiltro, setModoDoFiltro] = useState<ModoDoFiltro>("esmaecer");
   // Com filtro no modo "esconder": tira colunas sem resultado e condensa as horas sem resultado.
   const [ajustarAgenda, setAjustarAgenda] = useState(true);
@@ -128,7 +155,8 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
         .map((a) => (aniversariantes.has(`${a.data}|${a.pacienteId}`) ? { ...a, aniversario: true } : a)),
       filtros,
       modoDoFiltro,
-    );
+      // Exclusão pedida por um profissional: apagado até a recepção ou um ADM decidir.
+    ).map((a) => (a.exclusaoSolicitada ? { ...a, esmaecido: true } : a));
   }, [atendimentosAtuais, ocultos, mostrarDesmarcados, divergencias, aniversariantes, filtros, modoDoFiltro]);
   const ajuste = useMemo(
     () =>
@@ -170,8 +198,24 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
     return [...m].sort(([a], [b]) => a.localeCompare(b));
   }, [atendimentos]);
 
+  /** No calendário pessoal, avisa antes se o novo horário afeta outro profissional. */
+  function soltar(a: AtendimentoAgenda, de: string, alvo: AlvoDoArraste) {
+    if (!pessoal || (alvo.dia === a.data && alvo.minuto === a.inicio)) return void moverCard(a, de, alvo);
+    const fim = alvo.minuto + (a.fim - a.inicio);
+    const textos: string[] = [];
+    const colegas = a.profissionalNomes.filter((_, i) => a.profissionalIds[i] !== de);
+    if (colegas.length) textos.push(`Este atendimento também é de ${colegas.map(nomeAbreviado).join(", ")}: o horário muda para todos.`);
+    const conflitos = conflitosDoPaciente(pessoal.outros, a.pacienteId, alvo.dia, alvo.minuto, fim);
+    if (conflitos.length) {
+      textos.push(`${a.paciente ?? "O paciente"} já tem atendimento nesse horário com ${conflitos.flatMap((c) => c.profissionais).map(nomeAbreviado).join(", ")}. Deseja marcar mesmo assim?`);
+      textos.push("Para procurar outro horário, abra o atendimento, clique em Editar e use a busca de horários livres.");
+    }
+    if (textos.length === 0) return void moverCard(a, de, alvo);
+    setConfirmacao({ textos, aoConfirmar: () => void moverCard(a, de, alvo) });
+  }
+
   /** Card solto em outro horário/coluna: move na hora e oferece desfazer. */
-  async function soltar(a: AtendimentoAgenda, de: string, alvo: AlvoDoArraste) {
+  async function moverCard(a: AtendimentoAgenda, de: string, alvo: AlvoDoArraste) {
     // Soltar na coluna de outro profissional do mesmo atendimento conjunto: só muda o horário.
     const para = alvo.profissionalId !== de && a.profissionalIds.includes(alvo.profissionalId) ? de : alvo.profissionalId;
     if (alvo.dia === a.data && alvo.minuto === a.inicio && para === de) return;
@@ -241,9 +285,9 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
   }
 
   // A visão lado a lado só faz sentido para a semana; um dia usa a empilhada.
-  const visaoEfetiva: Visao = modo === "dia" && visao === "lado" ? "empilhada" : visao;
+  const visaoEfetiva: Visao = visao !== "lado" && visao !== "pessoal" ? visao : modo === "dia" ? "empilhada" : "lado";
   const ladoALado = visaoEfetiva === "lado";
-  const sufixoUrl = sufixoDaVisao(visao, plano.ativo);
+  const sufixoUrl = sufixoDaVisao(visao, plano.ativo, pacienteFiltrado?.id);
   // Ao abrir a semana atual, rola até o dia de hoje (nas visões empilhadas).
   useEffect(() => {
     if (ladoALado || modo !== "semana") return;
@@ -256,7 +300,7 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
   const propsVisao = { dias, hoje, colunas, visiveis: exibidos, porColuna, compactar: compactar || !!ajuste, expandidos, aoExpandir: expandirSegmento, aoAbrir: setSelecionado, sufixoUrl, alturaVisivel, especiais, aoCriarEm: setCriando, divergencias: divergenciasPorColuna, comemoracoes: comemoracoesPorDia };
 
   const grade = (
-    <ProvedorDeArraste aoSoltar={(a, de, alvo) => void soltar(a, de, alvo)} aoDica={(texto) => setAviso({ texto })}>
+    <ProvedorDeArraste aoSoltar={soltar} aoDica={(texto) => setAviso({ texto })} outros={pessoal?.outros}>
     <div className="flex min-h-0 flex-1 flex-col gap-3">
       {plano.ativo && planejamento && <FaixaDoPlanejamento planejamento={plano} urlSair={planejamento.urlSair} aoAviso={(texto) => setAviso({ texto })} />}
 
@@ -288,6 +332,15 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
         <div className="min-w-[18rem] flex-1">{navegacao}</div>
 
         <BotoesDeLembrete aniversarios={lembretes.proximos.aniversarios} comemoracoes={lembretes.proximos.comemoracoes} hoje={hoje} />
+
+        {alternarCalendario && (
+          <Link
+            href={alternarCalendario.href}
+            className="inline-flex h-9 items-center rounded-full bg-surface px-3 text-sm text-muted shadow-sm ring-1 ring-black/5 transition hover:text-foreground hover:shadow"
+          >
+            {alternarCalendario.rotulo}
+          </Link>
+        )}
 
         {urlDoPlanejamento && (
           <Link
@@ -325,7 +378,7 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
         }`}
       >
         {ladoALado ? (
-          <VisaoLadoALado {...propsVisao} />
+          <VisaoLadoALado {...propsVisao} colunaUnica={!!pessoal} />
         ) : (
           <VisaoEmpilhada modo={modo} ampliada={visaoEfetiva === "ampliada"} {...propsVisao} />
         )}
@@ -359,15 +412,21 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
       </button>
 
       {/* Novo atendimento: sempre visível, no canto inferior direito. */}
-      <button
-        type="button"
-        onClick={() => setCriando(true)}
-        aria-label="Novo atendimento"
-        title="Novo atendimento"
-        className="fixed right-5 bottom-5 z-30 inline-flex size-14 items-center justify-center rounded-full bg-accent text-white shadow-lg shadow-black/20 transition hover:brightness-110 active:scale-95"
-      >
-        <IconeMais />
-      </button>
+      {meuProfissional ? (
+        <BotaoNovo
+          estilo={`${ESTILO_DO_MAIS} inline-flex`}
+          icone={<IconeMais />}
+          aoAgendar={() => setCriando(true)}
+          aoRealizarAvulso={(qual) => {
+            const agora = partesNoFuso(new Date());
+            setRealizando({ qual, data: agora.data, hora: formatarHora(agora.minutos - (agora.minutos % 5)) });
+          }}
+        />
+      ) : (
+        <button type="button" onClick={() => setCriando(true)} aria-label="Novo atendimento" title="Novo atendimento" className={`fixed right-5 bottom-5 z-30 inline-flex ${ESTILO_DO_MAIS}`}>
+          <IconeMais />
+        </button>
+      )}
 
       <MenuLateral
         aberto={menuAberto}
@@ -380,6 +439,7 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
         navegacao={foco ? navegacaoNoMenu : null}
         aoFechar={() => setMenuAberto(false)}
         profissionais={profissionais}
+        semProfissionais={!!pessoal}
         ocultos={ocultos}
         aoAlternar={alternarProfissional}
         aoMostrarTodos={() => setOcultos(new Set())}
@@ -402,10 +462,11 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
             ajustarAgenda={ajustarAgenda}
             aoAjustarAgenda={setAjustarAgenda}
             opcoes={opcoesDosFiltros}
+            semValores={!!pessoal}
           />
         }
         opcoesDeVisao={
-          <>
+          !pessoal && <>
             <OpcaoVisao
               aoEscolher={() => setMenuAberto(false)}
               href={urlDaVisao.empilhada}
@@ -462,7 +523,34 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
           aoFechar={() => setCriando(false)}
         />
       )}
+      {realizando && <PainelNovoAtendimento key={realizando.qual} realizar={realizando.qual} inicial={{ data: realizando.data, hora: realizando.hora, profissionalId: meuProfissional }} aoFechar={() => setRealizando(null)} />}
       {editando && <PainelNovoAtendimento key={editando.id} edicao={editando} aoFechar={() => setEditando(null)} />}
+
+      {confirmacao && (
+        <>
+          <div className="fixed inset-0 z-40 bg-black/20" onClick={() => setConfirmacao(null)} aria-hidden />
+          <div role="alertdialog" aria-modal="true" aria-label="Confirmar novo horário" className="fixed top-1/2 left-1/2 z-50 flex w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 flex-col gap-3 rounded-3xl bg-surface p-5 text-sm shadow-2xl">
+            {confirmacao.textos.map((t) => (
+              <p key={t}>{t}</p>
+            ))}
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => setConfirmacao(null)} className="rounded-full bg-black/[0.04] px-4 py-2 font-medium hover:bg-black/[0.07]">
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  confirmacao.aoConfirmar();
+                  setConfirmacao(null);
+                }}
+                className="rounded-full bg-accent px-4 py-2 font-medium text-white hover:brightness-110"
+              >
+                Marcar mesmo assim
+              </button>
+            </div>
+          </div>
+        </>
+      )}
 
       {aviso && (
         <div

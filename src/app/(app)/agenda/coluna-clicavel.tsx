@@ -35,7 +35,7 @@ export const DICA_MARCAR = "Para marcar neste horário, segure Shift e clique.";
 
 export function ColunaClicavel({ dia, profissionalId, segmentos, px, aoExpandir, aoCriar, compacta, divergencias, className = "", children }: Props) {
   const [previa, setPrevia] = useState<number | null>(null);
-  const { estado: arraste, registrarColuna, modificador, dica, cliqueSuprimido } = useArraste();
+  const { estado: arraste, registrarColuna, modificador, dica, cliqueSuprimido, outros } = useArraste();
   const chave = `${dia}|${profissionalId}`;
   // Toque em andamento sobre um horário vazio (segurando para marcar).
   const [segurando, setSegurando] = useState(false);
@@ -54,6 +54,8 @@ export function ColunaClicavel({ dia, profissionalId, segmentos, px, aoExpandir,
   const destino =
     arraste?.ativo && arraste.alvo?.dia === dia && arraste.alvo.profissionalId === profissionalId ? arraste.alvo.minuto : null;
   const duracaoArrastada = arraste ? arraste.atendimento.fim - arraste.atendimento.inicio : 0;
+  // Ao arrastar: os horários deste paciente com outros profissionais neste dia, em cinza.
+  const doPaciente = arraste?.ativo ? outros.filter((o) => o.pacienteId === arraste.atendimento.pacienteId && o.data === dia) : [];
 
   function posicao(e: MouseEvent<HTMLDivElement>) {
     // Sobre um card, quem responde é o card.
@@ -122,6 +124,17 @@ export function ColunaClicavel({ dia, profissionalId, segmentos, px, aoExpandir,
         aoCriar({ data: dia, hora: formatarHora(encaixar(p.minutos)), profissionalId });
       }}
     >
+      {doPaciente.map((o) => (
+        <div
+          key={o.inicio}
+          aria-hidden
+          data-horario-com-outro
+          className="pointer-events-none absolute inset-x-0 z-10 overflow-hidden rounded-md bg-black/25 px-1.5 pt-0.5 text-[11px] font-medium"
+          style={{ top: posicaoY(o.inicio, segmentos, px), height: posicaoY(o.fim, segmentos, px) - posicaoY(o.inicio, segmentos, px) }}
+        >
+          {o.profissionais.join(", ")}
+        </div>
+      ))}
       {destino !== null && arraste && (
         <div
           aria-hidden

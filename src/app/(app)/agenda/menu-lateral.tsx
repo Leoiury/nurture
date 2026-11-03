@@ -13,6 +13,8 @@ type MenuProps = {
   navegacao: ReactNode;
   aoFechar: () => void;
   profissionais: ProfissionalAgenda[];
+  /** Calendário pessoal: sem a escolha de profissionais. */
+  semProfissionais?: boolean;
   ocultos: Set<string>;
   aoAlternar: (id: string) => void;
   aoMostrarTodos: () => void;
@@ -45,6 +47,7 @@ export function MenuLateral(props: MenuProps) {
   // Profissionais e exibição: nas duas abas ("Limpar filtros" não mexe neles).
   const filtrosPadrao = (
     <>
+      {!props.semProfissionais && (
       <section className="flex flex-col gap-2">
         <div className="flex items-center justify-between">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">Profissionais</h3>
@@ -71,6 +74,7 @@ export function MenuLateral(props: MenuProps) {
           })}
         </ul>
       </section>
+      )}
   
       <section className="flex flex-col gap-2">
         <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">Exibição</h3>

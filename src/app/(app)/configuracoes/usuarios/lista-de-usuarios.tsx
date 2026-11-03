@@ -3,7 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { atualizarUsuario, criarUsuario, gerarNovaSenha } from "./actions";
 
-type Perfil = "adm" | "limitado";
+type Perfil = "adm" | "limitado" | "profissional";
 
 export type UsuarioDaLista = {
   id: string;
@@ -17,7 +17,12 @@ export type UsuarioDaLista = {
 
 type Profissional = { id: string; nome: string };
 
-const ROTULO_PERFIL: Record<Perfil, string> = { adm: "Administrador", limitado: "Limitado" };
+const ROTULO_PERFIL: Record<Perfil, string> = { adm: "Administrador", limitado: "Limitado", profissional: "Profissional" };
+const DESCRICAO_PERFIL: Record<Perfil, string> = {
+  limitado: "Agenda e pacientes; vê profissionais, sem alterar cadastros.",
+  profissional: "Os próprios atendimentos e os pacientes; nunca vê valores. Precisa de um profissional vinculado.",
+  adm: "Tudo, inclusive configurações, planejamento, importação e usuários.",
+};
 const dataHora = new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" });
 
 export function ListaDeUsuarios({ usuarios, profissionais, euId }: { usuarios: UsuarioDaLista[]; profissionais: Profissional[]; euId: string }) {
@@ -180,19 +185,17 @@ function PainelDoUsuario({ usuario: u, profissionais, aoFechar, aoGerarSenha }: 
             </Campo>
             <fieldset className="flex flex-col gap-1.5">
               <legend className="mb-1 text-xs font-semibold tracking-wide text-muted uppercase">Perfil</legend>
-              {(["limitado", "adm"] as Perfil[]).map((p) => (
+              {(["limitado", "profissional", "adm"] as Perfil[]).map((p) => (
                 <label key={p} className="flex cursor-pointer items-start gap-2 rounded-lg px-2 py-1.5 hover:bg-background">
                   <input type="radio" name="perfil" checked={perfil === p} onChange={() => setPerfil(p)} className="mt-0.5 accent-[var(--accent)]" />
                   <span>
                     {ROTULO_PERFIL[p]}
-                    <span className="block text-xs text-muted">
-                      {p === "adm" ? "Tudo, inclusive configurações, planejamento, importação e usuários." : "Agenda e pacientes; vê profissionais, sem alterar cadastros."}
-                    </span>
+                    <span className="block text-xs text-muted">{DESCRICAO_PERFIL[p]}</span>
                   </span>
                 </label>
               ))}
             </fieldset>
-            <Campo rotulo="Profissional vinculado (opcional)">
+            <Campo rotulo={perfil === "profissional" ? "Profissional vinculado" : "Profissional vinculado (opcional)"}>
               <select value={profissionalId} onChange={(e) => setProfissionalId(e.target.value)} className={entrada}>
                 <option value="">Nenhum</option>
                 {profissionais.map((p) => (

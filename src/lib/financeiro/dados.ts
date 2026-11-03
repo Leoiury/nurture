@@ -23,8 +23,11 @@ async function todas<T>(pagina: (de: number, ate: number) => PromiseLike<{ data:
   }
 }
 
-const SELECAO_DO_ATENDIMENTO =
+// `valor` aqui é o total cobrado; a visão de atendimentos em aberto já o traz com esse nome.
+const SELECAO_DO_ATENDIMENTO_EM_ABERTO =
   "id, inicio, status, valor, paciente:pacientes(id, nome), plano:planos(id, nome, cor), tipo:tipos_atendimento(nome), profissionais:atendimento_profissionais(profissional:profissionais(id, nome)), quitacoes:pagamentos_atendimentos(valor), baixas:baixas_atendimentos(valor)";
+
+const SELECAO_DO_ATENDIMENTO = SELECAO_DO_ATENDIMENTO_EM_ABERTO.replace("valor, paciente:", "valor:valor_cobrado, paciente:") as typeof SELECAO_DO_ATENDIMENTO_EM_ABERTO;
 
 type LinhaDoAtendimento = {
   id: string;
@@ -80,7 +83,7 @@ export async function carregarAtendimentosDoMes(mes: string): Promise<Atendiment
 export async function carregarPendentes(filtro: { pacienteId?: string; planoId?: string } = {}): Promise<AtendimentoFinanceiro[]> {
   const supabase = await createClient();
   const linhas = await todas((de, ate) => {
-    let q = supabase.from("atendimentos_em_aberto").select(SELECAO_DO_ATENDIMENTO);
+    let q = supabase.from("atendimentos_em_aberto").select(SELECAO_DO_ATENDIMENTO_EM_ABERTO);
     if (filtro.pacienteId) q = q.eq("paciente_id", filtro.pacienteId);
     if (filtro.planoId) q = q.eq("plano_id", filtro.planoId);
     return q.order("inicio").order("id").range(de, ate);
@@ -124,7 +127,7 @@ export async function carregarQuitacoesARevisar(): Promise<QuitacaoARevisar[]> {
   const [pagamentos, atendimentos] = await Promise.all([
     supabase.from("pagamentos").select("id, data, valor").in("id", ids("pagamento_id")),
     // Inclui os excluídos (não filtra excluido_em).
-    supabase.from("atendimentos").select("id, inicio, status, valor, paciente:pacientes(nome)").in("id", ids("atendimento_id")),
+    supabase.from("atendimentos").select("id, inicio, status, valor:valor_cobrado, paciente:pacientes(nome)" as "id, inicio, status, valor, paciente:pacientes(nome)").in("id", ids("atendimento_id")),
   ]);
   if (pagamentos.error || atendimentos.error) throw new Error("Não foi possível carregar os pagamentos a revisar.");
   return linhas.map((l) => {

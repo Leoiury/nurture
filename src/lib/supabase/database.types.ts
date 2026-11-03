@@ -34,6 +34,193 @@ export type Database = {
   }
   public: {
     Tables: {
+      anamnese_perguntas: {
+        Row: {
+          atualizado_em: string
+          criado_em: string
+          id: string
+          ordem: number
+          profissional_id: string
+          texto: string
+        }
+        Insert: {
+          atualizado_em?: string
+          criado_em?: string
+          id?: string
+          ordem: number
+          profissional_id: string
+          texto: string
+        }
+        Update: {
+          atualizado_em?: string
+          criado_em?: string
+          id?: string
+          ordem?: number
+          profissional_id?: string
+          texto?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "anamnese_perguntas_profissional_id_fkey"
+            columns: ["profissional_id"]
+            isOneToOne: false
+            referencedRelation: "profissionais"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      anamneses: {
+        Row: {
+          atendimento_id: string | null
+          atualizado_em: string
+          autor_id: string | null
+          conteudo: Json
+          criado_em: string
+          id: string
+          observacoes: string
+          paciente_id: string
+          profissional_id: string
+          salva_em: string | null
+          versao: number
+        }
+        Insert: {
+          atendimento_id?: string | null
+          atualizado_em?: string
+          autor_id?: string | null
+          conteudo?: Json
+          criado_em?: string
+          id?: string
+          observacoes?: string
+          paciente_id: string
+          profissional_id: string
+          salva_em?: string | null
+          versao?: number
+        }
+        Update: {
+          atendimento_id?: string | null
+          atualizado_em?: string
+          autor_id?: string | null
+          conteudo?: Json
+          criado_em?: string
+          id?: string
+          observacoes?: string
+          paciente_id?: string
+          profissional_id?: string
+          salva_em?: string | null
+          versao?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "anamneses_atendimento_id_fkey"
+            columns: ["atendimento_id"]
+            isOneToOne: false
+            referencedRelation: "atendimentos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "anamneses_atendimento_id_fkey"
+            columns: ["atendimento_id"]
+            isOneToOne: false
+            referencedRelation: "atendimentos_em_aberto"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "anamneses_atendimento_id_fkey"
+            columns: ["atendimento_id"]
+            isOneToOne: false
+            referencedRelation: "atendimentos_equipe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "anamneses_atendimento_id_fkey"
+            columns: ["atendimento_id"]
+            isOneToOne: false
+            referencedRelation: "guias_dos_atendimentos"
+            referencedColumns: ["atendimento_id"]
+          },
+          {
+            foreignKeyName: "anamneses_paciente_id_fkey"
+            columns: ["paciente_id"]
+            isOneToOne: false
+            referencedRelation: "pacientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "anamneses_profissional_id_fkey"
+            columns: ["profissional_id"]
+            isOneToOne: false
+            referencedRelation: "profissionais"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      anamneses_rascunhos: {
+        Row: {
+          anamnese_id: string
+          atualizado_em: string
+          conteudo: Json
+          observacoes: string
+        }
+        Insert: {
+          anamnese_id: string
+          atualizado_em?: string
+          conteudo: Json
+          observacoes: string
+        }
+        Update: {
+          anamnese_id?: string
+          atualizado_em?: string
+          conteudo?: Json
+          observacoes?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "anamneses_rascunhos_anamnese_id_fkey"
+            columns: ["anamnese_id"]
+            isOneToOne: true
+            referencedRelation: "anamneses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      anamneses_versoes: {
+        Row: {
+          anamnese_id: string
+          autor_id: string | null
+          conteudo: Json
+          id: number
+          observacoes: string
+          salva_em: string
+          versao: number
+        }
+        Insert: {
+          anamnese_id: string
+          autor_id?: string | null
+          conteudo: Json
+          id?: never
+          observacoes: string
+          salva_em?: string
+          versao: number
+        }
+        Update: {
+          anamnese_id?: string
+          autor_id?: string | null
+          conteudo?: Json
+          id?: never
+          observacoes?: string
+          salva_em?: string
+          versao?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "anamneses_versoes_anamnese_id_fkey"
+            columns: ["anamnese_id"]
+            isOneToOne: false
+            referencedRelation: "anamneses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       atendimento_profissionais: {
         Row: {
           atendimento_id: string
@@ -66,11 +253,53 @@ export type Database = {
             foreignKeyName: "atendimento_profissionais_atendimento_id_fkey"
             columns: ["atendimento_id"]
             isOneToOne: false
+            referencedRelation: "atendimentos_equipe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "atendimento_profissionais_atendimento_id_fkey"
+            columns: ["atendimento_id"]
+            isOneToOne: false
             referencedRelation: "guias_dos_atendimentos"
             referencedColumns: ["atendimento_id"]
           },
           {
             foreignKeyName: "atendimento_profissionais_profissional_id_fkey"
+            columns: ["profissional_id"]
+            isOneToOne: false
+            referencedRelation: "profissionais"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      atendimento_topicos: {
+        Row: {
+          atualizado_em: string
+          criado_em: string
+          id: string
+          ordem: number
+          profissional_id: string
+          texto: string
+        }
+        Insert: {
+          atualizado_em?: string
+          criado_em?: string
+          id?: string
+          ordem: number
+          profissional_id: string
+          texto: string
+        }
+        Update: {
+          atualizado_em?: string
+          criado_em?: string
+          id?: string
+          ordem?: number
+          profissional_id?: string
+          texto?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "atendimento_topicos_profissional_id_fkey"
             columns: ["profissional_id"]
             isOneToOne: false
             referencedRelation: "profissionais"
@@ -84,6 +313,9 @@ export type Database = {
           criado_em: string
           excluido_em: string | null
           excluido_por: string | null
+          exclusao_motivo: string | null
+          exclusao_solicitada_em: string | null
+          exclusao_solicitada_por: string | null
           fim: string
           id: string
           id_legado: number | null
@@ -104,6 +336,9 @@ export type Database = {
           criado_em?: string
           excluido_em?: string | null
           excluido_por?: string | null
+          exclusao_motivo?: string | null
+          exclusao_solicitada_em?: string | null
+          exclusao_solicitada_por?: string | null
           fim: string
           id?: string
           id_legado?: number | null
@@ -124,6 +359,9 @@ export type Database = {
           criado_em?: string
           excluido_em?: string | null
           excluido_por?: string | null
+          exclusao_motivo?: string | null
+          exclusao_solicitada_em?: string | null
+          exclusao_solicitada_por?: string | null
           fim?: string
           id?: string
           id_legado?: number | null
@@ -152,6 +390,13 @@ export type Database = {
             columns: ["plano_id"]
             isOneToOne: false
             referencedRelation: "planos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "atendimentos_plano_id_fkey"
+            columns: ["plano_id"]
+            isOneToOne: false
+            referencedRelation: "planos_equipe"
             referencedColumns: ["id"]
           },
           {
@@ -244,6 +489,13 @@ export type Database = {
             foreignKeyName: "atendimentos_observacoes_atendimento_id_fkey"
             columns: ["atendimento_id"]
             isOneToOne: false
+            referencedRelation: "atendimentos_equipe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "atendimentos_observacoes_atendimento_id_fkey"
+            columns: ["atendimento_id"]
+            isOneToOne: false
             referencedRelation: "guias_dos_atendimentos"
             referencedColumns: ["atendimento_id"]
           },
@@ -299,6 +551,13 @@ export type Database = {
             foreignKeyName: "baixas_atendimentos_atendimento_id_fkey"
             columns: ["atendimento_id"]
             isOneToOne: false
+            referencedRelation: "atendimentos_equipe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "baixas_atendimentos_atendimento_id_fkey"
+            columns: ["atendimento_id"]
+            isOneToOne: false
             referencedRelation: "guias_dos_atendimentos"
             referencedColumns: ["atendimento_id"]
           },
@@ -332,6 +591,64 @@ export type Database = {
             columns: ["plano_id"]
             isOneToOne: false
             referencedRelation: "planos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "convenios_legado_plano_id_fkey"
+            columns: ["plano_id"]
+            isOneToOne: false
+            referencedRelation: "planos_equipe"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      convites: {
+        Row: {
+          criado_em: string
+          criado_por: string | null
+          expira_em: string
+          id: string
+          profissional_id: string
+          revogado_em: string | null
+          token_hash: string
+          usado_em: string | null
+          usuario_id: string | null
+        }
+        Insert: {
+          criado_em?: string
+          criado_por?: string | null
+          expira_em: string
+          id?: string
+          profissional_id: string
+          revogado_em?: string | null
+          token_hash: string
+          usado_em?: string | null
+          usuario_id?: string | null
+        }
+        Update: {
+          criado_em?: string
+          criado_por?: string | null
+          expira_em?: string
+          id?: string
+          profissional_id?: string
+          revogado_em?: string | null
+          token_hash?: string
+          usado_em?: string | null
+          usuario_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "convites_profissional_id_fkey"
+            columns: ["profissional_id"]
+            isOneToOne: false
+            referencedRelation: "profissionais"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "convites_usuario_id_fkey"
+            columns: ["usuario_id"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
             referencedColumns: ["id"]
           },
         ]
@@ -660,6 +977,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "pacientes_plano_id_fkey"
+            columns: ["plano_id"]
+            isOneToOne: false
+            referencedRelation: "planos_equipe"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "pacientes_profissional_responsavel_id_fkey"
             columns: ["profissional_responsavel_id"]
             isOneToOne: false
@@ -717,6 +1041,13 @@ export type Database = {
             referencedRelation: "planos"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "pagamentos_plano_id_fkey"
+            columns: ["plano_id"]
+            isOneToOne: false
+            referencedRelation: "planos_equipe"
+            referencedColumns: ["id"]
+          },
         ]
       }
       pagamentos_atendimentos: {
@@ -748,6 +1079,13 @@ export type Database = {
             columns: ["atendimento_id"]
             isOneToOne: false
             referencedRelation: "atendimentos_em_aberto"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pagamentos_atendimentos_atendimento_id_fkey"
+            columns: ["atendimento_id"]
+            isOneToOne: false
+            referencedRelation: "atendimentos_equipe"
             referencedColumns: ["id"]
           },
           {
@@ -907,29 +1245,168 @@ export type Database = {
         }
         Relationships: []
       }
+      registros_atendimento: {
+        Row: {
+          atendimento_id: string
+          atualizado_em: string
+          autor_id: string | null
+          conteudo: Json
+          criado_em: string
+          id: string
+          profissional_id: string
+          salvo_em: string | null
+          versao: number
+        }
+        Insert: {
+          atendimento_id: string
+          atualizado_em?: string
+          autor_id?: string | null
+          conteudo?: Json
+          criado_em?: string
+          id?: string
+          profissional_id: string
+          salvo_em?: string | null
+          versao?: number
+        }
+        Update: {
+          atendimento_id?: string
+          atualizado_em?: string
+          autor_id?: string | null
+          conteudo?: Json
+          criado_em?: string
+          id?: string
+          profissional_id?: string
+          salvo_em?: string | null
+          versao?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "registros_atendimento_atendimento_id_fkey"
+            columns: ["atendimento_id"]
+            isOneToOne: false
+            referencedRelation: "atendimentos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "registros_atendimento_atendimento_id_fkey"
+            columns: ["atendimento_id"]
+            isOneToOne: false
+            referencedRelation: "atendimentos_em_aberto"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "registros_atendimento_atendimento_id_fkey"
+            columns: ["atendimento_id"]
+            isOneToOne: false
+            referencedRelation: "atendimentos_equipe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "registros_atendimento_atendimento_id_fkey"
+            columns: ["atendimento_id"]
+            isOneToOne: false
+            referencedRelation: "guias_dos_atendimentos"
+            referencedColumns: ["atendimento_id"]
+          },
+          {
+            foreignKeyName: "registros_atendimento_profissional_id_fkey"
+            columns: ["profissional_id"]
+            isOneToOne: false
+            referencedRelation: "profissionais"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      registros_rascunhos: {
+        Row: {
+          atualizado_em: string
+          conteudo: Json
+          registro_id: string
+        }
+        Insert: {
+          atualizado_em?: string
+          conteudo: Json
+          registro_id: string
+        }
+        Update: {
+          atualizado_em?: string
+          conteudo?: Json
+          registro_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "registros_rascunhos_registro_id_fkey"
+            columns: ["registro_id"]
+            isOneToOne: true
+            referencedRelation: "registros_atendimento"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      registros_versoes: {
+        Row: {
+          autor_id: string | null
+          conteudo: Json
+          id: number
+          registro_id: string
+          salva_em: string
+          versao: number
+        }
+        Insert: {
+          autor_id?: string | null
+          conteudo: Json
+          id?: never
+          registro_id: string
+          salva_em?: string
+          versao: number
+        }
+        Update: {
+          autor_id?: string | null
+          conteudo?: Json
+          id?: never
+          registro_id?: string
+          salva_em?: string
+          versao?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "registros_versoes_registro_id_fkey"
+            columns: ["registro_id"]
+            isOneToOne: false
+            referencedRelation: "registros_atendimento"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tipos_atendimento: {
         Row: {
+          abre_anamnese: boolean
           area: string | null
           ativo: boolean
           atualizado_em: string
+          cobrar: boolean
           cor: string | null
           criado_em: string
           id: string
           nome: string
         }
         Insert: {
+          abre_anamnese?: boolean
           area?: string | null
           ativo?: boolean
           atualizado_em?: string
+          cobrar?: boolean
           cor?: string | null
           criado_em?: string
           id?: string
           nome: string
         }
         Update: {
+          abre_anamnese?: boolean
           area?: string | null
           ativo?: boolean
           atualizado_em?: string
+          cobrar?: boolean
           cor?: string | null
           criado_em?: string
           id?: string
@@ -974,6 +1451,7 @@ export type Database = {
           criado_em: string
           email: string
           id: string
+          modelo_atendimento: string
           nome: string
           perfil: Database["public"]["Enums"]["perfil_usuario"]
           profissional_id: string | null
@@ -984,6 +1462,7 @@ export type Database = {
           criado_em?: string
           email: string
           id: string
+          modelo_atendimento?: string
           nome: string
           perfil?: Database["public"]["Enums"]["perfil_usuario"]
           profissional_id?: string | null
@@ -994,6 +1473,7 @@ export type Database = {
           criado_em?: string
           email?: string
           id?: string
+          modelo_atendimento?: string
           nome?: string
           perfil?: Database["public"]["Enums"]["perfil_usuario"]
           profissional_id?: string | null
@@ -1027,7 +1507,7 @@ export type Database = {
           plano_id?: string | null
           status?: Database["public"]["Enums"]["status_atendimento"] | null
           tipo_id?: string | null
-          valor?: number | null
+          valor?: never
         }
         Update: {
           id?: string | null
@@ -1036,7 +1516,7 @@ export type Database = {
           plano_id?: string | null
           status?: Database["public"]["Enums"]["status_atendimento"] | null
           tipo_id?: string | null
-          valor?: number | null
+          valor?: never
         }
         Relationships: [
           {
@@ -1051,6 +1531,118 @@ export type Database = {
             columns: ["plano_id"]
             isOneToOne: false
             referencedRelation: "planos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "atendimentos_plano_id_fkey"
+            columns: ["plano_id"]
+            isOneToOne: false
+            referencedRelation: "planos_equipe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "atendimentos_tipo_id_fkey"
+            columns: ["tipo_id"]
+            isOneToOne: false
+            referencedRelation: "tipos_atendimento"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      atendimentos_equipe: {
+        Row: {
+          atualizado_em: string | null
+          criado_em: string | null
+          excluido_em: string | null
+          excluido_por: string | null
+          exclusao_motivo: string | null
+          exclusao_solicitada_em: string | null
+          exclusao_solicitada_por: string | null
+          fim: string | null
+          id: string | null
+          id_legado: number | null
+          importado_em: string | null
+          inicio: string | null
+          motivo_desmarcacao: string | null
+          motivo_exclusao: string | null
+          observacao: string | null
+          paciente_id: string | null
+          plano_id: string | null
+          recorrencia_id: string | null
+          status: Database["public"]["Enums"]["status_atendimento"] | null
+          tipo_id: string | null
+        }
+        Insert: {
+          atualizado_em?: string | null
+          criado_em?: string | null
+          excluido_em?: string | null
+          excluido_por?: string | null
+          exclusao_motivo?: string | null
+          exclusao_solicitada_em?: string | null
+          exclusao_solicitada_por?: string | null
+          fim?: string | null
+          id?: string | null
+          id_legado?: number | null
+          importado_em?: string | null
+          inicio?: string | null
+          motivo_desmarcacao?: string | null
+          motivo_exclusao?: string | null
+          observacao?: string | null
+          paciente_id?: string | null
+          plano_id?: string | null
+          recorrencia_id?: string | null
+          status?: Database["public"]["Enums"]["status_atendimento"] | null
+          tipo_id?: string | null
+        }
+        Update: {
+          atualizado_em?: string | null
+          criado_em?: string | null
+          excluido_em?: string | null
+          excluido_por?: string | null
+          exclusao_motivo?: string | null
+          exclusao_solicitada_em?: string | null
+          exclusao_solicitada_por?: string | null
+          fim?: string | null
+          id?: string | null
+          id_legado?: number | null
+          importado_em?: string | null
+          inicio?: string | null
+          motivo_desmarcacao?: string | null
+          motivo_exclusao?: string | null
+          observacao?: string | null
+          paciente_id?: string | null
+          plano_id?: string | null
+          recorrencia_id?: string | null
+          status?: Database["public"]["Enums"]["status_atendimento"] | null
+          tipo_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "atendimentos_paciente_id_fkey"
+            columns: ["paciente_id"]
+            isOneToOne: false
+            referencedRelation: "pacientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "atendimentos_plano_id_fkey"
+            columns: ["plano_id"]
+            isOneToOne: false
+            referencedRelation: "planos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "atendimentos_plano_id_fkey"
+            columns: ["plano_id"]
+            isOneToOne: false
+            referencedRelation: "planos_equipe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "atendimentos_recorrencia_id_fkey"
+            columns: ["recorrencia_id"]
+            isOneToOne: false
+            referencedRelation: "recorrencias"
             referencedColumns: ["id"]
           },
           {
@@ -1083,6 +1675,33 @@ export type Database = {
           },
         ]
       }
+      planos_equipe: {
+        Row: {
+          ativo: boolean | null
+          cor: string | null
+          duracao_padrao_min: number | null
+          exige_guia: boolean | null
+          id: string | null
+          nome: string | null
+        }
+        Insert: {
+          ativo?: boolean | null
+          cor?: string | null
+          duracao_padrao_min?: number | null
+          exige_guia?: boolean | null
+          id?: string | null
+          nome?: string | null
+        }
+        Update: {
+          ativo?: boolean | null
+          cor?: string | null
+          duracao_padrao_min?: number | null
+          exige_guia?: boolean | null
+          id?: string | null
+          nome?: string | null
+        }
+        Relationships: []
+      }
       quitacoes_a_revisar: {
         Row: {
           atendimento_id: string | null
@@ -1103,6 +1722,13 @@ export type Database = {
             columns: ["atendimento_id"]
             isOneToOne: false
             referencedRelation: "atendimentos_em_aberto"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pagamentos_atendimentos_atendimento_id_fkey"
+            columns: ["atendimento_id"]
+            isOneToOne: false
+            referencedRelation: "atendimentos_equipe"
             referencedColumns: ["id"]
           },
           {
@@ -1157,6 +1783,7 @@ export type Database = {
         }
         Returns: string[]
       }
+      atendimentos_do_pedido: { Args: { p_id: string }; Returns: string[] }
       completar_serie: {
         Args: {
           p_desde: string
@@ -1166,6 +1793,7 @@ export type Database = {
         }
         Returns: number
       }
+      confirmar_exclusao: { Args: { p_id: string }; Returns: number }
       criar_atendimentos: {
         Args: {
           p_data_fim?: string
@@ -1200,6 +1828,14 @@ export type Database = {
         Args: { p_intervalos: Json; p_profissional: string }
         Returns: number
       }
+      definir_modelo_atendimento: {
+        Args: { p_modelo: string }
+        Returns: undefined
+      }
+      descartar_rascunho_anamnese: {
+        Args: { p_id: string }
+        Returns: undefined
+      }
       desmarcar_atendimentos: {
         Args: {
           p_alcance: Database["public"]["Enums"]["alcance_serie"]
@@ -1230,6 +1866,7 @@ export type Database = {
         Returns: number
       }
       eh_adm: { Args: never; Returns: boolean }
+      eh_profissional: { Args: never; Returns: boolean }
       excluir_atendimentos: {
         Args: {
           p_alcance: Database["public"]["Enums"]["alcance_serie"]
@@ -1243,6 +1880,14 @@ export type Database = {
         Args: { fim: string; inicio: string }
         Returns: string
       }
+      garantir_autor_da_anamnese: { Args: { p_id: string }; Returns: undefined }
+      garantir_meus_atendimentos: {
+        Args: {
+          p_alcance: Database["public"]["Enums"]["alcance_serie"]
+          p_id: string
+        }
+        Returns: undefined
+      }
       gerar_guia: {
         Args: {
           p_atendimento: string
@@ -1253,11 +1898,25 @@ export type Database = {
         }
         Returns: string
       }
+      guardar_rascunho_anamnese: {
+        Args: { p_conteudo: Json; p_id: string; p_observacoes: string }
+        Returns: undefined
+      }
+      guardar_rascunho_registro: {
+        Args: { p_atendimento: string; p_conteudo: Json }
+        Returns: undefined
+      }
       importar_agenda_legado: {
         Args: { p_linhas: Json; p_simular?: boolean }
         Returns: Json
       }
+      iniciar_anamnese: { Args: { p_paciente: string }; Returns: string }
+      iniciar_anamnese_do_atendimento: {
+        Args: { p_atendimento: string }
+        Returns: string
+      }
       lancar_despesas_recorrentes: { Args: { p_ate: string }; Returns: number }
+      meu_profissional: { Args: never; Returns: string }
       modificado_no_app: {
         Args: { p_id: string; p_importado_em: string }
         Returns: boolean
@@ -1275,14 +1934,77 @@ export type Database = {
         Args: { p_ignorar?: string; p_paciente: string; p_plano: string }
         Returns: number
       }
+      perfil_do_login: {
+        Args: { p_perfil: string }
+        Returns: Database["public"]["Enums"]["perfil_usuario"]
+      }
       planejamento_confere: {
         Args: { p_esperado: Json; p_id: string }
         Returns: boolean
+      }
+      pode_ver_clinico: { Args: never; Returns: boolean }
+      profissional_alterar_status: {
+        Args: {
+          p_id: string
+          p_status: Database["public"]["Enums"]["status_atendimento"]
+        }
+        Returns: undefined
+      }
+      profissional_criar_atendimentos: {
+        Args: {
+          p_data_fim?: string
+          p_duracao_min: number
+          p_frequencia?: Database["public"]["Enums"]["frequencia_recorrencia"]
+          p_inicios: string[]
+          p_observacao?: string
+          p_paciente_id: string
+          p_plano_id?: string
+          p_profissionais: string[]
+          p_sessoes?: number
+          p_status?: Database["public"]["Enums"]["status_atendimento"]
+          p_tipo_id?: string
+        }
+        Returns: string[]
+      }
+      profissional_desmarcar_atendimentos: {
+        Args: {
+          p_alcance: Database["public"]["Enums"]["alcance_serie"]
+          p_id: string
+          p_motivo: string
+        }
+        Returns: number
+      }
+      profissional_editar_atendimentos: {
+        Args: {
+          p_alcance: Database["public"]["Enums"]["alcance_serie"]
+          p_data: string
+          p_duracao_min: number
+          p_hora: string
+          p_id: string
+          p_paciente_id: string
+          p_plano_id?: string
+          p_profissionais: string[]
+          p_tipo_id?: string
+        }
+        Returns: number
+      }
+      profissional_mover_atendimento: {
+        Args: { p_id: string; p_inicio: string }
+        Returns: undefined
+      }
+      profissional_solicitar_exclusao: {
+        Args: {
+          p_alcance: Database["public"]["Enums"]["alcance_serie"]
+          p_id: string
+          p_motivo: string
+        }
+        Returns: number
       }
       reajustar_plano: {
         Args: { p_antigos: Json; p_plano: string }
         Returns: number
       }
+      recusar_exclusao: { Args: { p_id: string }; Returns: number }
       registrar_pagamento: {
         Args: {
           p_data: string
@@ -1313,12 +2035,21 @@ export type Database = {
         Returns: string
       }
       saldo_do_atendimento: { Args: { p_id: string }; Returns: number }
+      salvar_anamnese: { Args: { p_id: string }; Returns: number }
+      salvar_registro: {
+        Args: { p_atendimento: string; p_finalizar?: boolean }
+        Returns: number
+      }
       total_em_aberto: {
         Args: never
         Returns: {
           quantidade: number
           valor: number
         }[]
+      }
+      valor_cobrado: {
+        Args: { a: Database["public"]["Tables"]["atendimentos"]["Row"] }
+        Returns: number
       }
       valor_do_plano: {
         Args: { p_area: string; p_plano: string }
@@ -1329,7 +2060,7 @@ export type Database = {
       alcance_serie: "este" | "seguintes" | "todos"
       frequencia_recorrencia: "semanal" | "quinzenal" | "mensal"
       nivel_cadastral: "completo" | "falta_informacao" | "critico"
-      perfil_usuario: "adm" | "limitado"
+      perfil_usuario: "adm" | "limitado" | "profissional"
       status_atendimento:
         | "marcado"
         | "confirmado"
@@ -1470,7 +2201,7 @@ export const Constants = {
       alcance_serie: ["este", "seguintes", "todos"],
       frequencia_recorrencia: ["semanal", "quinzenal", "mensal"],
       nivel_cadastral: ["completo", "falta_informacao", "critico"],
-      perfil_usuario: ["adm", "limitado"],
+      perfil_usuario: ["adm", "limitado", "profissional"],
       status_atendimento: [
         "marcado",
         "confirmado",

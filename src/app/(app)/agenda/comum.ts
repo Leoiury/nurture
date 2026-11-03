@@ -48,7 +48,7 @@ export function horarioDoAtendimento(a: AtendimentoAgenda): string {
 
 /** Texto completo do atendimento (tooltip e leitor de tela), com todos os profissionais. */
 export function descricaoDoAtendimento(a: AtendimentoAgenda): string {
-  return [horarioDoAtendimento(a), a.paciente ?? "Sem paciente", a.profissionalNomes.join(" + "), a.plano?.nome, a.tipo, a.status, a.guia && ROTULO_SITUACAO[a.guia]]
+  return [horarioDoAtendimento(a), a.paciente ?? "Sem paciente", a.profissionalNomes.join(" + "), a.plano?.nome, a.tipo, a.status, a.guia && ROTULO_SITUACAO[a.guia], a.pendente && "sem registro"]
     .filter(Boolean)
     .join(" · ");
 }

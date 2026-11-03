@@ -32,3 +32,15 @@ export async function ehAdm(): Promise<boolean> {
   const u = await usuarioAtual();
   return !!u && u.ativo && u.perfil === "adm";
 }
+
+/** Conteúdo clínico (anamneses e registros): profissionais e ADMs; a recepção não. */
+export async function podeVerClinico(): Promise<boolean> {
+  const u = await usuarioAtual();
+  return !!u && u.ativo && (u.perfil === "adm" || u.perfil === "profissional");
+}
+
+/** Perfil profissional: nunca lê valores (o banco também bloqueia). ADM que atende não conta. */
+export async function ehProfissional(): Promise<boolean> {
+  const u = await usuarioAtual();
+  return u?.perfil === "profissional";
+}

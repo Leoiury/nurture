@@ -31,19 +31,21 @@ export async function updateSession(request: NextRequest) {
   const { data } = await supabase.auth.getClaims();
   let logado = Boolean(data?.claims);
   const naLogin = request.nextUrl.pathname.startsWith("/login");
+  // O convite é aberto por quem ainda não tem login: o que autoriza é o próprio link.
+  const noConvite = request.nextUrl.pathname.startsWith("/cadastro/");
 
   // Ambiente de testes local: entra sozinho com o usuário de teste (ver login-automatico.ts).
   // "?automatico" na tela de login volta a ligá-lo depois de "Sair".
   const credenciais = logado ? null : credenciaisDoLoginAutomatico();
   const religar = naLogin && request.nextUrl.searchParams.has("automatico");
-  if (credenciais && !request.headers.has(CABECALHO_SEM_LOGIN_AUTOMATICO) && (religar || !request.cookies.has(COOKIE_LOGIN_MANUAL))) {
+  if (credenciais && !noConvite && !request.headers.has(CABECALHO_SEM_LOGIN_AUTOMATICO) && (religar || !request.cookies.has(COOKIE_LOGIN_MANUAL))) {
     const { error } = await supabase.auth.signInWithPassword({ email: credenciais.email, password: credenciais.senha });
     logado = !error;
     if (logado && religar) response.cookies.delete(COOKIE_LOGIN_MANUAL);
   }
 
   // Verificação otimista; as páginas protegidas conferem a sessão de novo no servidor.
-  if (!logado && !naLogin) return redirecionar(request, response, "/login");
+  if (!logado && !naLogin && !noConvite) return redirecionar(request, response, "/login");
   if (logado && naLogin) return redirecionar(request, response, "/agenda");
 
   return response;

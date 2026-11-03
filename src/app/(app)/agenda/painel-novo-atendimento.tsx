@@ -4,7 +4,8 @@
 // um existente. Padrões automáticos (sempre editáveis): o plano vem do paciente;
 // duração e valor vêm do plano; o tipo vem do primeiro profissional (tipos que ele atende).
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ROTULO_TIPO_DIA, semExpediente, type DiaEspecial } from "@/lib/agenda/feriados";
 import {
   MAXIMO_DE_SESSOES,
@@ -16,7 +17,7 @@ import {
   type Frequencia,
 } from "@/lib/agenda/recorrencia";
 import { hoje as dataDeHoje, nomeCurtoDoDia, partesNoFuso } from "@/lib/agenda/tempo";
-import { AREAS, lerValor, valorSugerido } from "@/lib/agenda/valores";
+import { AREAS, lerValor, valorCobrado, valorSugerido } from "@/lib/agenda/valores";
 import { horariosDaSequencia } from "@/lib/agenda/horarios-livres";
 import { atendeOTipo, tipoSugerido } from "@/lib/agenda/tipos";
 import { paraBusca } from "@/lib/pacientes";
@@ -32,6 +33,7 @@ import {
   type Conflito,
   type HorarioSugerido,
   type OpcoesDoFormulario,
+  type ResultadoCriacao,
   type Serie,
 } from "./actions-novo-atendimento";
 import { nomeAbreviado } from "./comum";
@@ -55,9 +57,11 @@ export type DadosEdicao = {
 type Props = {
   aoFechar: () => void;
   /** Pré-preenchimento (ex.: ao clicar num horário vazio da grade). */
-  inicial?: { data?: string; hora?: string; profissionalId?: string };
+  inicial?: { data?: string; hora?: string; profissionalId?: string; pacienteId?: string };
   /** Se informado, o painel edita este atendimento em vez de criar um novo. */
   edicao?: DadosEdicao;
+  /** Avulso, acontecendo agora: entra no calendário e já abre para escrever. */
+  realizar?: "atendimento" | "anamnese";
 };
 
 
@@ -68,10 +72,13 @@ const STATUS_INICIAIS = [
   { valor: "atendido", rotulo: "Atendido" },
 ] as const;
 
+const moeda = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 const formatoData = new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit", timeZone: "UTC" });
 const dataCurta = (d: string) => `${nomeCurtoDoDia(d)} ${formatoData.format(new Date(`${d}T12:00:00Z`))}`;
 
-export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
+export function PainelNovoAtendimento({ aoFechar, inicial, edicao, realizar }: Props) {
+  const router = useRouter();
+  const titulo = edicao ? "Editar atendimento" : realizar === "anamnese" ? "Realizar uma anamnese" : realizar ? "Realizar um atendimento" : "Novo atendimento";
   const acoes = useAcoesDaAgenda();
   const [opcoes, setOpcoes] = useState<OpcoesDoFormulario | null>(null);
   const [erroCarga, setErroCarga] = useState<string | null>(null);
@@ -119,6 +126,13 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
       .then((o) => {
         if (!ativo) return;
         setOpcoes(o);
+        if (realizar === "anamnese") setTipoId(o.tipos.find((t) => t.abreAnamnese)?.id ?? null);
+        // Perfil profissional: sempre participa do que marca.
+        if (!edicao && o.meuProfissional) {
+          const eu = o.profissionais.find((p) => p.id === o.meuProfissional);
+          setProfissionais((atual) => (atual.includes(o.meuProfissional!) ? atual : [o.meuProfissional!, ...atual]));
+          setTipoId((atual) => atual ?? tipoSugerido(eu, o.tipos));
+        }
         // Aberto a partir de uma coluna (profissional já escolhido): sugere o tipo.
         if (!edicao && inicial?.profissionalId) {
           setTipoId((atual) => atual ?? tipoSugerido(o.profissionais.find((p) => p.id === inicial.profissionalId), o.tipos));
@@ -133,6 +147,16 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
     // Só na abertura: o painel é recriado (key) a cada novo horário/edição.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Aberto a partir de um paciente (ex.: na anamnese): já vem escolhido, com o plano dele.
+  const pacienteAplicado = useRef(false);
+  useEffect(() => {
+    if (!opcoes || !inicial?.pacienteId || pacienteAplicado.current) return;
+    pacienteAplicado.current = true;
+    const p = opcoes.pacientes.find((x) => x.id === inicial.pacienteId);
+    if (p) escolherPaciente(p.id, p.nome, p.plano_id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- só quando as opções chegam
+  }, [opcoes]);
 
   useEffect(() => {
     const aoTeclar = (e: KeyboardEvent) => {
@@ -223,7 +247,8 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
   /** Valor sugerido: o da área do tipo no plano; sem ele, o valor padrão do plano. */
   function sugerirValor(idPlano: string | null, idTipo: string | null) {
     const plano = opcoes?.planos.find((p) => p.id === idPlano);
-    const v = valorSugerido(plano, opcoes?.tipos.find((t) => t.id === idTipo)?.area);
+    const doTipo = opcoes?.tipos.find((t) => t.id === idTipo);
+    const v = doTipo?.cobrar === false ? null : valorSugerido(plano, doTipo?.area);
     setValor(v != null ? String(v).replace(".", ",") : "");
     setValorDigitado(false);
   }
@@ -261,10 +286,15 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
   const pacienteAtual = opcoes?.pacientes.find((p) => p.id === pacienteId) ?? null;
   const planoDoPaciente = pacienteAtual?.plano_id ?? null;
   const planoInicial = edicao ? edicao.planoId : planoDoPaciente;
-  const perguntarPlano = !!pacienteId && !!planoId && planoId !== planoInicial;
-  const podeTornarPadrao = perguntarPlano && planoId !== planoDoPaciente;
+  const planoMudou = !!pacienteId && !!planoId && planoId !== planoInicial;
+  const podeTornarPadrao = planoMudou && planoId !== planoDoPaciente;
+  // O perfil profissional não mexe nos valores: dos ajustes, só o plano padrão.
+  const semValores = !!opcoes?.semValores;
+  const perguntarPlano = planoMudou && (!semValores || podeTornarPadrao);
   const valorAtual = lerValor(valor);
-  const perguntarValor = !!edicao && !Number.isNaN(valorAtual) && valorAtual !== edicao.valor;
+  const perguntarValor = !semValores && !!edicao && !Number.isNaN(valorAtual) && valorAtual !== edicao.valor;
+  // Paciente com atendimento no horário: o profissional confirma antes de marcar.
+  const conflitosDoPaciente = semValores ? conflitos.filter((c) => c.tipo === "paciente") : [];
   const tipoAtual = opcoes?.tipos.find((t) => t.id === tipoId) ?? null;
   const segmento = tipoAtual ? (AREAS.find((a) => a.valor === tipoAtual.area)?.rotulo ?? tipoAtual.nome) : "sem tipo";
 
@@ -272,7 +302,7 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
     setErro(null);
     const valorNumero = lerValor(valor);
     if (valorNumero !== null && Number.isNaN(valorNumero)) return setErro("Valor inválido.");
-    if (!confirmando && (perguntarPlano || perguntarValor)) return setConfirmando(true);
+    if (!confirmando && (perguntarPlano || perguntarValor || conflitosDoPaciente.length > 0)) return setConfirmando(true);
     setSalvando(true);
     const comuns = { pacienteId: pacienteId ?? "", profissionais, data, hora, duracaoMin: duracao, planoId, tipoId, valor: valorNumero };
     // Como o card aparece (usado pelo planejamento, que simula antes de gravar).
@@ -324,6 +354,8 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
         return setErro(`O atendimento foi salvo, mas: ${r.erro}`);
       }
     }
+    const criado = realizar ? (resultado as Extract<ResultadoCriacao, { ok: true }>).ids?.[0] : undefined;
+    if (criado) return router.push(`/atendimento/${criado}`);
     setSalvando(false);
     aoFechar();
   }
@@ -331,7 +363,7 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
   const conflitosPorData = new Set(conflitos.map((c) => partesNoFuso(c.inicio).data));
   const especialDaData = especiais[data];
   const podeSalvar =
-    !!pacienteId && profissionais.length > 0 && !!data && !!hora && datas.length > 0 && !salvando && (!sequencia || itensDaSequencia.length > 0);
+    (realizar !== "anamnese" || !!tipoAtual) && !!pacienteId && profissionais.length > 0 && !!data && !!hora && datas.length > 0 && !salvando && (!sequencia || itensDaSequencia.length > 0);
 
   return (
     <>
@@ -339,11 +371,11 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
       <aside
         role="dialog"
         aria-modal="true"
-        aria-label={edicao ? "Editar atendimento" : "Novo atendimento"}
+        aria-label={titulo}
         className="fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col bg-surface shadow-2xl"
       >
         <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-5 py-4">
-          <h2 className="text-lg font-semibold">{edicao ? "Editar atendimento" : "Novo atendimento"}</h2>
+          <h2 className="text-lg font-semibold">{titulo}</h2>
           <button type="button" onClick={aoFechar} className="rounded-full px-2 py-1 text-muted hover:bg-background" aria-label="Fechar">
             ✕
           </button>
@@ -369,6 +401,17 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
               {confirmando ? (
                 <section aria-label="Confirmar plano e valor" className="flex flex-col gap-4 text-sm">
                   <p className="font-medium">Antes de salvar:</p>
+                  {conflitosDoPaciente.length > 0 && (
+                    <div role="alert" className="flex flex-col gap-1 rounded-xl bg-amber-50 p-3 text-amber-900 ring-1 ring-amber-200">
+                      <p className="font-medium">O paciente já tem atendimento nesse horário. Deseja marcar mesmo assim?</p>
+                      <ul className="list-disc pl-5 text-[13px]">
+                        {conflitosDoPaciente.slice(0, 6).map((c, i) => (
+                          <li key={i}>{c.descricao}</li>
+                        ))}
+                      </ul>
+                      <p className="text-xs">Para procurar outro horário, volte e use a busca de horários livres.</p>
+                    </div>
+                  )}
                   {perguntarPlano && (
                     <fieldset className="flex flex-col gap-2 rounded-xl bg-black/[0.03] p-3">
                       <legend className="sr-only">Plano</legend>
@@ -380,13 +423,13 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
                           </span>
                         </label>
                       )}
-                      <label className="flex cursor-pointer items-start gap-2">
+                      {!semValores && <label className="flex cursor-pointer items-start gap-2">
                         <input type="checkbox" checked={planoNosFuturos} onChange={(e) => setPlanoNosFuturos(e.target.checked)} className="mt-0.5 size-4 accent-[var(--accent)]" />
                         <span>
                           Passar os atendimentos futuros de {pacienteAtual?.nome} para esse plano
                           <span className="block text-xs text-muted">Cada um com o valor do plano para a sua área. Desmarcados não mudam.</span>
                         </span>
-                      </label>
+                      </label>}
                     </fieldset>
                   )}
                   {perguntarValor && (
@@ -477,14 +520,16 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
                     return (
                       <span key={id} className="inline-flex items-center gap-1 rounded-full bg-accent-soft py-1 pr-1 pl-3 text-sm text-accent">
                         {p ? nomeAbreviado(p.nome) : "—"}
-                        <button
-                          type="button"
-                          onClick={() => setProfissionais(profissionais.filter((x) => x !== id))}
-                          className="rounded-full px-1.5 hover:bg-accent/10"
-                          aria-label={`Remover ${p?.nome}`}
-                        >
-                          ×
-                        </button>
+                        {id !== opcoes.meuProfissional && (
+                          <button
+                            type="button"
+                            onClick={() => setProfissionais(profissionais.filter((x) => x !== id))}
+                            className="rounded-full px-1.5 hover:bg-accent/10"
+                            aria-label={`Remover ${p?.nome}`}
+                          >
+                            ×
+                          </button>
+                        )}
                       </span>
                     );
                   })}
@@ -502,7 +547,13 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
                 </select>
               </Campo>
 
-              {!edicao && profissionais.length > 1 && (
+              {semValores && edicao && profissionais.length > 1 && (
+                <p role="note" className="-mt-2 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-900 ring-1 ring-amber-200">
+                  Atendimento em conjunto: as mudanças valem para todos os profissionais e ficam registradas nas observações.
+                </p>
+              )}
+
+              {!semValores && !edicao && profissionais.length > 1 && (
                 <fieldset className="-mt-2 flex flex-col gap-1.5 text-sm">
                   <legend className="sr-only">Como marcar com vários profissionais</legend>
                   <label className="flex cursor-pointer items-center gap-2">
@@ -597,9 +648,10 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
                       ))}
                   </select>
                 </Campo>
-                <Campo rotulo="Valor (R$)" id="campo-valor">
+                {!semValores && <Campo rotulo="Valor (R$)" id="campo-valor">
                   <input
                     id="campo-valor"
+                    disabled={tipoAtual?.cobrar === false}
                     inputMode="decimal"
                     value={valor}
                     onChange={(e) => {
@@ -609,8 +661,14 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
                     placeholder="—"
                     className={entrada}
                   />
-                </Campo>
+                </Campo>}
               </div>
+              {!semValores && tipoAtual?.cobrar === false && <p className="-mt-2 text-xs text-muted">Este tipo não é cobrado: o atendimento fica sem valor.</p>}
+              {!semValores && !sequencia && profissionais.length > 1 && (lerValor(valor) ?? 0) > 0 && (
+                <p className="-mt-2 text-xs text-muted">
+                  Valor por profissional. Total cobrado: {profissionais.length} × R$ {valor} = {moeda.format(valorCobrado(lerValor(valor)!, profissionais.length))}
+                </p>
+              )}
               {/* Editando um atendimento com plano diferente do padrão do paciente. */}
               {edicao && planoDoPaciente && planoId === edicao.planoId && planoId !== planoDoPaciente && (
                 <div role="note" className="-mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-900 ring-1 ring-amber-200">
@@ -630,12 +688,15 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
                     }}
                     className="font-semibold underline underline-offset-2"
                   >
-                    Usar esse plano e valor
+                    {semValores ? "Usar esse plano" : "Usar esse plano e valor"}
                   </button>
                 </div>
               )}
-              <div className="grid grid-cols-2 gap-3">
-                <Campo rotulo="Tipo" id="campo-tipo">
+              {realizar === "anamnese" && !tipoAtual && (
+                <p role="alert" className="text-sm text-danger">O tipo Anamnese está inativo. Reative-o em Configurações → Tipos.</p>
+              )}
+              <div className="grid grid-cols-2 gap-3 empty:hidden">
+                {realizar !== "anamnese" && <Campo rotulo="Tipo" id="campo-tipo">
                   <select id="campo-tipo" value={tipoId ?? ""} onChange={(e) => escolherTipo(e.target.value || null)} className={entrada}>
                     <option value="">—</option>
                     {opcoes.tipos.map((t) => (
@@ -644,9 +705,9 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
                       </option>
                     ))}
                   </select>
-                </Campo>
+                </Campo>}
                 {/* Na edição, status e observações ficam no painel do atendimento. */}
-                {!edicao && (
+                {!edicao && !realizar && (
                   <Campo rotulo="Status" id="campo-status">
                     <select id="campo-status" value={status} onChange={(e) => setStatus(e.target.value as typeof status)} className={entrada}>
                       {STATUS_INICIAIS.map((s) => (
@@ -693,7 +754,7 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
               {/* Na criação: repetição. Na edição de uma série: a quais atendimentos aplicar. */}
               {edicao ? (
                 <AlcanceDaEdicao serie={edicao.serie} valor={alcance} aoMudar={setAlcance} />
-              ) : (
+              ) : realizar ? null : (
               <section className="flex flex-col gap-3 rounded-2xl bg-black/[0.03] p-4">
                 <label className="flex cursor-pointer items-center gap-2 text-sm font-medium">
                   <input type="checkbox" checked={repetir} onChange={(e) => setRepetir(e.target.checked)} className="size-4 accent-[var(--accent)]" />
@@ -802,6 +863,8 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
                   ? "Salvando…"
                   : confirmando
                     ? "Confirmar e salvar"
+                    : realizar
+                    ? realizar === "anamnese" ? "Iniciar anamnese" : "Iniciar atendimento"
                     : edicao
                     ? quantidadeNaEdicao(edicao, alcance) > 1
                       ? `Salvar ${quantidadeNaEdicao(edicao, alcance)} atendimentos`
@@ -877,7 +940,7 @@ function PreviaDaSerie({ datas, puladas, especiais, comConflito, semDataFinal }:
 
 type PacienteCriado = OpcoesDoFormulario["pacientes"][number];
 
-function CadastroRapido({
+export function CadastroRapido({
   nomeInicial,
   planos,
   aoCancelar,

@@ -43,12 +43,14 @@ type Props = {
   ajustarAgenda: boolean;
   aoAjustarAgenda: (v: boolean) => void;
   opcoes: OpcoesDosFiltros;
+  /** Perfil profissional: sem o filtro de valor. */
+  semValores?: boolean;
 };
 
 /** Liga/desliga um valor numa lista. */
 const alternar = <T,>(lista: T[], valor: T) => (lista.includes(valor) ? lista.filter((x) => x !== valor) : [...lista, valor]);
 
-export function FiltrosAvancados({ filtros: f, aoMudar, modo, aoMudarModo, ajustarAgenda, aoAjustarAgenda, opcoes }: Props) {
+export function FiltrosAvancados({ filtros: f, aoMudar, modo, aoMudarModo, ajustarAgenda, aoAjustarAgenda, opcoes, semValores }: Props) {
   const mudar = (parcial: Partial<Filtros>) => aoMudar({ ...f, ...parcial });
 
   return (
@@ -143,6 +145,7 @@ export function FiltrosAvancados({ filtros: f, aoMudar, modo, aoMudarModo, ajust
         ))}
       </fieldset>
 
+      {!semValores && (
       <fieldset className="flex flex-col gap-1.5">
         <legend className="mb-1.5 text-xs font-semibold tracking-wide text-muted uppercase">Valor</legend>
         {(
@@ -158,6 +161,7 @@ export function FiltrosAvancados({ filtros: f, aoMudar, modo, aoMudarModo, ajust
           </label>
         ))}
       </fieldset>
+      )}
 
       <Grupo titulo="Cadastro do paciente">
         {CADASTRO.map(([valor, rotulo, cor]) => (

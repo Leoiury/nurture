@@ -3,7 +3,9 @@
 // Painel lateral de um atendimento: detalhes, status rápido, editar, desmarcar,
 // excluir e observações.
 
+import { valorCobrado } from "@/lib/agenda/valores";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import type { Status } from "@/lib/agenda/dados";
 import { idade } from "@/lib/pacientes";
@@ -12,12 +14,15 @@ import { FUSO, partesNoFuso, formatarHora } from "@/lib/agenda/tempo";
 import {
   adicionarObservacao,
   alterarStatus,
+  confirmarExclusao,
   detalhesAtendimento,
+  recusarExclusao,
   type Alcance,
   type DetalhesAtendimento,
   type Resultado,
 } from "./actions";
 import { useAcoesDaAgenda } from "./acoes-da-agenda";
+import { recomecarAtendimento } from "../atendimento/actions";
 import { GuiaDoAtendimento } from "./guia-do-atendimento";
 import type { DadosEdicao } from "./painel-novo-atendimento";
 
@@ -61,6 +66,25 @@ function plural(n: number, singular: string, pluralTexto: string): string {
   return `${n} ${n === 1 ? singular : pluralTexto}`;
 }
 
+/** Os dados do atendimento no formato do formulário de edição. */
+export function dadosDeEdicao({ atendimento: a, serie }: DetalhesAtendimento): DadosEdicao {
+  const inicio = partesNoFuso(a.inicio);
+  return {
+    id: a.id,
+    recorrenciaId: a.recorrencia_id,
+    serie,
+    pacienteId: a.paciente_id ?? "",
+    pacienteNome: a.paciente?.nome ?? "",
+    profissionais: a.profissionais.map((x) => x.profissional.id),
+    data: inicio.data,
+    hora: formatarHora(inicio.minutos),
+    duracaoMin: Math.round((new Date(a.fim).getTime() - new Date(a.inicio).getTime()) / 60_000),
+    planoId: a.plano_id,
+    tipoId: a.tipo_id,
+    valor: a.valor,
+  };
+}
+
 type Props = {
   id: string;
   aoFechar: () => void;
@@ -72,6 +96,7 @@ type Props = {
 type Modo = "ver" | "desmarcar" | "excluir";
 
 export function PainelAtendimento({ id, aoFechar, aoEditar, mostrarLinkDoPaciente = true }: Props) {
+  const router = useRouter();
   const acoes = useAcoesDaAgenda();
   const pendencias = acoes.pendencias?.(id) ?? null;
   const [dados, setDados] = useState<DetalhesAtendimento | null>(null);
@@ -82,6 +107,7 @@ export function PainelAtendimento({ id, aoFechar, aoEditar, mostrarLinkDoPacient
   const [erro, setErro] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [novaObservacao, setNovaObservacao] = useState("");
+  const [confirmandoRecomeco, setConfirmandoRecomeco] = useState(false);
 
   useEffect(() => {
     let ativo = true;
@@ -123,22 +149,7 @@ export function PainelAtendimento({ id, aoFechar, aoEditar, mostrarLinkDoPacient
   const p = a?.paciente;
 
   function editar() {
-    if (!a || !dados) return;
-    const inicio = partesNoFuso(a.inicio);
-    aoEditar({
-      id: a.id,
-      recorrenciaId: a.recorrencia_id,
-      serie: dados.serie,
-      pacienteId: a.paciente_id ?? "",
-      pacienteNome: p?.nome ?? "",
-      profissionais: a.profissionais.map((x) => x.profissional.id),
-      data: inicio.data,
-      hora: formatarHora(inicio.minutos),
-      duracaoMin: Math.round((new Date(a.fim).getTime() - new Date(a.inicio).getTime()) / 60_000),
-      planoId: a.plano_id,
-      tipoId: a.tipo_id,
-      valor: a.valor,
-    });
+    if (dados) aoEditar(dadosDeEdicao(dados));
   }
 
   return (
@@ -190,8 +201,82 @@ export function PainelAtendimento({ id, aoFechar, aoEditar, mostrarLinkDoPacient
               </section>
             )}
 
+            {/* Pedido de exclusão de um profissional: a recepção ou um ADM decide. */}
+            {a.exclusao_solicitada_em && !dados.semValores && (
+              <section aria-label="Pedido de exclusão" className="flex flex-col gap-2 rounded-xl bg-red-50 px-3 py-2.5 ring-1 ring-red-200">
+                <p className="font-semibold text-danger">Exclusão solicitada pelo profissional</p>
+                <p>{a.exclusao_motivo}</p>
+                {dados.pedido > 1 && <p className="text-xs text-muted">O pedido inclui {dados.pedido} atendimentos desta série.</p>}
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    disabled={trabalhando}
+                    onClick={() => executar(() => confirmarExclusao(a.id), aoFechar)}
+                    className="rounded-full bg-danger px-4 py-2 text-sm font-medium text-white hover:brightness-110 disabled:opacity-50"
+                  >
+                    Confirmar exclusão
+                  </button>
+                  <button type="button" disabled={trabalhando} onClick={() => executar(() => recusarExclusao(a.id), recarregar)} className={botaoSecundario}>
+                    Manter atendimento
+                  </button>
+                </div>
+              </section>
+            )}
+
+            {/* Tipo Anamnese: abre a anamnese, e não o registro. */}
+            {modo === "ver" && !acoes.planejamento && dados.anamnese && (dados.anamnese.atende || dados.anamnese.id) && (
+              <section aria-label="Anamnese do atendimento" className="flex flex-col gap-2">
+                <Link
+                  href={dados.anamnese.id ? `/anamnese/${dados.anamnese.id}` : `/anamnese?atendimento=${a.id}`}
+                  className={`${dados.anamnese.salva ? botaoSecundario : botaoPrimario} self-start`}
+                >
+                  {dados.anamnese.salva ? "Ver anamnese" : dados.anamnese.id ? "Continuar anamnese" : "Realizar anamnese"}
+                </Link>
+              </section>
+            )}
+
+            {/* Realizar o atendimento (quem atende) ou ler os registros. */}
+            {modo === "ver" && !acoes.planejamento && dados.registro && !dados.anamnese && (
+              <section aria-label="Registro do atendimento" className="flex flex-col gap-2">
+                {dados.registro.atende && dados.registro.iniciado ? (
+                  confirmandoRecomeco ? (
+                    <div role="alert" className="flex flex-col gap-2 rounded-xl bg-amber-50 p-3 text-amber-900 ring-1 ring-amber-200">
+                      <p>O texto em andamento será apagado, e você começa do zero. As versões já salvas continuam guardadas.</p>
+                      <div className="flex justify-end gap-2">
+                        <button type="button" onClick={() => setConfirmandoRecomeco(false)} className={botaoSecundario}>
+                          Cancelar
+                        </button>
+                        <button type="button" disabled={trabalhando} onClick={() => executar(() => recomecarAtendimento(a.id), () => router.push(`/atendimento/${a.id}?editar=1`))} className={botaoPrimario}>
+                          Recomeçar
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      <Link href={`/atendimento/${a.id}?editar=1`} className={botaoPrimario}>
+                        Continuar atendimento
+                      </Link>
+                      <button type="button" onClick={() => setConfirmandoRecomeco(true)} className={botaoSecundario}>
+                        Recomeçar atendimento
+                      </button>
+                    </div>
+                  )
+                ) : dados.registro.atende ? (
+                  <Link href={`/atendimento/${a.id}`} className={`${botaoPrimario} self-start`}>
+                    Realizar atendimento
+                  </Link>
+                ) : (
+                  dados.registro.iniciado && (
+                    <Link href={`/atendimento/${a.id}`} className={`${botaoSecundario} self-start`}>
+                      Ver registros
+                    </Link>
+                  )
+                )}
+              </section>
+            )}
+
             {/* Ações */}
-            {modo === "ver" && (
+            {modo === "ver" && dados.podeAlterar && (
               <section className="flex flex-col gap-3">
                 <div className="flex flex-wrap gap-2">
                   <button type="button" onClick={editar} className={botaoPrimario}>
@@ -240,6 +325,12 @@ export function PainelAtendimento({ id, aoFechar, aoEditar, mostrarLinkDoPacient
               </section>
             )}
 
+            {modo !== "ver" && dados.semValores && a.profissionais.length > 1 && (
+              <p role="note" className="rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-900 ring-1 ring-amber-200">
+                Atendimento em conjunto: isto também afeta {a.profissionais.map((x) => x.profissional.nome).join(", ")}.
+              </p>
+            )}
+
             {modo === "desmarcar" && (
               <FormDesmarcar
                 serie={dados.serie}
@@ -262,6 +353,7 @@ export function PainelAtendimento({ id, aoFechar, aoEditar, mostrarLinkDoPacient
 
             {modo === "excluir" && (
               <FormExcluir
+                comoPedido={dados.semValores}
                 serie={dados.serie}
                 pago={dados.financeiro?.recebido ?? 0}
                 trabalhando={trabalhando}
@@ -292,13 +384,20 @@ export function PainelAtendimento({ id, aoFechar, aoEditar, mostrarLinkDoPacient
               </dd>
               <dt className="text-muted">Tipo</dt>
               <dd>{a.tipo?.nome ?? "—"}</dd>
-              <dt className="text-muted">Valor</dt>
-              <dd>{a.valor != null ? moeda.format(a.valor) : "—"}</dd>
+              {!dados.semValores && (
+                <>
+                  <dt className="text-muted">Valor</dt>
+                  <dd>
+                    {a.valor != null ? moeda.format(valorCobrado(a.valor, a.profissionais.length)) : "—"}
+                    {a.valor != null && a.profissionais.length > 1 && <span className="text-muted"> ({a.profissionais.length} × {moeda.format(a.valor)})</span>}
+                  </dd>
+                </>
+              )}
               {dados.financeiro && (a.valor ?? 0) > 0 && (
                 <>
                   <dt className="text-muted">Pagamento</dt>
                   <dd>
-                    <SeloDoPagamento valor={a.valor ?? 0} {...dados.financeiro} />
+                    <SeloDoPagamento valor={valorCobrado(a.valor ?? 0, a.profissionais.length)} {...dados.financeiro} />
                   </dd>
                 </>
               )}
@@ -406,7 +505,7 @@ export function PainelAtendimento({ id, aoFechar, aoEditar, mostrarLinkDoPacient
             )}
 
             {/* Excluir: raro, fica discreto no fim */}
-            {modo === "ver" && (
+            {modo === "ver" && dados.podeAlterar && (
               <button type="button" onClick={() => setModo("excluir")} className="self-start text-xs text-muted underline-offset-2 hover:text-danger hover:underline">
                 Excluir atendimento…
               </button>
@@ -549,12 +648,15 @@ function FormDesmarcar({
 }
 
 function FormExcluir({
+  comoPedido,
   serie,
   pago,
   trabalhando,
   aoCancelar,
   aoConfirmar,
 }: {
+  /** Perfil profissional: a exclusão só vale depois de confirmada pela recepção ou por um ADM. */
+  comoPedido: boolean;
   serie: Serie;
   pago: number;
   trabalhando: boolean;
@@ -568,8 +670,9 @@ function FormExcluir({
     <section className="flex flex-col gap-3 rounded-2xl bg-red-50 p-4 ring-1 ring-red-200" aria-label="Excluir atendimento">
       <p className="font-semibold text-danger">Excluir atendimento</p>
       <p className="text-muted">
-        O atendimento some da agenda, mas fica guardado com esta observação, a data e quem excluiu. Para faltas e cancelamentos, use
-        “Desmarcar”.
+        {comoPedido
+          ? "O atendimento sai do seu calendário, e a recepção confirma a exclusão. Para faltas e cancelamentos, use “Desmarcar”."
+          : "O atendimento some da agenda, mas fica guardado com esta observação, a data e quem excluiu. Para faltas e cancelamentos, use “Desmarcar”."}
       </p>
       <AvisoDePago pago={pago} />
       <textarea
