@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { AtendimentoAgenda, Lembretes, ProfissionalAgenda } from "@/lib/agenda/dados";
 import { semExpediente, type DiaEspecial } from "@/lib/agenda/feriados";
 import type { Segmento } from "@/lib/agenda/layout";
-import { formatarHora, nomeCurtoDoDia } from "@/lib/agenda/tempo";
+import { formatarHora, nomeCurtoDoDia, partesNoFuso } from "@/lib/agenda/tempo";
 import { sufixoDaVisao, type Visao } from "@/lib/agenda/visao";
 import { encontrarDivergencias, textosDasDivergencias, type Divergencia } from "@/lib/agenda/divergencias";
 import { FILTROS_VAZIOS, ajustarAoFiltro, aplicarFiltros, quantosFiltros, type Filtros, type ModoDoFiltro } from "@/lib/agenda/filtros";
@@ -21,10 +21,13 @@ import { FiltrosAvancados, type OpcoesDosFiltros } from "./filtros-avancados";
 import { MenuLateral } from "./menu-lateral";
 import { PainelAtendimento } from "./painel-atendimento";
 import { BotoesDeLembrete } from "./lembretes";
+import { BotaoNovo } from "./botao-novo";
 import { PainelNovoAtendimento, type DadosEdicao } from "./painel-novo-atendimento";
 import { FaixaDoPlanejamento, PainelDoNovo, usePlanejamento } from "./planejamento";
 import { VisaoEmpilhada } from "./visao-empilhada";
 import { VisaoLadoALado } from "./visao-lado-a-lado";
+
+const ESTILO_DO_MAIS = "size-14 items-center justify-center rounded-full bg-accent text-white shadow-lg shadow-black/20 transition hover:brightness-110 active:scale-95";
 
 type Props = {
   modo: "semana" | "dia";
@@ -56,9 +59,11 @@ type Props = {
   pacienteFiltrado?: { id: string; nome: string } | null;
   /** ADM que também atende: alterna entre a agenda completa e o próprio calendário. */
   alternarCalendario?: { href: string; rotulo: string };
+  /** Quem atende: o "+" oferece também realizar um atendimento ou uma anamnese. */
+  meuProfissional?: string;
 };
 
-export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais, atendimentos, especiais, lembretes, navegacao, navegacaoNoMenu, planejamento, urlDoPlanejamento, pessoal, pacienteFiltrado, alternarCalendario }: Props) {
+export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais, atendimentos, especiais, lembretes, navegacao, navegacaoNoMenu, planejamento, urlDoPlanejamento, pessoal, pacienteFiltrado, alternarCalendario, meuProfissional }: Props) {
   // Profissionais sem atendimentos no período começam ocultos (podem ser exibidos no menu).
   const [ocultos, setOcultos] = useState<Set<string>>(
     () => new Set(pessoal ? [] : profissionais.filter((p) => !atendimentos.some((a) => a.profissionalIds.includes(p.id))).map((p) => p.id)),
@@ -71,6 +76,8 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
   const [selecionado, setSelecionado] = useState<string | null>(null);
   // true: botão "+" (formulário vazio); objeto: clique num horário da grade (pré-preenchido).
   const [criando, setCriando] = useState<boolean | NovoNoHorario>(false);
+  // Avulso: o que vai ser realizado, com a data e a hora de quando foi aberto.
+  const [realizando, setRealizando] = useState<{ qual: "atendimento" | "anamnese"; data: string; hora: string } | null>(null);
   const [editando, setEditando] = useState<DadosEdicao | null>(null);
   const [foco, setFoco] = useModoFoco();
   const [aviso, setAviso] = useState<{ texto: string; desfazer?: () => void } | null>(null);
@@ -405,15 +412,21 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
       </button>
 
       {/* Novo atendimento: sempre visível, no canto inferior direito. */}
-      <button
-        type="button"
-        onClick={() => setCriando(true)}
-        aria-label="Novo atendimento"
-        title="Novo atendimento"
-        className="fixed right-5 bottom-5 z-30 inline-flex size-14 items-center justify-center rounded-full bg-accent text-white shadow-lg shadow-black/20 transition hover:brightness-110 active:scale-95"
-      >
-        <IconeMais />
-      </button>
+      {meuProfissional ? (
+        <BotaoNovo
+          estilo={`${ESTILO_DO_MAIS} inline-flex`}
+          icone={<IconeMais />}
+          aoAgendar={() => setCriando(true)}
+          aoRealizarAvulso={(qual) => {
+            const agora = partesNoFuso(new Date());
+            setRealizando({ qual, data: agora.data, hora: formatarHora(agora.minutos - (agora.minutos % 5)) });
+          }}
+        />
+      ) : (
+        <button type="button" onClick={() => setCriando(true)} aria-label="Novo atendimento" title="Novo atendimento" className={`fixed right-5 bottom-5 z-30 inline-flex ${ESTILO_DO_MAIS}`}>
+          <IconeMais />
+        </button>
+      )}
 
       <MenuLateral
         aberto={menuAberto}
@@ -510,6 +523,7 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
           aoFechar={() => setCriando(false)}
         />
       )}
+      {realizando && <PainelNovoAtendimento key={realizando.qual} realizar={realizando.qual} inicial={{ data: realizando.data, hora: realizando.hora, profissionalId: meuProfissional }} aoFechar={() => setRealizando(null)} />}
       {editando && <PainelNovoAtendimento key={editando.id} edicao={editando} aoFechar={() => setEditando(null)} />}
 
       {confirmacao && (

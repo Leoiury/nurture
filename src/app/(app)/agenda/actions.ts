@@ -18,7 +18,7 @@ export type Resultado = { ok: true; quantidade?: number } | { ok: false; erro: s
 const DETALHES = `id, inicio, fim, status, valor, observacao, motivo_desmarcacao, recorrencia_id, paciente_id, plano_id, tipo_id, exclusao_solicitada_em, exclusao_motivo,
        profissionais:atendimento_profissionais(profissional:profissionais(id, nome, especialidade)),
        plano:planos(nome, cor),
-       tipo:tipos_atendimento(nome),
+       tipo:tipos_atendimento(nome, abre_anamnese),
        recorrencia:recorrencias(frequencia),
        paciente:pacientes(id, nome, responsavel, data_nascimento, celular, email, plano:planos(nome))`;
 
@@ -26,7 +26,7 @@ const DETALHES = `id, inicio, fim, status, valor, observacao, motivo_desmarcacao
 const DETALHES_SEM_VALOR = `id, inicio, fim, status, observacao, motivo_desmarcacao, recorrencia_id, paciente_id, plano_id, tipo_id, exclusao_solicitada_em, exclusao_motivo,
        profissionais:atendimento_profissionais(profissional:profissionais(id, nome, especialidade)),
        plano:planos_equipe(nome, cor),
-       tipo:tipos_atendimento(nome),
+       tipo:tipos_atendimento(nome, abre_anamnese),
        recorrencia:recorrencias(frequencia),
        paciente:pacientes(id, nome, responsavel, data_nascimento, celular, email, plano:planos_equipe(nome))` as typeof DETALHES;
 
@@ -55,10 +55,18 @@ export async function detalhesAtendimento(id: string) {
 
   // Registro do atendimento (recepção não vê): quem atende realiza; os demais, se houver, leem.
   let registro: { atende: boolean; iniciado: boolean } | null = null;
+  // Tipo Anamnese: no lugar do registro, abre a anamnese ligada a este atendimento.
+  let anamnese: { atende: boolean; id: string | null; salva: boolean } | null = null;
   if (await podeVerClinico()) {
     const atende = !!eu?.profissionalId && atendimento.profissionais.some((x) => x.profissional.id === eu.profissionalId);
     const { data: registros } = await supabase.from("registros_atendimento").select("profissional_id").eq("atendimento_id", id);
     registro = { atende, iniciado: !!registros?.some((r) => !atende || r.profissional_id === eu?.profissionalId) };
+    if (atendimento.tipo?.abre_anamnese) {
+      const { data: ligadas } = await supabase.from("anamneses").select("id, salva_em, profissional_id").eq("atendimento_id", id);
+      // Quem atende abre a própria; os demais, uma já salva.
+      const ligada = ligadas?.find((l) => (atende ? l.profissional_id === eu?.profissionalId : !!l.salva_em));
+      anamnese = { atende, id: ligada?.id ?? null, salva: !!ligada?.salva_em };
+    }
   }
 
   // Quantos atendimentos entram no pedido de exclusão (a série pedida de uma vez).
@@ -86,6 +94,7 @@ export async function detalhesAtendimento(id: string) {
     observacoes: observacoes.data,
     pedido,
     registro,
+    anamnese,
     // Só a direção vê o financeiro.
     financeiro: adm ? await financeiroDoAtendimento(id) : null,
   };

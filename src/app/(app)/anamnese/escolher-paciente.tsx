@@ -8,7 +8,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { paraBusca } from "@/lib/pacientes";
 import type { OpcoesDoFormulario } from "../agenda/actions-novo-atendimento";
 import { CadastroRapido } from "../agenda/painel-novo-atendimento";
-import { abrirAnamnese } from "./actions";
+import { abrirAnamnese, abrirAnamneseDoAtendimento } from "./actions";
 import { CabecalhoDaAnamnese } from "./cabecalho";
 
 type Props = {
@@ -16,14 +16,17 @@ type Props = {
   planos: OpcoesDoFormulario["planos"];
   /** Vindo da página do paciente: abre direto. */
   pacienteInicial: string | null;
+  /** Vindo de um atendimento do tipo Anamnese: abre a anamnese dele. */
+  atendimentoInicial: string | null;
   comModelo: boolean;
 };
 
-export function EscolherPaciente({ pacientes, planos, pacienteInicial, comModelo }: Props) {
+export function EscolherPaciente({ pacientes, planos, pacienteInicial, atendimentoInicial, comModelo }: Props) {
   const router = useRouter();
   const [busca, setBusca] = useState("");
   const [cadastrando, setCadastrando] = useState(false);
-  const [abrindo, setAbrindo] = useState(false);
+  // Vindo de um paciente ou de um atendimento, já começa abrindo.
+  const [abrindo, setAbrindo] = useState(!!pacienteInicial || !!atendimentoInicial);
   const [erro, setErro] = useState<string | null>(null);
 
   const sugestoes = useMemo(() => {
@@ -35,7 +38,11 @@ export function EscolherPaciente({ pacientes, planos, pacienteInicial, comModelo
   async function abrir(id: string) {
     setAbrindo(true);
     setErro(null);
-    const r = await abrirAnamnese(id).catch(() => ({ ok: false as const, erro: "Falha de conexão." }));
+    await irPara(id);
+  }
+
+  async function irPara(id: string, doAtendimento = false) {
+    const r = await (doAtendimento ? abrirAnamneseDoAtendimento(id) : abrirAnamnese(id)).catch(() => ({ ok: false as const, erro: "Falha de conexão." }));
     if (!r.ok) {
       setAbrindo(false);
       return setErro(r.erro);
@@ -45,11 +52,11 @@ export function EscolherPaciente({ pacientes, planos, pacienteInicial, comModelo
 
   const abriuInicial = useRef(false);
   useEffect(() => {
-    if (!pacienteInicial || abriuInicial.current) return;
+    if ((!pacienteInicial && !atendimentoInicial) || abriuInicial.current) return;
     abriuInicial.current = true;
-    void abrir(pacienteInicial);
+    void (atendimentoInicial ? irPara(atendimentoInicial, true) : irPara(pacienteInicial!));
     // eslint-disable-next-line react-hooks/exhaustive-deps -- só ao abrir a página
-  }, [pacienteInicial]);
+  }, [pacienteInicial, atendimentoInicial]);
 
   return (
     <>

@@ -6,13 +6,15 @@ import { EscolherPaciente } from "./escolher-paciente";
 export const metadata: Metadata = { title: "Anamnese · Nurture" };
 
 export default async function AnamnesePage({ searchParams }: PageProps<"/anamnese">) {
-  const { paciente } = await searchParams;
+  const { paciente, atendimento } = await searchParams;
+  const ehId = (v: unknown): v is string => typeof v === "string" && /^[0-9a-f-]{36}$/i.test(v);
   const [opcoes, eu] = await Promise.all([opcoesDoFormulario(), usuarioAtual()]);
   return (
     <EscolherPaciente
       pacientes={opcoes.pacientes}
       planos={opcoes.planos}
-      pacienteInicial={typeof paciente === "string" && /^[0-9a-f-]{36}$/i.test(paciente) ? paciente : null}
+      pacienteInicial={ehId(paciente) ? paciente : null}
+      atendimentoInicial={ehId(atendimento) ? atendimento : null}
       comModelo={!!eu?.profissionalId}
     />
   );

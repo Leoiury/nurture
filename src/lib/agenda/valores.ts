@@ -31,6 +31,9 @@ export type ValoresDoPlano = {
 };
 
 /** O valor da área do tipo, se o plano tiver; senão, o valor padrão do plano. */
+/** Com vários profissionais, cobra-se como se cada um tivesse feito um atendimento separado. */
+export const valorCobrado = (valor: number, profissionais: number) => valor * Math.max(profissionais, 1);
+
 export function valorSugerido(plano: ValoresDoPlano | null | undefined, area: string | null | undefined): number | null {
   if (!plano) return null;
   const daArea = area && AREAS.some((a) => a.valor === area) ? plano[`valor_${area as Area}`] : null;

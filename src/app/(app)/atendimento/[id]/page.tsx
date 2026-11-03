@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { situacaoDaGuia } from "@/lib/agenda/guias";
 import { ATENDIMENTOS_SEM_VALOR } from "@/lib/agenda/sem-valor";
 import { conteudoVazio, sincronizarTopicos, type ConteudoDoRegistro, type ModeloDoRegistro } from "@/lib/atendimento/conteudo";
@@ -22,7 +22,7 @@ export default async function AtendimentoPage({ params, searchParams }: PageProp
   const [atendimento, registros] = await Promise.all([
     supabase
       .from(ATENDIMENTOS_SEM_VALOR)
-      .select("id, inicio, fim, status, paciente:pacientes(id, nome), profissionais:atendimento_profissionais(profissional:profissionais(id, nome))")
+      .select("id, inicio, fim, status, tipo:tipos_atendimento(abre_anamnese), paciente:pacientes(id, nome), profissionais:atendimento_profissionais(profissional:profissionais(id, nome))")
       .eq("id", id)
       .is("excluido_em", null)
       .maybeSingle(),
@@ -37,6 +37,8 @@ export default async function AtendimentoPage({ params, searchParams }: PageProp
 
   const participa = !!eu?.profissionalId && a.profissionais.some((p) => p.profissional.id === eu.profissionalId);
   const meu = registros.data.find((r) => r.profissional_id === eu?.profissionalId);
+  // Registro já salvo continua aberto, caso o tipo tenha mudado depois.
+  if (a.tipo?.abre_anamnese && participa && !meu?.versao) redirect(`/anamnese?atendimento=${id}`);
   const paciente = a.paciente;
   const cabecalho = { paciente, inicio: a.inicio, fim: a.fim };
 

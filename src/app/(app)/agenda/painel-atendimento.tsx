@@ -3,6 +3,7 @@
 // Painel lateral de um atendimento: detalhes, status rápido, editar, desmarcar,
 // excluir e observações.
 
+import { valorCobrado } from "@/lib/agenda/valores";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
@@ -222,8 +223,20 @@ export function PainelAtendimento({ id, aoFechar, aoEditar, mostrarLinkDoPacient
               </section>
             )}
 
+            {/* Tipo Anamnese: abre a anamnese, e não o registro. */}
+            {modo === "ver" && !acoes.planejamento && dados.anamnese && (dados.anamnese.atende || dados.anamnese.id) && (
+              <section aria-label="Anamnese do atendimento" className="flex flex-col gap-2">
+                <Link
+                  href={dados.anamnese.id ? `/anamnese/${dados.anamnese.id}` : `/anamnese?atendimento=${a.id}`}
+                  className={`${dados.anamnese.salva ? botaoSecundario : botaoPrimario} self-start`}
+                >
+                  {dados.anamnese.salva ? "Ver anamnese" : dados.anamnese.id ? "Continuar anamnese" : "Realizar anamnese"}
+                </Link>
+              </section>
+            )}
+
             {/* Realizar o atendimento (quem atende) ou ler os registros. */}
-            {modo === "ver" && !acoes.planejamento && dados.registro && (
+            {modo === "ver" && !acoes.planejamento && dados.registro && !dados.anamnese && (
               <section aria-label="Registro do atendimento" className="flex flex-col gap-2">
                 {dados.registro.atende && dados.registro.iniciado ? (
                   confirmandoRecomeco ? (
@@ -374,14 +387,17 @@ export function PainelAtendimento({ id, aoFechar, aoEditar, mostrarLinkDoPacient
               {!dados.semValores && (
                 <>
                   <dt className="text-muted">Valor</dt>
-                  <dd>{a.valor != null ? moeda.format(a.valor) : "—"}</dd>
+                  <dd>
+                    {a.valor != null ? moeda.format(valorCobrado(a.valor, a.profissionais.length)) : "—"}
+                    {a.valor != null && a.profissionais.length > 1 && <span className="text-muted"> ({a.profissionais.length} × {moeda.format(a.valor)})</span>}
+                  </dd>
                 </>
               )}
               {dados.financeiro && (a.valor ?? 0) > 0 && (
                 <>
                   <dt className="text-muted">Pagamento</dt>
                   <dd>
-                    <SeloDoPagamento valor={a.valor ?? 0} {...dados.financeiro} />
+                    <SeloDoPagamento valor={valorCobrado(a.valor ?? 0, a.profissionais.length)} {...dados.financeiro} />
                   </dd>
                 </>
               )}

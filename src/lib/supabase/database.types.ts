@@ -71,6 +71,7 @@ export type Database = {
       }
       anamneses: {
         Row: {
+          atendimento_id: string | null
           atualizado_em: string
           autor_id: string | null
           conteudo: Json
@@ -83,6 +84,7 @@ export type Database = {
           versao: number
         }
         Insert: {
+          atendimento_id?: string | null
           atualizado_em?: string
           autor_id?: string | null
           conteudo?: Json
@@ -95,6 +97,7 @@ export type Database = {
           versao?: number
         }
         Update: {
+          atendimento_id?: string | null
           atualizado_em?: string
           autor_id?: string | null
           conteudo?: Json
@@ -107,6 +110,34 @@ export type Database = {
           versao?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "anamneses_atendimento_id_fkey"
+            columns: ["atendimento_id"]
+            isOneToOne: false
+            referencedRelation: "atendimentos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "anamneses_atendimento_id_fkey"
+            columns: ["atendimento_id"]
+            isOneToOne: false
+            referencedRelation: "atendimentos_em_aberto"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "anamneses_atendimento_id_fkey"
+            columns: ["atendimento_id"]
+            isOneToOne: false
+            referencedRelation: "atendimentos_equipe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "anamneses_atendimento_id_fkey"
+            columns: ["atendimento_id"]
+            isOneToOne: false
+            referencedRelation: "guias_dos_atendimentos"
+            referencedColumns: ["atendimento_id"]
+          },
           {
             foreignKeyName: "anamneses_paciente_id_fkey"
             columns: ["paciente_id"]
@@ -1298,27 +1329,33 @@ export type Database = {
       }
       tipos_atendimento: {
         Row: {
+          abre_anamnese: boolean
           area: string | null
           ativo: boolean
           atualizado_em: string
+          cobrar: boolean
           cor: string | null
           criado_em: string
           id: string
           nome: string
         }
         Insert: {
+          abre_anamnese?: boolean
           area?: string | null
           ativo?: boolean
           atualizado_em?: string
+          cobrar?: boolean
           cor?: string | null
           criado_em?: string
           id?: string
           nome: string
         }
         Update: {
+          abre_anamnese?: boolean
           area?: string | null
           ativo?: boolean
           atualizado_em?: string
+          cobrar?: boolean
           cor?: string | null
           criado_em?: string
           id?: string
@@ -1419,7 +1456,7 @@ export type Database = {
           plano_id?: string | null
           status?: Database["public"]["Enums"]["status_atendimento"] | null
           tipo_id?: string | null
-          valor?: number | null
+          valor?: never
         }
         Update: {
           id?: string | null
@@ -1428,7 +1465,7 @@ export type Database = {
           plano_id?: string | null
           status?: Database["public"]["Enums"]["status_atendimento"] | null
           tipo_id?: string | null
-          valor?: number | null
+          valor?: never
         }
         Relationships: [
           {
@@ -1823,6 +1860,10 @@ export type Database = {
         Returns: Json
       }
       iniciar_anamnese: { Args: { p_paciente: string }; Returns: string }
+      iniciar_anamnese_do_atendimento: {
+        Args: { p_atendimento: string }
+        Returns: string
+      }
       lancar_despesas_recorrentes: { Args: { p_ate: string }; Returns: number }
       meu_profissional: { Args: never; Returns: string }
       modificado_no_app: {
@@ -1954,6 +1995,10 @@ export type Database = {
           quantidade: number
           valor: number
         }[]
+      }
+      valor_cobrado: {
+        Args: { a: Database["public"]["Tables"]["atendimentos"]["Row"] }
+        Returns: number
       }
       valor_do_plano: {
         Args: { p_area: string; p_plano: string }

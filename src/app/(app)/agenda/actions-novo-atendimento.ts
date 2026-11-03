@@ -34,7 +34,7 @@ export async function opcoesDoFormulario() {
       .from((semValores ? "planos_equipe" : "planos") as "planos")
       .select(semValores ? PLANOS_SEM_VALOR : PLANOS_DO_FORMULARIO)
       .order("nome"),
-    supabase.from("tipos_atendimento").select("id, nome, area, cor, vinculos:tipos_atendimento_profissionais(profissional_id)").eq("ativo", true).order("nome"),
+    supabase.from("tipos_atendimento").select("id, nome, area, cor, abre_anamnese, cobrar, vinculos:tipos_atendimento_profissionais(profissional_id)").eq("ativo", true).order("nome"),
   ]);
   for (const r of [pacientes, profissionais, planos, tipos]) if (r.error) throw new Error("Não foi possível carregar o formulário.");
   const tiposComProfissionais: TipoComProfissionais[] = tipos.data!.map((t) => ({
@@ -43,6 +43,8 @@ export async function opcoesDoFormulario() {
     profissionais: t.vinculos.map((v) => v.profissional_id),
     area: t.area,
     cor: t.cor,
+    abreAnamnese: t.abre_anamnese,
+    cobrar: t.cobrar,
   }));
   // "Anteriores e futuros" nos ajustes de valor: só administradores.
   return { pacientes: pacientes.data!, profissionais: profissionais.data!, planos: planos.data!, tipos: tiposComProfissionais, ehAdm: await ehAdm(), semValores, meuProfissional: semValores ? ((await usuarioAtual())?.profissionalId ?? null) : null };
@@ -143,6 +145,30 @@ export async function verificarConflitos(
   return conflitos.sort((a, b) => a.inicio.localeCompare(b.inicio));
 }
 
+export type MarcadoAgora = { id: string; paciente: string; inicio: string; fim: string; anamnese: boolean };
+
+/** Quem chega um pouco antes do horário também está "no horário". */
+const TOLERANCIA_ANTES_MS = 15 * 60_000;
+
+/** Os atendimentos de quem está logado no horário atual, ainda por realizar. */
+export async function marcadosAgora(): Promise<MarcadoAgora[]> {
+  const eu = await usuarioAtual();
+  if (!eu?.profissionalId) return [];
+  const agora = Date.now();
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from(ATENDIMENTOS_SEM_VALOR)
+    .select("id, inicio, fim, paciente:pacientes(nome), tipo:tipos_atendimento(abre_anamnese), vinculo:atendimento_profissionais!inner(profissional_id)")
+    .eq("vinculo.profissional_id", eu.profissionalId)
+    .is("excluido_em", null)
+    .in("status", ["marcado", "confirmado"])
+    .lte("inicio", new Date(agora + TOLERANCIA_ANTES_MS).toISOString())
+    .gt("fim", new Date(agora).toISOString())
+    .order("inicio");
+  if (error) throw new Error("Não foi possível consultar os atendimentos marcados.");
+  return data.map((a) => ({ id: a.id, paciente: a.paciente?.nome ?? "Paciente", inicio: a.inicio, fim: a.fim, anamnese: !!a.tipo?.abre_anamnese }));
+}
+
 export type NovoAtendimento = Agendamento & {
   pacienteId: string;
   profissionais: string[];
@@ -153,7 +179,7 @@ export type NovoAtendimento = Agendamento & {
   observacao: string;
 };
 
-export type ResultadoCriacao = { ok: true; quantidade: number } | { ok: false; erro: string };
+export type ResultadoCriacao = { ok: true; quantidade: number; ids?: string[] } | { ok: false; erro: string };
 
 /**
  * Valida e monta os argumentos de criar_atendimentos (datas da série já calculadas).
@@ -206,13 +232,13 @@ export async function criarAtendimentos(novo: NovoAtendimento): Promise<Resultad
     const { data, error } = await supabase.rpc("profissional_criar_atendimentos", args);
     if (error) return { ok: false, erro: `Não foi possível salvar: ${error.message}` };
     revalidatePath("/agenda");
-    return { ok: true, quantidade: data.length };
+    return { ok: true, quantidade: data.length, ids: data };
   }
   const { data, error } = await supabase.rpc("criar_atendimentos", preparado.args);
   if (error) return { ok: false, erro: `Não foi possível salvar: ${error.message}` };
 
   revalidatePath("/agenda");
-  return { ok: true, quantidade: data.length };
+  return { ok: true, quantidade: data.length, ids: data };
 }
 
 /**

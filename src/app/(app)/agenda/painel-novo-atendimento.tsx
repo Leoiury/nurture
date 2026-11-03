@@ -4,6 +4,7 @@
 // um existente. Padrões automáticos (sempre editáveis): o plano vem do paciente;
 // duração e valor vêm do plano; o tipo vem do primeiro profissional (tipos que ele atende).
 
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ROTULO_TIPO_DIA, semExpediente, type DiaEspecial } from "@/lib/agenda/feriados";
 import {
@@ -16,7 +17,7 @@ import {
   type Frequencia,
 } from "@/lib/agenda/recorrencia";
 import { hoje as dataDeHoje, nomeCurtoDoDia, partesNoFuso } from "@/lib/agenda/tempo";
-import { AREAS, lerValor, valorSugerido } from "@/lib/agenda/valores";
+import { AREAS, lerValor, valorCobrado, valorSugerido } from "@/lib/agenda/valores";
 import { horariosDaSequencia } from "@/lib/agenda/horarios-livres";
 import { atendeOTipo, tipoSugerido } from "@/lib/agenda/tipos";
 import { paraBusca } from "@/lib/pacientes";
@@ -32,6 +33,7 @@ import {
   type Conflito,
   type HorarioSugerido,
   type OpcoesDoFormulario,
+  type ResultadoCriacao,
   type Serie,
 } from "./actions-novo-atendimento";
 import { nomeAbreviado } from "./comum";
@@ -58,6 +60,8 @@ type Props = {
   inicial?: { data?: string; hora?: string; profissionalId?: string; pacienteId?: string };
   /** Se informado, o painel edita este atendimento em vez de criar um novo. */
   edicao?: DadosEdicao;
+  /** Avulso, acontecendo agora: entra no calendário e já abre para escrever. */
+  realizar?: "atendimento" | "anamnese";
 };
 
 
@@ -68,10 +72,13 @@ const STATUS_INICIAIS = [
   { valor: "atendido", rotulo: "Atendido" },
 ] as const;
 
+const moeda = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 const formatoData = new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit", timeZone: "UTC" });
 const dataCurta = (d: string) => `${nomeCurtoDoDia(d)} ${formatoData.format(new Date(`${d}T12:00:00Z`))}`;
 
-export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
+export function PainelNovoAtendimento({ aoFechar, inicial, edicao, realizar }: Props) {
+  const router = useRouter();
+  const titulo = edicao ? "Editar atendimento" : realizar === "anamnese" ? "Realizar uma anamnese" : realizar ? "Realizar um atendimento" : "Novo atendimento";
   const acoes = useAcoesDaAgenda();
   const [opcoes, setOpcoes] = useState<OpcoesDoFormulario | null>(null);
   const [erroCarga, setErroCarga] = useState<string | null>(null);
@@ -119,6 +126,7 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
       .then((o) => {
         if (!ativo) return;
         setOpcoes(o);
+        if (realizar === "anamnese") setTipoId(o.tipos.find((t) => t.abreAnamnese)?.id ?? null);
         // Perfil profissional: sempre participa do que marca.
         if (!edicao && o.meuProfissional) {
           const eu = o.profissionais.find((p) => p.id === o.meuProfissional);
@@ -239,7 +247,8 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
   /** Valor sugerido: o da área do tipo no plano; sem ele, o valor padrão do plano. */
   function sugerirValor(idPlano: string | null, idTipo: string | null) {
     const plano = opcoes?.planos.find((p) => p.id === idPlano);
-    const v = valorSugerido(plano, opcoes?.tipos.find((t) => t.id === idTipo)?.area);
+    const doTipo = opcoes?.tipos.find((t) => t.id === idTipo);
+    const v = doTipo?.cobrar === false ? null : valorSugerido(plano, doTipo?.area);
     setValor(v != null ? String(v).replace(".", ",") : "");
     setValorDigitado(false);
   }
@@ -345,6 +354,8 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
         return setErro(`O atendimento foi salvo, mas: ${r.erro}`);
       }
     }
+    const criado = realizar ? (resultado as Extract<ResultadoCriacao, { ok: true }>).ids?.[0] : undefined;
+    if (criado) return router.push(`/atendimento/${criado}`);
     setSalvando(false);
     aoFechar();
   }
@@ -352,7 +363,7 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
   const conflitosPorData = new Set(conflitos.map((c) => partesNoFuso(c.inicio).data));
   const especialDaData = especiais[data];
   const podeSalvar =
-    !!pacienteId && profissionais.length > 0 && !!data && !!hora && datas.length > 0 && !salvando && (!sequencia || itensDaSequencia.length > 0);
+    (realizar !== "anamnese" || !!tipoAtual) && !!pacienteId && profissionais.length > 0 && !!data && !!hora && datas.length > 0 && !salvando && (!sequencia || itensDaSequencia.length > 0);
 
   return (
     <>
@@ -360,11 +371,11 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
       <aside
         role="dialog"
         aria-modal="true"
-        aria-label={edicao ? "Editar atendimento" : "Novo atendimento"}
+        aria-label={titulo}
         className="fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col bg-surface shadow-2xl"
       >
         <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-5 py-4">
-          <h2 className="text-lg font-semibold">{edicao ? "Editar atendimento" : "Novo atendimento"}</h2>
+          <h2 className="text-lg font-semibold">{titulo}</h2>
           <button type="button" onClick={aoFechar} className="rounded-full px-2 py-1 text-muted hover:bg-background" aria-label="Fechar">
             ✕
           </button>
@@ -640,6 +651,7 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
                 {!semValores && <Campo rotulo="Valor (R$)" id="campo-valor">
                   <input
                     id="campo-valor"
+                    disabled={tipoAtual?.cobrar === false}
                     inputMode="decimal"
                     value={valor}
                     onChange={(e) => {
@@ -651,6 +663,12 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
                   />
                 </Campo>}
               </div>
+              {!semValores && tipoAtual?.cobrar === false && <p className="-mt-2 text-xs text-muted">Este tipo não é cobrado: o atendimento fica sem valor.</p>}
+              {!semValores && !sequencia && profissionais.length > 1 && (lerValor(valor) ?? 0) > 0 && (
+                <p className="-mt-2 text-xs text-muted">
+                  Valor por profissional. Total cobrado: {profissionais.length} × R$ {valor} = {moeda.format(valorCobrado(lerValor(valor)!, profissionais.length))}
+                </p>
+              )}
               {/* Editando um atendimento com plano diferente do padrão do paciente. */}
               {edicao && planoDoPaciente && planoId === edicao.planoId && planoId !== planoDoPaciente && (
                 <div role="note" className="-mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-900 ring-1 ring-amber-200">
@@ -674,8 +692,11 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
                   </button>
                 </div>
               )}
-              <div className="grid grid-cols-2 gap-3">
-                <Campo rotulo="Tipo" id="campo-tipo">
+              {realizar === "anamnese" && !tipoAtual && (
+                <p role="alert" className="text-sm text-danger">O tipo Anamnese está inativo. Reative-o em Configurações → Tipos.</p>
+              )}
+              <div className="grid grid-cols-2 gap-3 empty:hidden">
+                {realizar !== "anamnese" && <Campo rotulo="Tipo" id="campo-tipo">
                   <select id="campo-tipo" value={tipoId ?? ""} onChange={(e) => escolherTipo(e.target.value || null)} className={entrada}>
                     <option value="">—</option>
                     {opcoes.tipos.map((t) => (
@@ -684,9 +705,9 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
                       </option>
                     ))}
                   </select>
-                </Campo>
+                </Campo>}
                 {/* Na edição, status e observações ficam no painel do atendimento. */}
-                {!edicao && (
+                {!edicao && !realizar && (
                   <Campo rotulo="Status" id="campo-status">
                     <select id="campo-status" value={status} onChange={(e) => setStatus(e.target.value as typeof status)} className={entrada}>
                       {STATUS_INICIAIS.map((s) => (
@@ -733,7 +754,7 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
               {/* Na criação: repetição. Na edição de uma série: a quais atendimentos aplicar. */}
               {edicao ? (
                 <AlcanceDaEdicao serie={edicao.serie} valor={alcance} aoMudar={setAlcance} />
-              ) : (
+              ) : realizar ? null : (
               <section className="flex flex-col gap-3 rounded-2xl bg-black/[0.03] p-4">
                 <label className="flex cursor-pointer items-center gap-2 text-sm font-medium">
                   <input type="checkbox" checked={repetir} onChange={(e) => setRepetir(e.target.checked)} className="size-4 accent-[var(--accent)]" />
@@ -842,6 +863,8 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao }: Props) {
                   ? "Salvando…"
                   : confirmando
                     ? "Confirmar e salvar"
+                    : realizar
+                    ? realizar === "anamnese" ? "Iniciar anamnese" : "Iniciar atendimento"
                     : edicao
                     ? quantidadeNaEdicao(edicao, alcance) > 1
                       ? `Salvar ${quantidadeNaEdicao(edicao, alcance)} atendimentos`

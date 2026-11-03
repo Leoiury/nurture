@@ -103,6 +103,7 @@ export default async function AgendaPage({ searchParams }: PageProps<"/agenda">)
         pacienteFiltrado={pacienteFiltrado}
         planejamento={noPlanejamento ? { operacoes, base, urlSair: url(visao, false) } : undefined}
         urlDoPlanejamento={ehAdm && !noPlanejamento && !pessoal ? url(visao, true) : undefined}
+        meuProfissional={usuario?.profissionalId && usuario.perfil !== "limitado" && !noPlanejamento ? usuario.profissionalId : undefined}
         alternarCalendario={podeAlternar ? (pessoal ? { href: url("empilhada", false), rotulo: "Agenda completa" } : { href: url("pessoal", false), rotulo: "Meu calendário" }) : undefined}
         navegacao={<Navegacao referencia={referencia} dia={dia} hoje={dataHoje} visao={visao} planejamento={noPlanejamento} paciente={pacienteFiltrado?.id} />}
         navegacaoNoMenu={<Navegacao referencia={referencia} dia={dia} hoje={dataHoje} visao={visao} planejamento={noPlanejamento} variante="menu" paciente={pacienteFiltrado?.id} />}

@@ -18,6 +18,13 @@ export async function abrirAnamnese(pacienteId: string): Promise<{ ok: true; id:
   return { ok: true, id: data };
 }
 
+export async function abrirAnamneseDoAtendimento(atendimentoId: string): Promise<{ ok: true; id: string } | { ok: false; erro: string }> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("iniciar_anamnese_do_atendimento", { p_atendimento: atendimentoId });
+  if (error) return { ok: false, erro: error.message };
+  return { ok: true, id: data };
+}
+
 export async function guardarRascunho(id: string, itens: ItemDaAnamnese[], observacoes: string): Promise<Resultado> {
   const supabase = await createClient();
   const { error } = await supabase.rpc("guardar_rascunho_anamnese", { p_id: id, p_conteudo: itens as unknown as Json, p_observacoes: observacoes });
@@ -31,6 +38,7 @@ export async function salvarAnamnese(id: string, itens: ItemDaAnamnese[], observ
   const supabase = await createClient();
   const { error } = await supabase.rpc("salvar_anamnese", { p_id: id });
   if (error) return { ok: false, erro: `Não foi possível salvar: ${error.message}` };
+  revalidatePath("/agenda");
   revalidatePath("/pacientes", "layout");
   revalidatePath(`/anamnese/${id}`);
   return { ok: true };

@@ -147,6 +147,7 @@ test("calendário com colunas por dia, só com os próprios atendimentos", async
 
   // Formulário: ele já vem incluído, sem valor e sem marcar em sequência.
   await page.getByRole("button", { name: "Novo atendimento" }).click();
+  await page.getByRole("menuitem", { name: "Agendar um atendimento" }).click();
   const novo = painelNovo(page);
   await expect(novo.getByText(/Eu Calendário|Eu/).first()).toBeVisible();
   await expect(novo.getByLabel("Valor (R$)")).toHaveCount(0);

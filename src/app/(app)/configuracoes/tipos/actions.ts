@@ -12,6 +12,8 @@ export type DadosDoTipo = {
   ativo: boolean;
   /** Qual valor do plano o tipo usa; null = o valor padrão. */
   area: Area | null;
+  /** Sem cobrança: os atendimentos futuros e os novos ficam sem valor. */
+  cobrar: boolean;
   /** Quem atende; vazio = qualquer profissional. */
   profissionais: string[];
 };
@@ -27,7 +29,7 @@ export async function salvarTipo(t: DadosDoTipo): Promise<Resultado> {
 
   const supabase = await createClient();
   if (t.area && !AREAS.some((a) => a.valor === t.area)) return { ok: false, erro: "Área inválida." };
-  const dados = { nome, ativo: t.ativo, area: t.area };
+  const dados = { nome, ativo: t.ativo, area: t.area, cobrar: t.cobrar };
   const { data, error } = t.id
     ? await supabase.from("tipos_atendimento").update(dados).eq("id", t.id).select("id").single()
     : await supabase.from("tipos_atendimento").insert(dados).select("id").single();
