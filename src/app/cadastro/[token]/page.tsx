@@ -14,7 +14,7 @@ export default async function CadastroPage({ params }: PageProps<"/cadastro/[tok
     <main className="flex flex-1 items-center justify-center px-4 py-12">
       <div className="w-full max-w-sm rounded-2xl border border-border bg-surface p-8 shadow-sm">
         <h1 className="text-2xl font-semibold tracking-tight">Nurture</h1>
-        {link?.tipo === "login" && <FormDoCadastro token={token} profissional={link.nome} />}
+        {link?.tipo === "login" && <FormDoCadastro token={token} profissional={link.nome} emailDoCadastro={link.email} />}
         {link?.tipo === "senha" && <FormDaSenha token={token} profissional={link.nome} login={link.login} />}
         {!link && (
           <div role="alert" className="mt-4 flex flex-col gap-2 text-sm">

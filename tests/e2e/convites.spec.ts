@@ -42,8 +42,9 @@ async function abrirSemLogin(browser: Browser, link: string) {
   return pagina;
 }
 
-async function preencher(pagina: Page, usuario: string, senha = SENHA, confirmacao = senha) {
+async function preencher(pagina: Page, usuario: string, senha = SENHA, confirmacao = senha, email = `${usuario}@teste.local`) {
   await pagina.getByLabel("Nome de usuário").fill(usuario);
+  await pagina.getByLabel("E-mail").fill(email);
   await pagina.getByLabel("Senha", { exact: true }).fill(senha);
   await pagina.getByLabel("Repita a senha").fill(confirmacao);
   await pagina.getByRole("button", { name: "Criar meu acesso" }).click();
@@ -116,7 +117,12 @@ test("nome de usuário já usado devolve o link, para tentar de novo com outro",
   await expect(pagina.getByRole("alert").filter({ hasText: "já está em uso" })).toBeVisible();
   expect((await admin.from("convites").select("usado_em").eq("profissional_id", prof.id).single()).data!.usado_em).toBeNull();
 
+  // E-mail já usado também devolve o link.
   const usuario = `convite2.${n}`;
+  await preencher(pagina, usuario, SENHA, SENHA, `${existente}@teste.local`);
+  await expect(pagina.getByRole("alert").filter({ hasText: "Já existe um login com esse e-mail" })).toBeVisible();
+  expect((await admin.from("convites").select("usado_em").eq("profissional_id", prof.id).single()).data!.usado_em).toBeNull();
+
   await preencher(pagina, usuario);
   await expect(pagina).toHaveURL(/\/agenda/);
   await guardarLogin(usuario);
@@ -140,10 +146,10 @@ test("pela ficha: o ADM escolhe o tipo, a pessoa cria usuário e senha, e entra 
   await preencher(pagina, usuario);
   await expect(pagina).toHaveURL(/\/agenda/);
   const id = await guardarLogin(usuario);
-  // O tipo vem do link; sem e-mail no cadastro, o login usa o endereço interno.
+  // O tipo vem do link, e o e-mail informado é o do login.
   const { data: criado } = await admin.from("usuarios").select("perfil, email").eq("id", id).single();
   expect(criado!.perfil).toBe("limitado");
-  expect(criado!.email).toContain("login.nurture.invalid");
+  expect(criado!.email).toBe(`${usuario}@teste.local`);
   await pagina.context().close();
 
   const contexto = await browser.newContext({ storageState: { cookies: [], origins: [] } });

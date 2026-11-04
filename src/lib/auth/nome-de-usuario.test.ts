@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ehEmailInterno, emailInterno, identificacaoDoLogin, normalizarUsuario, usuarioValido } from "./nome-de-usuario";
+import { identificacaoDoLogin, normalizarUsuario, usuarioValido } from "./nome-de-usuario";
 
 describe("nome de usuário", () => {
   it("normaliza e valida", () => {
@@ -8,10 +8,8 @@ describe("nome de usuário", () => {
     for (const ruim of ["an", "ana costa", "ana@clinica", ".ana", "Ana", "a".repeat(31), "joão"]) expect(usuarioValido(ruim)).toBe(false);
   });
 
-  it("o e-mail interno não aparece: a identificação é o usuário, ou o e-mail nos antigos", () => {
-    expect(ehEmailInterno(emailInterno("ana"))).toBe(true);
-    expect(ehEmailInterno("ana@clinica.com")).toBe(false);
-    expect(identificacaoDoLogin({ usuario: "ana", email: emailInterno("ana") })).toBe("ana");
+  it("a identificação é o usuário, ou o e-mail nos logins antigos", () => {
+    expect(identificacaoDoLogin({ usuario: "ana", email: "ana@clinica.com" })).toBe("ana");
     expect(identificacaoDoLogin({ usuario: null, email: "ana@clinica.com" })).toBe("ana@clinica.com");
   });
 });

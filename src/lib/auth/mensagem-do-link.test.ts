@@ -4,7 +4,7 @@ import { linkDoWhatsApp, mensagemDoLink } from "./mensagem-do-link";
 describe("mensagem do link", () => {
   it("diz o que o link faz e até quando vale, no fuso da clínica", () => {
     const login = mensagemDoLink("login", "Ana", "https://x/cadastro/abc", "2026-11-11T02:00:00Z");
-    expect(login).toContain("nome de usuário e sua senha");
+    expect(login).toContain("nome de usuário, seu e-mail e sua senha");
     expect(login).toContain("https://x/cadastro/abc");
     expect(login).toContain("10/11/2026");
     const senha = mensagemDoLink("senha", "Ana", "https://x/cadastro/abc", "2026-11-11T02:00:00Z");

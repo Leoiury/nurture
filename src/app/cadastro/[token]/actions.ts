@@ -5,11 +5,11 @@
 
 import { redirect } from "next/navigation";
 import { reservarConvite } from "@/lib/auth/convite";
-import { emailInterno, normalizarUsuario, usuarioValido } from "@/lib/auth/nome-de-usuario";
+import { normalizarUsuario, usuarioValido } from "@/lib/auth/nome-de-usuario";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
-export type EstadoDoCadastro = { erro: string; usuario: string } | undefined;
+export type EstadoDoCadastro = { erro: string; usuario: string; email?: string } | undefined;
 
 const LINK_INVALIDO = "Este link não vale mais. Peça um novo à clínica.";
 const USUARIO_EM_USO = "Esse nome de usuário já está em uso. Escolha outro.";
@@ -22,19 +22,21 @@ function erroDaSenha(senha: string, confirmacao: string) {
 
 export async function concluirCadastro(token: string, _: EstadoDoCadastro, formData: FormData): Promise<EstadoDoCadastro> {
   const usuario = normalizarUsuario(String(formData.get("usuario") ?? ""));
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const senha = String(formData.get("senha") ?? "");
-  if (!usuarioValido(usuario)) return { erro: "O nome de usuário precisa ter de 3 a 30 caracteres: letras sem acento, números, ponto, hífen ou sublinhado.", usuario };
+  if (!usuarioValido(usuario)) return { erro: "O nome de usuário precisa ter de 3 a 30 caracteres: letras sem acento, números, ponto, hífen ou sublinhado.", usuario, email };
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { erro: "Confira o e-mail.", usuario, email };
   const erroSenha = erroDaSenha(senha, String(formData.get("confirmacao") ?? ""));
-  if (erroSenha) return { erro: erroSenha, usuario };
+  if (erroSenha) return { erro: erroSenha, usuario, email };
 
   const convite = await reservarConvite(token, "login");
-  if (!convite || !convite.perfil || !convite.profissional.ativo) return { erro: LINK_INVALIDO, usuario };
+  if (!convite || !convite.perfil || !convite.profissional.ativo) return { erro: LINK_INVALIDO, usuario, email };
 
   const admin = createAdminClient();
   // Qualquer falha daqui em diante devolve o link, para a pessoa tentar de novo.
   const falhar = async (erro: string): Promise<EstadoDoCadastro> => {
     await admin.from("convites").update({ usado_em: null }).eq("id", convite.id);
-    return { erro, usuario };
+    return { erro, usuario, email };
   };
 
   const { count } = await admin.from("usuarios").select("id", { count: "exact", head: true }).eq("profissional_id", convite.profissional_id).eq("ativo", true);
@@ -42,22 +44,11 @@ export async function concluirCadastro(token: string, _: EstadoDoCadastro, formD
   const { count: emUso } = await admin.from("usuarios").select("id", { count: "exact", head: true }).eq("usuario", usuario);
   if (emUso) return falhar(USUARIO_EM_USO);
 
-  const { nome, email: emailDoCadastro } = convite.profissional;
+  const { nome } = convite.profissional;
   const { perfil } = convite;
-  // O e-mail do cadastro, se estiver livre; senão, o interno.
-  let email = "";
-  let id = "";
-  for (const tentativa of [emailDoCadastro?.trim().toLowerCase(), emailInterno(usuario)]) {
-    if (!tentativa) continue;
-    const { data, error } = await admin.auth.admin.createUser({ email: tentativa, password: senha, email_confirm: true, user_metadata: { nome }, app_metadata: { perfil } });
-    if (!error) {
-      email = tentativa;
-      id = data.user.id;
-      break;
-    }
-    if (!/already|registered|exists/i.test(error.message)) return falhar("Não foi possível criar o acesso. Tente de novo.");
-  }
-  if (!id) return falhar(USUARIO_EM_USO);
+  const { data, error } = await admin.auth.admin.createUser({ email, password: senha, email_confirm: true, user_metadata: { nome }, app_metadata: { perfil } });
+  if (error) return falhar(/already|registered|exists/i.test(error.message) ? "Já existe um login com esse e-mail. Use outro, ou fale com a clínica." : "Não foi possível criar o acesso. Tente de novo.");
+  const { id } = data.user;
 
   // A linha em usuarios nasce pelo gatilho do login; aqui completa perfil e vínculo.
   const { error: erroPerfil } = await admin.from("usuarios").update({ nome, perfil, usuario, profissional_id: convite.profissional_id }).eq("id", id);
@@ -67,6 +58,8 @@ export async function concluirCadastro(token: string, _: EstadoDoCadastro, formD
   }
 
   await admin.from("convites").update({ usuario_id: id }).eq("id", convite.id);
+  // O cadastro do profissional ainda não tinha e-mail: aproveita o que ele informou.
+  await admin.from("profissionais").update({ email }).eq("id", convite.profissional_id).is("email", null);
 
   const supabase = await createClient();
   const { error: erroAoEntrar } = await supabase.auth.signInWithPassword({ email, password: senha });

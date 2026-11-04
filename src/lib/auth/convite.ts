@@ -19,21 +19,21 @@ export function novoToken(tipo: TipoDeLink = "login") {
 
 const formatoValido = (token: string) => /^[A-Za-z0-9_-]{43}$/.test(token);
 
-export type DadosDoLink = { tipo: "login"; nome: string } | { tipo: "senha"; nome: string; login: string };
+export type DadosDoLink = { tipo: "login"; nome: string; email: string | null } | { tipo: "senha"; nome: string; login: string };
 
 /** O que a página do link precisa, se ele ainda valer. Abrir o link não o gasta. */
 export async function dadosDoLink(token: string): Promise<DadosDoLink | null> {
   if (!formatoValido(token)) return null;
   const { data } = await createAdminClient()
     .from("convites")
-    .select("tipo, profissional:profissionais(nome, ativo), usuario:usuarios(usuario, email, ativo)")
+    .select("tipo, profissional:profissionais(nome, ativo, email), usuario:usuarios(usuario, email, ativo)")
     .eq("token_hash", hashDoToken(token))
     .is("usado_em", null)
     .is("revogado_em", null)
     .gt("expira_em", new Date().toISOString())
     .maybeSingle();
   if (!data?.profissional.ativo) return null;
-  if (data.tipo !== "senha") return { tipo: "login", nome: data.profissional.nome };
+  if (data.tipo !== "senha") return { tipo: "login", nome: data.profissional.nome, email: data.profissional.email };
   return data.usuario?.ativo ? { tipo: "senha", nome: data.profissional.nome, login: identificacaoDoLogin(data.usuario) } : null;
 }
 
@@ -48,7 +48,7 @@ export async function reservarConvite(token: string, tipo: TipoDeLink) {
     .is("usado_em", null)
     .is("revogado_em", null)
     .gt("expira_em", new Date().toISOString())
-    .select("id, profissional_id, perfil, usuario_id, profissional:profissionais(nome, ativo, email)")
+    .select("id, profissional_id, perfil, usuario_id, profissional:profissionais(nome, ativo)")
     .maybeSingle();
   return data;
 }
