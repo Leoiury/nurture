@@ -11,7 +11,7 @@ test("senha errada mostra erro e mantém o e-mail preenchido", async ({ page }) 
   await page.getByLabel("E-mail").fill(usuario.email);
   await page.getByLabel("Senha").fill("senha-errada");
   await page.getByRole("button", { name: "Entrar" }).click();
-  await expect(page.getByText("E-mail ou senha incorretos.")).toBeVisible();
+  await expect(page.getByText("Usuário ou senha incorretos.")).toBeVisible();
   await expect(page.getByLabel("E-mail")).toHaveValue(usuario.email);
 
   // Segunda tentativa sem redigitar o e-mail.

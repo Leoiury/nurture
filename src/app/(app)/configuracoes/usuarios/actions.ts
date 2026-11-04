@@ -6,6 +6,7 @@
 import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { novoToken } from "@/lib/auth/convite";
+import type { TipoDeLink } from "@/lib/auth/mensagem-do-link";
 import { ehAdm, usuarioAtual, type Perfil } from "@/lib/auth/usuario";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -26,6 +27,7 @@ const BLOQUEIO = "876000h";
 
 function revalidar() {
   revalidatePath("/configuracoes/usuarios");
+  revalidatePath("/profissionais/[id]", "page");
 }
 
 export async function criarUsuario(u: NovoUsuario): Promise<{ ok: true; email: string; senha: string } | Falha> {
@@ -94,27 +96,43 @@ export async function gerarNovaSenha(id: string): Promise<{ ok: true; senha: str
   return { ok: true, senha };
 }
 
-/** Link para o profissional criar o próprio login. Gerar outro invalida o anterior. */
-export async function gerarConvite(profissionalId: string): Promise<{ ok: true; token: string; expiraEm: string } | Falha> {
+/** Link de acesso do profissional. Sem login, cria um do tipo escolhido; com login, só redefine a
+    senha: quem decide é o servidor, nunca um segundo login por uma tela desatualizada. Gerar outro
+    invalida o anterior. */
+export async function gerarConvite(profissionalId: string, perfil: Perfil = "profissional"): Promise<{ ok: true; tipo: TipoDeLink; token: string; expiraEm: string } | Falha> {
   const eu = await usuarioAtual();
-  if (!(await ehAdm())) return { ok: false, erro: "Apenas administradores geram convites." };
+  if (!(await ehAdm())) return { ok: false, erro: "Apenas administradores geram links de acesso." };
+  if (!PERFIS.includes(perfil)) return { ok: false, erro: "Tipo de login inválido." };
 
   const admin = createAdminClient();
-  const { count } = await admin.from("usuarios").select("id", { count: "exact", head: true }).eq("profissional_id", profissionalId).eq("ativo", true);
-  if (count) return { ok: false, erro: "Este profissional já tem um login." };
+  const { data: profissional } = await admin.from("profissionais").select("ativo").eq("id", profissionalId).maybeSingle();
+  if (!profissional?.ativo) return { ok: false, erro: "Este profissional está inativo." };
+  const { data: logins, error: erroLogins } = await admin.from("usuarios").select("id").eq("profissional_id", profissionalId).eq("ativo", true);
+  if (erroLogins) return { ok: false, erro: "Não foi possível gerar o link." };
+  if (logins.length > 1) return { ok: false, erro: "Este profissional tem mais de um login vinculado. Deixe só um em Configurações › Usuários." };
+  const login = logins[0];
+  const tipo: TipoDeLink = login ? "senha" : "login";
 
   const { error: erroAnterior } = await admin.from("convites").update({ revogado_em: new Date().toISOString() }).eq("profissional_id", profissionalId).is("usado_em", null).is("revogado_em", null);
   if (erroAnterior) return { ok: false, erro: "Não foi possível gerar o link." };
-  const { token, hash, expiraEm } = novoToken();
-  const { error } = await admin.from("convites").insert({ profissional_id: profissionalId, token_hash: hash, expira_em: expiraEm, criado_por: eu?.id });
+  const { token, hash, expiraEm } = novoToken(tipo);
+  const { error } = await admin.from("convites").insert({
+    profissional_id: profissionalId,
+    token_hash: hash,
+    expira_em: expiraEm,
+    criado_por: eu?.id,
+    tipo,
+    perfil: login ? null : perfil,
+    usuario_id: login?.id ?? null,
+  });
   if (error) return { ok: false, erro: "Não foi possível gerar o link." };
 
   revalidar();
-  return { ok: true, token, expiraEm };
+  return { ok: true, tipo, token, expiraEm };
 }
 
 export async function cancelarConvite(id: string): Promise<{ ok: true } | Falha> {
-  if (!(await ehAdm())) return { ok: false, erro: "Apenas administradores cancelam convites." };
+  if (!(await ehAdm())) return { ok: false, erro: "Apenas administradores cancelam links de acesso." };
   const { error } = await createAdminClient().from("convites").update({ revogado_em: new Date().toISOString() }).eq("id", id).is("usado_em", null);
   if (error) return { ok: false, erro: "Não foi possível cancelar o link." };
   revalidar();

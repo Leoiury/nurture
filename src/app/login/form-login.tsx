@@ -9,11 +9,12 @@ export function FormLogin() {
   return (
     <form action={acao} className="mt-6 flex flex-col gap-4">
       <label className="flex flex-col gap-1.5 text-sm font-medium">
-        E-mail
+        Usuário ou e-mail
         <input
           name="email"
-          type="email"
-          autoComplete="email"
+          autoComplete="username"
+          autoCapitalize="none"
+          spellCheck={false}
           defaultValue={estado?.email}
           required
           className="rounded-lg border border-border bg-surface px-3 py-2 font-normal outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft"

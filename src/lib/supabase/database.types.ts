@@ -608,8 +608,10 @@ export type Database = {
           criado_por: string | null
           expira_em: string
           id: string
+          perfil: Database["public"]["Enums"]["perfil_usuario"] | null
           profissional_id: string
           revogado_em: string | null
+          tipo: string
           token_hash: string
           usado_em: string | null
           usuario_id: string | null
@@ -619,8 +621,10 @@ export type Database = {
           criado_por?: string | null
           expira_em: string
           id?: string
+          perfil?: Database["public"]["Enums"]["perfil_usuario"] | null
           profissional_id: string
           revogado_em?: string | null
+          tipo?: string
           token_hash: string
           usado_em?: string | null
           usuario_id?: string | null
@@ -630,8 +634,10 @@ export type Database = {
           criado_por?: string | null
           expira_em?: string
           id?: string
+          perfil?: Database["public"]["Enums"]["perfil_usuario"] | null
           profissional_id?: string
           revogado_em?: string | null
+          tipo?: string
           token_hash?: string
           usado_em?: string | null
           usuario_id?: string | null
@@ -1455,6 +1461,7 @@ export type Database = {
           nome: string
           perfil: Database["public"]["Enums"]["perfil_usuario"]
           profissional_id: string | null
+          usuario: string | null
         }
         Insert: {
           ativo?: boolean
@@ -1466,6 +1473,7 @@ export type Database = {
           nome: string
           perfil?: Database["public"]["Enums"]["perfil_usuario"]
           profissional_id?: string | null
+          usuario?: string | null
         }
         Update: {
           ativo?: boolean
@@ -1477,6 +1485,7 @@ export type Database = {
           nome?: string
           perfil?: Database["public"]["Enums"]["perfil_usuario"]
           profissional_id?: string | null
+          usuario?: string | null
         }
         Relationships: [
           {

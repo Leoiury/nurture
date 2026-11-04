@@ -8,6 +8,7 @@ export type Perfil = Database["public"]["Enums"]["perfil_usuario"];
 export type UsuarioAtual = {
   id: string;
   email: string;
+  usuario: string | null;
   nome: string;
   perfil: Perfil;
   ativo: boolean;
@@ -20,12 +21,12 @@ export const usuarioAtual = cache(async (): Promise<UsuarioAtual | null> => {
   const { data } = await supabase.auth.getClaims();
   const id = data?.claims.sub;
   if (!id) return null;
-  const { data: u } = await supabase.from("usuarios").select("id, email, nome, perfil, ativo, profissional_id").eq("id", id).maybeSingle();
+  const { data: u } = await supabase.from("usuarios").select("id, email, usuario, nome, perfil, ativo, profissional_id").eq("id", id).maybeSingle();
   if (!u) {
     // Login sem linha em usuarios (não deveria acontecer): acesso limitado.
-    return { id, email: String(data.claims.email ?? ""), nome: String(data.claims.email ?? ""), perfil: "limitado", ativo: true, profissionalId: null };
+    return { id, email: String(data.claims.email ?? ""), usuario: null, nome: String(data.claims.email ?? ""), perfil: "limitado", ativo: true, profissionalId: null };
   }
-  return { id: u.id, email: u.email, nome: u.nome, perfil: u.perfil, ativo: u.ativo, profissionalId: u.profissional_id };
+  return { id: u.id, email: u.email, usuario: u.usuario, nome: u.nome, perfil: u.perfil, ativo: u.ativo, profissionalId: u.profissional_id };
 });
 
 export async function ehAdm(): Promise<boolean> {

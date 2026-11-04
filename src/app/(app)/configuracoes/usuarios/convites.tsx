@@ -4,15 +4,12 @@
 // só aparece ao ser gerado: o banco guarda apenas o hash.
 
 import { useState } from "react";
+import { mensagemDoLink } from "@/lib/auth/mensagem-do-link";
 import { cancelarConvite, gerarConvite } from "./actions";
 
 export type ProfissionalSemLogin = { id: string; nome: string; convite: { id: string; expiraEm: string } | null };
 
 const data = new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", year: "numeric" });
-
-function mensagemDoConvite(nome: string, link: string, expiraEm: string) {
-  return `Olá, ${nome}! Seu acesso à agenda da clínica já pode ser criado. Abra o link, confirme seu nome e escolha seu e-mail e sua senha:\n\n${link}\n\nO link é só seu: não o repasse. Ele funciona uma única vez e vale até ${data.format(new Date(expiraEm))}.`;
-}
 
 export function Convites({ profissionais }: { profissionais: ProfissionalSemLogin[] }) {
   const [gerado, setGerado] = useState<{ id: string; mensagem: string; link: string; trocou: boolean } | null>(null);
@@ -30,7 +27,7 @@ export function Convites({ profissionais }: { profissionais: ProfissionalSemLogi
     if (!r.ok) return setErro(r.erro);
     const link = `${window.location.origin}/cadastro/${r.token}`;
     setCopiado(null);
-    setGerado({ id: p.id, link, mensagem: mensagemDoConvite(p.nome, link, r.expiraEm), trocou: !!p.convite });
+    setGerado({ id: p.id, link, mensagem: mensagemDoLink(r.tipo, p.nome, link, r.expiraEm), trocou: !!p.convite });
   }
 
   async function cancelar(p: ProfissionalSemLogin) {
