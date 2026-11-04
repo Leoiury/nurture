@@ -10,7 +10,7 @@ export function mensagemDoLink(tipo: TipoDeLink, nome: string, link: string, exp
   if (tipo === "senha") {
     return `Olá, ${nome}! Para redefinir a sua senha de acesso à agenda da clínica, abra o link e escolha uma senha nova:\n\n${link}\n\nO link é só seu: não o repasse. Ele funciona uma única vez e vale até ${data.format(fim)} às ${hora.format(fim)}. Se você não pediu isso, avise a clínica.`;
   }
-  return `Olá, ${nome}! Seu acesso à agenda da clínica já pode ser criado. Abra o link, confirme seu nome e escolha seu nome de usuário e sua senha:\n\n${link}\n\nO link é só seu: não o repasse. Ele funciona uma única vez e vale até ${data.format(fim)}.`;
+  return `Olá, ${nome}! Seu acesso à agenda da clínica já pode ser criado. Abra o link, confirme seu nome e informe seu nome de usuário, seu e-mail e sua senha:\n\n${link}\n\nO link é só seu: não o repasse. Ele funciona uma única vez e vale até ${data.format(fim)}.`;
 }
 
 /** O endereço que abre o WhatsApp com a mensagem pronta; null se o celular não servir. */

@@ -1,13 +1,13 @@
 "use client";
 
-// Cadastro guiado: primeiro a pessoa confirma quem é, depois escolhe o nome de usuário e a senha.
+// Cadastro guiado: primeiro a pessoa confirma quem é, depois informa o nome de usuário, o e-mail e a senha.
 
 import { useActionState, useState } from "react";
 import { concluirCadastro } from "./actions";
 
 const entrada = "rounded-lg border border-border bg-surface px-3 py-2 font-normal outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft";
 
-export function FormDoCadastro({ token, profissional }: { token: string; profissional: string }) {
+export function FormDoCadastro({ token, profissional, emailDoCadastro }: { token: string; profissional: string; emailDoCadastro: string | null }) {
   const [confirmou, setConfirmou] = useState(false);
   const [estado, acao, enviando] = useActionState(concluirCadastro.bind(null, token), undefined);
 
@@ -29,7 +29,7 @@ export function FormDoCadastro({ token, profissional }: { token: string; profiss
   return (
     <form action={acao} className="mt-4 flex flex-col gap-4 text-sm">
       <p className="text-xs font-semibold tracking-wide text-muted uppercase">Passo 2 de 2</p>
-      <p className="text-muted">Com este nome de usuário e esta senha, você vai entrar na Nurture.</p>
+      <p className="text-muted">Com o nome de usuário ou o e-mail, e esta senha, você vai entrar na Nurture.</p>
       <div className="flex flex-col gap-1.5">
         <label className="flex flex-col gap-1.5 font-medium">
           Nome de usuário
@@ -37,6 +37,10 @@ export function FormDoCadastro({ token, profissional }: { token: string; profiss
         </label>
         <p id="regra-do-usuario" className="text-xs text-muted">Letras sem acento, números, ponto, hífen ou sublinhado. Ex.: ana.costa</p>
       </div>
+      <label className="flex flex-col gap-1.5 font-medium">
+        E-mail
+        <input name="email" type="email" autoComplete="email" autoCapitalize="none" spellCheck={false} defaultValue={estado?.email ?? emailDoCadastro ?? ""} required className={entrada} />
+      </label>
       <div className="flex flex-col gap-1.5">
         <label className="flex flex-col gap-1.5 font-medium">
           Senha
