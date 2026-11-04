@@ -3,19 +3,33 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { COOKIE_LOGIN_MANUAL, credenciaisDoLoginAutomatico } from "@/lib/auth/login-automatico";
+import { normalizarUsuario } from "@/lib/auth/nome-de-usuario";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 export type EstadoLogin = { erro: string; email: string } | undefined;
 
+/** O e-mail do login de um nome de usuário. Quem não está logado não lê usuarios: passa pelo servidor. */
+async function emailDoUsuario(usuario: string): Promise<string | null> {
+  try {
+    const { data } = await createAdminClient().from("usuarios").select("email").eq("usuario", normalizarUsuario(usuario)).maybeSingle();
+    return data?.email ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export async function entrar(_: EstadoLogin, formData: FormData): Promise<EstadoLogin> {
   const email = String(formData.get("email") ?? "").trim();
   const senha = String(formData.get("senha") ?? "");
-  if (!email || !senha) return { erro: "Informe e-mail e senha.", email };
+  if (!email || !senha) return { erro: "Informe o usuário e a senha.", email };
 
   const supabase = await createClient();
-  const { error } = await supabase.auth.signInWithPassword({ email, password: senha });
-  // O e-mail volta no estado porque o React limpa o formulário após a action.
-  if (error) return { erro: "E-mail ou senha incorretos.", email };
+  const emailDoLogin = email.includes("@") ? email : await emailDoUsuario(email);
+  // Usuário inexistente e senha errada dão a mesma resposta: a tela não revela quem existe.
+  const { error } = emailDoLogin ? await supabase.auth.signInWithPassword({ email: emailDoLogin, password: senha }) : { error: true };
+  // O que foi digitado volta no estado porque o React limpa o formulário após a action.
+  if (error) return { erro: "Usuário ou senha incorretos.", email };
 
   redirect("/agenda");
 }

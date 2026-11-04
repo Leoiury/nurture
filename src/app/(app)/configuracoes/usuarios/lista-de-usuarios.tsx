@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
+import { identificacaoDoLogin } from "@/lib/auth/nome-de-usuario";
 import { atualizarUsuario, criarUsuario, gerarNovaSenha } from "./actions";
 
 type Perfil = "adm" | "limitado" | "profissional";
@@ -9,6 +10,7 @@ export type UsuarioDaLista = {
   id: string;
   nome: string;
   email: string;
+  usuario: string | null;
   perfil: Perfil;
   ativo: boolean;
   profissionalId: string | null;
@@ -17,8 +19,8 @@ export type UsuarioDaLista = {
 
 type Profissional = { id: string; nome: string };
 
-const ROTULO_PERFIL: Record<Perfil, string> = { adm: "Administrador", limitado: "Limitado", profissional: "Profissional" };
-const DESCRICAO_PERFIL: Record<Perfil, string> = {
+export const ROTULO_PERFIL: Record<Perfil, string> = { adm: "Administrador", limitado: "Limitado", profissional: "Profissional" };
+export const DESCRICAO_PERFIL: Record<Perfil, string> = {
   limitado: "Agenda e pacientes; vê profissionais, sem alterar cadastros.",
   profissional: "Os próprios atendimentos e os pacientes; nunca vê valores. Precisa de um profissional vinculado.",
   adm: "Tudo, inclusive configurações, planejamento, importação e usuários.",
@@ -53,7 +55,7 @@ export function ListaDeUsuarios({ usuarios, profissionais, euId }: { usuarios: U
                   {u.id === euId && <span className="ml-2 text-xs font-normal text-muted">(você)</span>}
                   {!u.ativo && <span className="ml-2 rounded-full bg-black/5 px-2 py-px text-[11px] font-normal text-muted">inativo</span>}
                 </span>
-                <span className="block truncate text-muted">{u.email}</span>
+                <span className="block truncate text-muted">{identificacaoDoLogin(u)}</span>
               </span>
               <span className="shrink-0 text-right text-xs text-muted">
                 <span className={`rounded-full px-2 py-0.5 font-medium ${u.perfil === "adm" ? "bg-accent-soft text-accent" : "bg-black/5"}`}>{ROTULO_PERFIL[u.perfil]}</span>
@@ -154,7 +156,7 @@ function PainelDoUsuario({ usuario: u, profissionais, aoFechar, aoGerarSenha }: 
     if (!u || !confirm(`Gerar uma nova senha provisória para ${u.nome}? A senha atual deixa de funcionar.`)) return;
     const r = await gerarNovaSenha(u.id).catch(() => ({ ok: false as const, erro: "Falha de conexão." }));
     if (!r.ok) return setErro(r.erro);
-    aoGerarSenha(u.email, r.senha);
+    aoGerarSenha(identificacaoDoLogin(u), r.senha);
     aoFechar();
   }
 
@@ -180,8 +182,8 @@ function PainelDoUsuario({ usuario: u, profissionais, aoFechar, aoGerarSenha }: 
             <Campo rotulo="Nome">
               <input value={nome} onChange={(e) => setNome(e.target.value)} autoFocus className={entrada} />
             </Campo>
-            <Campo rotulo="E-mail (login)">
-              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} disabled={!!u} className={`${entrada} disabled:bg-background disabled:text-muted`} />
+            <Campo rotulo={u?.usuario ? "Nome de usuário (login)" : "E-mail (login)"}>
+              <input type={u?.usuario ? "text" : "email"} value={u?.usuario ?? email} onChange={(e) => setEmail(e.target.value)} disabled={!!u} className={`${entrada} disabled:bg-background disabled:text-muted`} />
             </Campo>
             <fieldset className="flex flex-col gap-1.5">
               <legend className="mb-1 text-xs font-semibold tracking-wide text-muted uppercase">Perfil</legend>

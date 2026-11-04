@@ -10,7 +10,7 @@ export const metadata: Metadata = { title: "Usuários · Nurture" };
 export default async function UsuariosPage() {
   const supabase = await createClient();
   const [usuarios, profissionais, eu, convites] = await Promise.all([
-    supabase.from("usuarios").select("id, nome, email, perfil, ativo, profissional_id").order("ativo", { ascending: false }).order("nome"),
+    supabase.from("usuarios").select("id, nome, email, usuario, perfil, ativo, profissional_id").order("ativo", { ascending: false }).order("nome"),
     supabase.from("profissionais").select("id, nome").eq("ativo", true).order("nome"),
     usuarioAtual(),
     supabase.from("convites").select("id, profissional_id, expira_em").is("usado_em", null).is("revogado_em", null).gt("expira_em", new Date().toISOString()),
@@ -30,6 +30,7 @@ export default async function UsuariosPage() {
     id: u.id,
     nome: u.nome,
     email: u.email,
+    usuario: u.usuario,
     perfil: u.perfil,
     ativo: u.ativo,
     profissionalId: u.profissional_id,

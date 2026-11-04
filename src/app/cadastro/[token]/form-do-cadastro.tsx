@@ -1,6 +1,6 @@
 "use client";
 
-// Cadastro guiado: primeiro a pessoa confirma quem é, depois escolhe e-mail e senha.
+// Cadastro guiado: primeiro a pessoa confirma quem é, depois escolhe o nome de usuário e a senha.
 
 import { useActionState, useState } from "react";
 import { concluirCadastro } from "./actions";
@@ -29,11 +29,14 @@ export function FormDoCadastro({ token, profissional }: { token: string; profiss
   return (
     <form action={acao} className="mt-4 flex flex-col gap-4 text-sm">
       <p className="text-xs font-semibold tracking-wide text-muted uppercase">Passo 2 de 2</p>
-      <p className="text-muted">Com este e-mail e esta senha, você vai entrar na Nurture.</p>
-      <label className="flex flex-col gap-1.5 font-medium">
-        E-mail
-        <input name="email" type="email" autoComplete="email" defaultValue={estado?.email} required autoFocus className={entrada} />
-      </label>
+      <p className="text-muted">Com este nome de usuário e esta senha, você vai entrar na Nurture.</p>
+      <div className="flex flex-col gap-1.5">
+        <label className="flex flex-col gap-1.5 font-medium">
+          Nome de usuário
+          <input name="usuario" autoComplete="username" autoCapitalize="none" spellCheck={false} defaultValue={estado?.usuario} required minLength={3} maxLength={30} autoFocus aria-describedby="regra-do-usuario" className={entrada} />
+        </label>
+        <p id="regra-do-usuario" className="text-xs text-muted">Letras sem acento, números, ponto, hífen ou sublinhado. Ex.: ana.costa</p>
+      </div>
       <div className="flex flex-col gap-1.5">
         <label className="flex flex-col gap-1.5 font-medium">
           Senha

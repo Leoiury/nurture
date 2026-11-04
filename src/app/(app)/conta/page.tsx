@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { usuarioAtual } from "@/lib/auth/usuario";
+import { ehEmailInterno } from "@/lib/auth/nome-de-usuario";
 import { createClient } from "@/lib/supabase/server";
 import { PastaDeExportacao } from "./pasta-de-exportacao";
 import { TrocarSenha } from "./trocar-senha";
@@ -21,8 +22,18 @@ export default async function ContaPage() {
         <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-sm">
           <dt className="text-muted">Nome</dt>
           <dd>{u.nome}</dd>
-          <dt className="text-muted">E-mail</dt>
-          <dd className="break-words">{u.email}</dd>
+          {u.usuario && (
+            <>
+              <dt className="text-muted">Usuário</dt>
+              <dd className="break-words">{u.usuario}</dd>
+            </>
+          )}
+          {!ehEmailInterno(u.email) && (
+            <>
+              <dt className="text-muted">E-mail</dt>
+              <dd className="break-words">{u.email}</dd>
+            </>
+          )}
           <dt className="text-muted">Perfil</dt>
           <dd>{u.perfil === "adm" ? "Administrador" : u.perfil === "profissional" ? "Profissional" : "Limitado"}</dd>
           {profissional && (

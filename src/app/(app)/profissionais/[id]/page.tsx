@@ -4,8 +4,11 @@ import { notFound } from "next/navigation";
 import { carregarEscalas, carregarMapaDeOcupacao } from "@/lib/agenda/dados";
 import { formatarDuracao } from "@/lib/agenda/ocupacao";
 import { FUSO, hoje, inicioDaSemana, inicioDoDiaISO, inicioDoMes, somarDias } from "@/lib/agenda/tempo";
+import { identificacaoDoLogin } from "@/lib/auth/nome-de-usuario";
+import type { TipoDeLink } from "@/lib/auth/mensagem-do-link";
 import { ehAdm } from "@/lib/auth/usuario";
 import { createClient } from "@/lib/supabase/server";
+import { AcessoDoProfissional } from "./acesso-do-profissional";
 import { CabecalhoDoProfissional } from "./cabecalho-do-profissional";
 import { EscalaDoProfissional } from "./escala-do-profissional";
 
@@ -60,6 +63,16 @@ export default async function ProfissionalPage({ params, searchParams }: PagePro
   const p = profissional.data;
   if (!p) notFound();
   const adm = await ehAdm();
+  // O acesso só existe para ADM (o banco também só mostra os convites a ADM).
+  const [logins, links] = adm
+    ? await Promise.all([
+        supabase.from("usuarios").select("usuario, email, perfil").eq("profissional_id", id).eq("ativo", true),
+        supabase.from("convites").select("id, tipo, expira_em").eq("profissional_id", id).is("usado_em", null).is("revogado_em", null).gt("expira_em", new Date().toISOString()).maybeSingle(),
+      ])
+    : [null, null];
+  if (logins?.error || links?.error) throw new Error("Não foi possível carregar o acesso do profissional.");
+  const login = logins?.data?.[0];
+  const link = links?.data;
 
   const validos = atendimentos.data.filter((a) => a.status !== "desmarcado").map((a) => ({ ...a, ms: Date.parse(a.inicio) }));
   const agora = Date.parse(new Date().toISOString());
@@ -137,6 +150,14 @@ export default async function ProfissionalPage({ params, searchParams }: PagePro
           </Link>
         </section>
       </div>
+
+      {adm && (
+        <AcessoDoProfissional
+          profissional={p}
+          login={login ? { identificacao: identificacaoDoLogin(login), perfil: login.perfil } : null}
+          link={link ? { id: link.id, tipo: link.tipo as TipoDeLink, expiraEm: link.expira_em } : null}
+        />
+      )}
 
       <EscalaDoProfissional profissionalId={id} escala={escalas.get(id) ?? null} podeEditar={adm} />
 
