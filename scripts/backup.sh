@@ -16,8 +16,9 @@ trap 'rm -rf "$pasta"' EXIT
 mkdir "$pasta/nurture"
 
 # Os mesmos três arquivos da migração oficial do Supabase. A restauração usa o data.sql;
-# roles.sql e schema.sql conferem o estado do banco naquele dia. O app não usa o
-# Storage, e as tabelas internas dele não podem ser restauradas.
+# roles.sql e schema.sql conferem o estado do banco naquele dia. Os arquivos do Storage
+# têm backup próprio (scripts/backup-arquivos.sh); as tabelas internas dele não podem
+# ser restauradas.
 $SUPABASE db dump --db-url "$SUPABASE_DB_URL" --role-only -f "$pasta/nurture/roles.sql"
 $SUPABASE db dump --db-url "$SUPABASE_DB_URL" -f "$pasta/nurture/schema.sql"
 $SUPABASE db dump --db-url "$SUPABASE_DB_URL" --data-only --use-copy --schema public,auth -f "$pasta/nurture/data.sql"

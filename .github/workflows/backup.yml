@@ -30,7 +30,17 @@ jobs:
           RCLONE_CONFIG_DRIVE_TYPE: drive
           RCLONE_CONFIG_DRIVE_SCOPE: drive.file
           RCLONE_CONFIG_DRIVE_TOKEN: ${{ secrets.RCLONE_DRIVE_TOKEN }}
+      - run: bash scripts/backup-arquivos.sh
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          BACKUP_AGE_RECIPIENT: ${{ secrets.BACKUP_AGE_RECIPIENT }}
+          BACKUP_DESTINO: drive:nurture-backups
+          RCLONE_CONFIG_DRIVE_TYPE: drive
+          RCLONE_CONFIG_DRIVE_SCOPE: drive.file
+          RCLONE_CONFIG_DRIVE_TOKEN: ${{ secrets.RCLONE_DRIVE_TOKEN }}
       # O GitHub pausa agendamentos após 60 dias sem atividade no repositório.
-      - run: gh workflow enable backup.yml --repo "$GITHUB_REPOSITORY"
+      - if: always()
+        run: gh workflow enable backup.yml --repo "$GITHUB_REPOSITORY"
         env:
           GH_TOKEN: ${{ github.token }}

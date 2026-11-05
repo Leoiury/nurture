@@ -224,6 +224,101 @@ export type Database = {
           },
         ]
       }
+      arquivos_paciente: {
+        Row: {
+          atendimento_id: string | null
+          caminho: string
+          enviado_em: string
+          enviado_por: string
+          enviado_por_nome: string
+          excluido_em: string | null
+          excluido_por: string | null
+          id: string
+          nome: string
+          paciente_id: string
+          tamanho: number
+          tipo_mime: string
+        }
+        Insert: {
+          atendimento_id?: string | null
+          caminho: string
+          enviado_em?: string
+          enviado_por: string
+          enviado_por_nome: string
+          excluido_em?: string | null
+          excluido_por?: string | null
+          id?: string
+          nome: string
+          paciente_id: string
+          tamanho: number
+          tipo_mime: string
+        }
+        Update: {
+          atendimento_id?: string | null
+          caminho?: string
+          enviado_em?: string
+          enviado_por?: string
+          enviado_por_nome?: string
+          excluido_em?: string | null
+          excluido_por?: string | null
+          id?: string
+          nome?: string
+          paciente_id?: string
+          tamanho?: number
+          tipo_mime?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "arquivos_paciente_atendimento_id_fkey"
+            columns: ["atendimento_id"]
+            isOneToOne: false
+            referencedRelation: "atendimentos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "arquivos_paciente_atendimento_id_fkey"
+            columns: ["atendimento_id"]
+            isOneToOne: false
+            referencedRelation: "atendimentos_em_aberto"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "arquivos_paciente_atendimento_id_fkey"
+            columns: ["atendimento_id"]
+            isOneToOne: false
+            referencedRelation: "atendimentos_equipe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "arquivos_paciente_atendimento_id_fkey"
+            columns: ["atendimento_id"]
+            isOneToOne: false
+            referencedRelation: "guias_dos_atendimentos"
+            referencedColumns: ["atendimento_id"]
+          },
+          {
+            foreignKeyName: "arquivos_paciente_enviado_por_fkey"
+            columns: ["enviado_por"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "arquivos_paciente_excluido_por_fkey"
+            columns: ["excluido_por"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "arquivos_paciente_paciente_id_fkey"
+            columns: ["paciente_id"]
+            isOneToOne: false
+            referencedRelation: "pacientes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       atendimento_profissionais: {
         Row: {
           atendimento_id: string
@@ -1960,6 +2055,7 @@ export type Database = {
       }
       eh_adm: { Args: never; Returns: boolean }
       eh_profissional: { Args: never; Returns: boolean }
+      excluir_arquivo: { Args: { p_id: string }; Returns: undefined }
       excluir_atendimentos: {
         Args: {
           p_alcance: Database["public"]["Enums"]["alcance_serie"]
@@ -2099,6 +2195,15 @@ export type Database = {
         Returns: number
       }
       recusar_exclusao: { Args: { p_id: string }; Returns: number }
+      registrar_arquivo: {
+        Args: {
+          p_atendimento: string
+          p_caminho: string
+          p_nome: string
+          p_paciente: string
+        }
+        Returns: string
+      }
       registrar_pagamento: {
         Args: {
           p_data: string

@@ -9,6 +9,7 @@ import { detalhesAtendimento } from "../../agenda/actions";
 import { guiaDoAtendimento } from "../../agenda/actions-guias";
 import { LeituraDosRegistros, type RegistroParaLer } from "./leitura";
 import { TelaDoAtendimento } from "./tela";
+import { carregarArquivos } from "../../arquivos/dados";
 
 export const metadata: Metadata = { title: "Atendimento · Nurture" };
 
@@ -41,6 +42,7 @@ export default async function AtendimentoPage({ params, searchParams }: PageProp
   if (a.tipo?.abre_anamnese && participa && !meu?.versao) redirect(`/anamnese?atendimento=${id}`);
   const paciente = a.paciente;
   const cabecalho = { paciente, inicio: a.inicio, fim: a.fim };
+  const arquivos = await carregarArquivos(paciente.id);
 
   // Escrevendo: quem atende, sem versão salva ou pedindo para editar.
   if (participa && (!meu || meu.versao === 0 || editar === "1")) {
@@ -63,6 +65,7 @@ export default async function AtendimentoPage({ params, searchParams }: PageProp
       <TelaDoAtendimento
         id={id}
         cabecalho={cabecalho}
+        arquivos={arquivos}
         guia={situacaoDaGuia(guia.atual, guia.exigeGuia, a.status)}
         sessaoDaGuia={guia.atual ? { posicao: guia.atual.posicao, quantidade: guia.atual.quantidade } : null}
         detalhes={detalhes}
@@ -87,6 +90,7 @@ export default async function AtendimentoPage({ params, searchParams }: PageProp
     <LeituraDosRegistros
       id={id}
       cabecalho={cabecalho}
+      arquivos={arquivos}
       registros={salvos}
       profissionalInicial={typeof profissional === "string" ? profissional : (meu?.profissional_id ?? null)}
       versaoInicial={typeof versao === "string" ? Number(versao) : null}
