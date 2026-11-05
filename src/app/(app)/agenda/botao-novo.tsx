@@ -58,7 +58,7 @@ export function BotaoNovo({ estilo, icone, aoAgendar, aoRealizarAvulso }: Props)
             <div className="flex flex-col gap-2">
               {pergunta.marcados.map((m) => (
                 <button key={m.id} type="button" onClick={() => router.push(`/atendimento/${m.id}`)} className="rounded-2xl bg-accent px-4 py-2.5 text-left font-medium text-white hover:brightness-110">
-                  Sim, abrir {m.paciente} ({hora.format(new Date(m.inicio))} – {hora.format(new Date(m.fim))}{m.anamnese ? ", anamnese" : ""})
+                  Sim, abrir {m.paciente} ({hora.format(new Date(m.inicio))} – {hora.format(new Date(m.fim))}{m.anamnese ? `, ${m.tipo?.toLowerCase()}` : ""})
                 </button>
               ))}
               <button

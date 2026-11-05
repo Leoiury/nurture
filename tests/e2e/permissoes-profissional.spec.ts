@@ -131,7 +131,7 @@ test.describe("telas", () => {
     await cardDoPaciente(page, pacienteNome).first().click();
     const painel = painelDetalhes(page);
     await expect(painel.getByText(pacienteNome).first()).toBeVisible();
-    await expect(painel.getByText("Plano", { exact: true })).toBeVisible();
+    await expect(painel.getByText("Plano", { exact: true })).toHaveCount(0);
     await expect(painel.getByText("Valor", { exact: true })).toHaveCount(0);
     await expect(painel.getByText("R$")).toHaveCount(0);
 

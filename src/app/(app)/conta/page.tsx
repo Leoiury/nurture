@@ -1,8 +1,10 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { coresDoStatus } from "@/lib/agenda/cores";
 import { usuarioAtual } from "@/lib/auth/usuario";
 import { createClient } from "@/lib/supabase/server";
+import { CoresDoCalendario } from "./cores-do-calendario";
 import { PastaDeExportacao } from "./pasta-de-exportacao";
 import { TrocarSenha } from "./trocar-senha";
 
@@ -62,6 +64,7 @@ export default async function ContaPage() {
           </Link>
         </section>
       )}
+      {u.perfil === "profissional" && <CoresDoCalendario iniciais={coresDoStatus(u.coresStatus)} />}
       {u.profissionalId && u.perfil !== "limitado" && <PastaDeExportacao />}
       <TrocarSenha />
     </div>

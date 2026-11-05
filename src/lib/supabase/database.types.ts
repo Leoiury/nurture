@@ -81,6 +81,7 @@ export type Database = {
           paciente_id: string
           profissional_id: string
           salva_em: string | null
+          titulo: string
           versao: number
         }
         Insert: {
@@ -94,6 +95,7 @@ export type Database = {
           paciente_id: string
           profissional_id: string
           salva_em?: string | null
+          titulo?: string
           versao?: number
         }
         Update: {
@@ -107,6 +109,7 @@ export type Database = {
           paciente_id?: string
           profissional_id?: string
           salva_em?: string | null
+          titulo?: string
           versao?: number
         }
         Relationships: [
@@ -904,6 +907,39 @@ export type Database = {
           },
         ]
       }
+      paciente_responsaveis: {
+        Row: {
+          criado_em: string
+          paciente_id: string
+          responsavel_id: string
+        }
+        Insert: {
+          criado_em?: string
+          paciente_id: string
+          responsavel_id: string
+        }
+        Update: {
+          criado_em?: string
+          paciente_id?: string
+          responsavel_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "paciente_responsaveis_paciente_id_fkey"
+            columns: ["paciente_id"]
+            isOneToOne: false
+            referencedRelation: "pacientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "paciente_responsaveis_responsavel_id_fkey"
+            columns: ["responsavel_id"]
+            isOneToOne: false
+            referencedRelation: "responsaveis"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pacientes: {
         Row: {
           ativo: boolean
@@ -1384,6 +1420,36 @@ export type Database = {
           },
         ]
       }
+      responsaveis: {
+        Row: {
+          atualizado_em: string
+          cpf: string | null
+          criado_em: string
+          email: string | null
+          id: string
+          nome: string
+          whatsapp: string | null
+        }
+        Insert: {
+          atualizado_em?: string
+          cpf?: string | null
+          criado_em?: string
+          email?: string | null
+          id?: string
+          nome: string
+          whatsapp?: string | null
+        }
+        Update: {
+          atualizado_em?: string
+          cpf?: string | null
+          criado_em?: string
+          email?: string | null
+          id?: string
+          nome?: string
+          whatsapp?: string | null
+        }
+        Relationships: []
+      }
       tipos_atendimento: {
         Row: {
           abre_anamnese: boolean
@@ -1454,6 +1520,7 @@ export type Database = {
         Row: {
           ativo: boolean
           atualizado_em: string
+          cores_status: Json
           criado_em: string
           email: string
           id: string
@@ -1466,6 +1533,7 @@ export type Database = {
         Insert: {
           ativo?: boolean
           atualizado_em?: string
+          cores_status?: Json
           criado_em?: string
           email: string
           id: string
@@ -1478,6 +1546,7 @@ export type Database = {
         Update: {
           ativo?: boolean
           atualizado_em?: string
+          cores_status?: Json
           criado_em?: string
           email?: string
           id?: string
@@ -1824,6 +1893,16 @@ export type Database = {
         Args: { p_itens: Json }
         Returns: number
       }
+      criar_responsavel_do_paciente: {
+        Args: {
+          p_cpf: string
+          p_email: string
+          p_nome: string
+          p_paciente: string
+          p_whatsapp: string
+        }
+        Returns: string
+      }
       dar_baixa: {
         Args: {
           p_data: string
@@ -1833,6 +1912,7 @@ export type Database = {
         }
         Returns: number
       }
+      definir_cores_status: { Args: { p_cores: Json }; Returns: undefined }
       definir_escala: {
         Args: { p_intervalos: Json; p_profissional: string }
         Returns: number
@@ -1856,6 +1936,10 @@ export type Database = {
       desmarcar_periodo: {
         Args: { p_fim: string; p_inicio: string; p_motivo: string }
         Returns: number
+      }
+      desvincular_responsavel: {
+        Args: { p_paciente: string; p_responsavel: string }
+        Returns: undefined
       }
       dia_no_mes: { Args: { p_dia: number; p_mes: string }; Returns: string }
       editar_atendimentos: {
@@ -2049,6 +2133,10 @@ export type Database = {
       salvar_registro: {
         Args: { p_atendimento: string; p_finalizar?: boolean }
         Returns: number
+      }
+      sincronizar_responsavel_do_paciente: {
+        Args: { p_paciente: string }
+        Returns: undefined
       }
       total_em_aberto: {
         Args: never

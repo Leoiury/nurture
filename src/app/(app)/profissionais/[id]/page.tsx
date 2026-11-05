@@ -102,7 +102,7 @@ export default async function ProfissionalPage({ params, searchParams }: PagePro
       <Link href="/profissionais" className="text-sm text-muted hover:text-foreground">
         ← Profissionais
       </Link>
-      <CabecalhoDoProfissional profissional={p} futuros={proximos.length} podeEditar={adm} />
+      <CabecalhoDoProfissional profissional={p} podeEditar={adm} />
 
       <div className="grid gap-4 md:grid-cols-[2fr_1fr]">
         <section className="rounded-3xl bg-surface p-5 shadow-sm ring-1 ring-black/5" aria-label="Informações do profissional">

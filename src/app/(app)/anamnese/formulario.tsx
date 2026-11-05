@@ -16,13 +16,15 @@ type Texto = { itens: ItemDaAnamnese[]; observacoes: string };
 type Props = {
   id: string;
   paciente: { id: string; nome: string };
+  /** "Anamnese", ou o tipo do atendimento (ex.: Triagem). */
+  titulo: string;
   itensIniciais: ItemDaAnamnese[];
   observacoesIniciais: string;
   /** Já salva: esta edição gera uma nova versão. */
   versao: number;
 };
 
-export function FormularioDaAnamnese({ id, paciente, itensIniciais, observacoesIniciais, versao }: Props) {
+export function FormularioDaAnamnese({ id, titulo, paciente, itensIniciais, observacoesIniciais, versao }: Props) {
   const router = useRouter();
   const [itens, setItens] = useState(itensIniciais);
   const [observacoes, setObservacoes] = useState(observacoesIniciais);
@@ -62,7 +64,7 @@ export function FormularioDaAnamnese({ id, paciente, itensIniciais, observacoesI
   return (
     <>
       <CabecalhoDaAnamnese pacienteId={paciente.id} voltarDoModelo={`/anamnese/${id}`} comModelo={versao === 0}>
-        <p className="text-xs font-semibold tracking-wide text-muted uppercase">{versao > 0 ? `Editando a versão ${versao}` : "Anamnese"}</p>
+        <p className="text-xs font-semibold tracking-wide text-muted uppercase">{versao > 0 ? `Editando a versão ${versao}` : titulo}</p>
         <Link href={`/pacientes/${paciente.id}`} className="block truncate text-lg font-semibold tracking-tight hover:text-accent">
           {paciente.nome}
         </Link>

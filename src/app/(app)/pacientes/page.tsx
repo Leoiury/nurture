@@ -14,9 +14,10 @@ export default async function PacientesPage({ searchParams }: PageProps<"/pacien
   const { visao } = await searchParams;
   const supabase = await createClient();
   const eu = await usuarioAtual();
+  const semPlano = await ehProfissional();
   const { data, error } = await supabase
     .from("pacientes")
-    .select((await ehProfissional()) ? LISTA_SEM_VALOR : LISTA)
+    .select(semPlano ? LISTA_SEM_VALOR : LISTA)
     .order("nome")
     .limit(5000);
   if (error) throw new Error("Não foi possível carregar os pacientes.");
@@ -28,9 +29,9 @@ export default async function PacientesPage({ searchParams }: PageProps<"/pacien
     dataNascimento: p.data_nascimento,
     celular: p.celular,
     ativo: p.ativo,
-    plano: p.plano,
+    plano: semPlano ? null : p.plano,
     nivel: p.nivel_cadastral,
-    pendencias: p.pendencias_cadastrais,
+    pendencias: semPlano ? p.pendencias_cadastrais.filter((x) => x !== "plano") : p.pendencias_cadastrais,
   }));
 
   return (
@@ -40,7 +41,7 @@ export default async function PacientesPage({ searchParams }: PageProps<"/pacien
           Nova anamnese
         </Link>
       )}
-      <ListaDePacientes pacientes={pacientes} visao={visao === "cadastro" ? "cadastro" : "lista"} />
+      <ListaDePacientes pacientes={pacientes} visao={visao === "cadastro" ? "cadastro" : "lista"} semPlano={semPlano} />
     </div>
   );
 }

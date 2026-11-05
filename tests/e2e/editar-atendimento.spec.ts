@@ -44,7 +44,7 @@ test("desmarcar exige motivo e tira o card da agenda", async ({ page }) => {
   await abrirAtendimento(page, nome);
   const painel = painelDetalhes(page);
 
-  await painel.getByRole("button", { name: "Desmarcar" }).click();
+  await painel.getByRole("radio", { name: "Desmarcado" }).click();
   const confirmar = painel.getByRole("button", { name: "Confirmar desmarcação" });
   await expect(confirmar).toBeDisabled();
   await painel.getByRole("radio", { name: "Paciente desmarcou" }).click();
@@ -82,7 +82,7 @@ test("série: desmarcar este e os próximos", async ({ page }) => {
   const painel = painelDetalhes(page);
   await expect(painel).toContainText("Toda semana · 3 atendimentos");
 
-  await painel.getByRole("button", { name: "Desmarcar" }).click();
+  await painel.getByRole("radio", { name: "Desmarcado" }).click();
   await painel.getByRole("radio", { name: "Profissional ausente" }).click();
   await painel.getByRole("radio", { name: "Este e os próximos (3)" }).click();
   await painel.getByRole("button", { name: "Confirmar desmarcação" }).click();

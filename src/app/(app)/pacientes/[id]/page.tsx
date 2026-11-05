@@ -1,12 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { coresDoStatus } from "@/lib/agenda/cores";
 import { ATENDIMENTOS_SEM_VALOR } from "@/lib/agenda/sem-valor";
 import { FUSO } from "@/lib/agenda/tempo";
 import { ehProfissional, podeVerClinico, usuarioAtual } from "@/lib/auth/usuario";
 import { createClient } from "@/lib/supabase/server";
 import { FichaDoPaciente } from "./ficha-do-paciente";
 import { HistoricoDoPaciente, type AtendimentoDoHistorico } from "./historico-do-paciente";
+import { ResponsaveisDoPaciente, type ResponsavelDaFicha } from "./responsaveis-do-paciente";
 
 export const metadata: Metadata = { title: "Paciente · Nurture" };
 
@@ -40,7 +42,7 @@ export default async function PacientePage({ params }: PageProps<"/pacientes/[id
   const anamneses = clinico
     ? await supabase
         .from("anamneses")
-        .select("id, versao, salva_em, criado_em, profissional:profissionais(nome)")
+        .select("id, titulo, versao, salva_em, criado_em, profissional:profissionais(nome)")
         .eq("paciente_id", id)
         .order("criado_em", { ascending: false })
     : null;
@@ -55,7 +57,7 @@ export default async function PacientePage({ params }: PageProps<"/pacientes/[id
     : null;
   if (registros?.error) throw new Error("Não foi possível carregar os registros.");
 
-  const [paciente, atendimentos, planos] = await Promise.all([
+  const [paciente, atendimentos, planos, vinculos] = await Promise.all([
     supabase
       .from("pacientes")
       .select(semValores ? FICHA_SEM_VALOR : FICHA)
@@ -69,10 +71,24 @@ export default async function PacientePage({ params }: PageProps<"/pacientes/[id
       .order("inicio", { ascending: false })
       .limit(1000),
     supabase.from((semValores ? "planos_equipe" : "planos") as "planos").select("id, nome, ativo").order("nome"),
+    supabase
+      .from("paciente_responsaveis")
+      .select("responsavel:responsaveis(id, nome, cpf, email, whatsapp, pacientes:paciente_responsaveis(paciente:pacientes(id, nome)))")
+      .eq("paciente_id", id)
+      .order("criado_em"),
   ]);
-  if (paciente.error || atendimentos.error || planos.error) throw new Error("Não foi possível carregar o paciente.");
+  if (paciente.error || atendimentos.error || planos.error || vinculos.error) throw new Error("Não foi possível carregar o paciente.");
   if (!paciente.data) notFound();
 
+  const responsaveis: ResponsavelDaFicha[] = vinculos.data.map(({ responsavel: r }) => ({
+    id: r.id,
+    nome: r.nome,
+    cpf: r.cpf,
+    email: r.email,
+    whatsapp: r.whatsapp,
+    outrosPacientes: r.pacientes.map((p) => p.paciente).filter((p) => p.id !== id),
+  }));
+  const cores = coresDoStatus(eu?.coresStatus);
   const historico: AtendimentoDoHistorico[] = atendimentos.data.map((a) => ({
     id: a.id,
     inicio: a.inicio,
@@ -82,7 +98,9 @@ export default async function PacientePage({ params }: PageProps<"/pacientes/[id
     emSerie: !!a.recorrencia_id,
     profissionais: a.profissionais.map((p) => p.profissional.nome),
     tipo: a.tipo?.nome ?? null,
-    plano: a.plano,
+    // Perfil profissional: a cor segue o status, como no calendário, e o plano não aparece.
+    plano: semValores ? null : a.plano,
+    cor: semValores ? cores[a.status] : undefined,
     observacoes: a.observacoes[0]?.count ?? 0,
   }));
 
@@ -91,7 +109,8 @@ export default async function PacientePage({ params }: PageProps<"/pacientes/[id
       <Link href="/pacientes" className="text-sm text-muted hover:text-foreground">
         ← Pacientes
       </Link>
-      <FichaDoPaciente paciente={paciente.data} planos={planos.data} />
+      <FichaDoPaciente paciente={semValores ? { ...paciente.data, plano: null, pendencias_cadastrais: paciente.data.pendencias_cadastrais.filter((x) => x !== "plano") } : paciente.data} planos={planos.data} semPlano={semValores} />
+      <ResponsaveisDoPaciente pacienteId={id} responsaveis={responsaveis} />
       {registros && registros.data.length > 0 && (
         <section aria-label="Registros de atendimento" className="flex flex-col gap-3 rounded-3xl bg-surface p-5 shadow-sm ring-1 ring-black/5">
           <h2 className="font-semibold">Registros de atendimento</h2>
@@ -127,7 +146,10 @@ export default async function PacientePage({ params }: PageProps<"/pacientes/[id
               {anamneses.data.map((a) => (
                 <li key={a.id}>
                   <Link href={`/anamnese/${a.id}`} className="flex flex-wrap justify-between gap-x-3 rounded-lg px-2 py-1.5 hover:bg-background">
-                    <span className="font-medium">{a.profissional.nome}</span>
+                    <span className="font-medium">
+                      {a.titulo !== "Anamnese" && `${a.titulo} · `}
+                      {a.profissional.nome}
+                    </span>
                     <span className="text-muted">
                       {a.salva_em ? dataDaAnamnese.format(new Date(a.salva_em)) : "Em andamento"}
                       {a.versao > 1 && ` · versão ${a.versao}`}

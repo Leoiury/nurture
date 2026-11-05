@@ -145,7 +145,7 @@ export async function verificarConflitos(
   return conflitos.sort((a, b) => a.inicio.localeCompare(b.inicio));
 }
 
-export type MarcadoAgora = { id: string; paciente: string; inicio: string; fim: string; anamnese: boolean };
+export type MarcadoAgora = { id: string; paciente: string; inicio: string; fim: string; anamnese: boolean; tipo: string | null };
 
 /** Quem chega um pouco antes do horário também está "no horário". */
 const TOLERANCIA_ANTES_MS = 15 * 60_000;
@@ -158,7 +158,7 @@ export async function marcadosAgora(): Promise<MarcadoAgora[]> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from(ATENDIMENTOS_SEM_VALOR)
-    .select("id, inicio, fim, paciente:pacientes(nome), tipo:tipos_atendimento(abre_anamnese), vinculo:atendimento_profissionais!inner(profissional_id)")
+    .select("id, inicio, fim, paciente:pacientes(nome), tipo:tipos_atendimento(nome, abre_anamnese), vinculo:atendimento_profissionais!inner(profissional_id)")
     .eq("vinculo.profissional_id", eu.profissionalId)
     .is("excluido_em", null)
     .in("status", ["marcado", "confirmado"])
@@ -166,7 +166,7 @@ export async function marcadosAgora(): Promise<MarcadoAgora[]> {
     .gt("fim", new Date(agora).toISOString())
     .order("inicio");
   if (error) throw new Error("Não foi possível consultar os atendimentos marcados.");
-  return data.map((a) => ({ id: a.id, paciente: a.paciente?.nome ?? "Paciente", inicio: a.inicio, fim: a.fim, anamnese: !!a.tipo?.abre_anamnese }));
+  return data.map((a) => ({ id: a.id, paciente: a.paciente?.nome ?? "Paciente", inicio: a.inicio, fim: a.fim, anamnese: !!a.tipo?.abre_anamnese, tipo: a.tipo?.nome ?? null }));
 }
 
 export type NovoAtendimento = Agendamento & {
@@ -272,10 +272,17 @@ export async function criarPaciente(novo: NovoPaciente) {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("pacientes")
-    .insert({ nome, responsavel: novo.responsavel.trim() || null, celular: novo.celular.trim() || null, plano_id: novo.planoId })
+    .insert({ nome, celular: novo.celular.trim() || null, plano_id: novo.planoId })
     .select("id, nome, responsavel, plano_id")
     .single();
   if (error) return { ok: false as const, erro: "Não foi possível cadastrar o paciente." };
+  // O nome informado aqui já vira um responsável; os outros dados se completam na ficha.
+  const responsavel = novo.responsavel.trim().replace(/\s+/g, " ");
+  if (responsavel.length >= 3) {
+    const { error: erroResponsavel } = await supabase.rpc("criar_responsavel_do_paciente", { p_paciente: data.id, p_nome: responsavel, p_cpf: "", p_email: "", p_whatsapp: "" });
+    if (erroResponsavel) return { ok: false as const, erro: "O paciente foi cadastrado, mas não foi possível salvar o responsável. Complete na ficha." };
+    return { ok: true as const, paciente: { ...data, responsavel } };
+  }
   return { ok: true as const, paciente: data };
 }
 

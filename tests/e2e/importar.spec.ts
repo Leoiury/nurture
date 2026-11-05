@@ -80,7 +80,7 @@ test("importar agenda: correspondências, meses, divergência e versão do app m
   // 4) Modificado no app (desmarcado): numa nova importação, vale a versão do app.
   await cardDoPaciente(page, nomes.b).dispatchEvent("click");
   const detalhes = page.getByRole("dialog", { name: "Detalhes do atendimento" });
-  await detalhes.getByRole("button", { name: "Desmarcar" }).click();
+  await detalhes.getByRole("radio", { name: "Desmarcado" }).click();
   await detalhes.getByRole("radio", { name: "Paciente desmarcou" }).click();
   await detalhes.getByRole("button", { name: "Confirmar desmarcação" }).click();
   await expect(detalhes.getByRole("status")).toContainText("desmarcado");

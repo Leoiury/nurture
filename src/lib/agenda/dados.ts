@@ -29,6 +29,8 @@ export type AtendimentoAgenda = {
   status: Status;
   paciente: string | null;
   plano: { nome: string; cor: string } | null;
+  /** Perfil profissional: a cor do card vem do status, no lugar da do plano. */
+  corDoStatus?: string;
   tipo: string | null;
   recorrenciaId: string | null;
   pacienteId: string | null;

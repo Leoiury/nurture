@@ -21,12 +21,10 @@ const entrada =
 
 type Props = {
   profissional: ProfissionalEditavel | null;
-  /** Atendimentos marcados daqui para a frente (aviso ao desativar). */
-  futuros?: number;
   aoFechar: () => void;
 };
 
-export function PainelDoProfissional({ profissional: p, futuros = 0, aoFechar }: Props) {
+export function PainelDoProfissional({ profissional: p, aoFechar }: Props) {
   const router = useRouter();
   const [dados, setDados] = useState<DadosDoProfissional>({
     id: p?.id,
@@ -35,7 +33,6 @@ export function PainelDoProfissional({ profissional: p, futuros = 0, aoFechar }:
     registro: p?.registro ?? "",
     celular: p?.celular ?? "",
     email: p?.email ?? "",
-    ativo: p?.ativo ?? true,
   });
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
@@ -96,26 +93,6 @@ export function PainelDoProfissional({ profissional: p, futuros = 0, aoFechar }:
             <Campo rotulo="E-mail">
               <input {...campo("email")} type="email" className={entrada} />
             </Campo>
-            {p && (
-              <label className="col-span-2 flex cursor-pointer items-start gap-2">
-                <input
-                  type="checkbox"
-                  checked={dados.ativo}
-                  onChange={(e) => setDados({ ...dados, ativo: e.target.checked })}
-                  className="mt-0.5 size-4 accent-[var(--accent)]"
-                />
-                <span>
-                  Ativo
-                  <span className="block text-xs text-muted">Inativo: sai da agenda e do formulário de atendimento; o histórico continua.</span>
-                  {!dados.ativo && p.ativo && futuros > 0 && (
-                    <span role="alert" className="mt-1 block text-xs text-danger">
-                      Há {futuros} atendimento{futuros === 1 ? "" : "s"} marcado{futuros === 1 ? "" : "s"} daqui para a frente: eles deixam de aparecer na agenda.
-                      Remaneje antes de desativar.
-                    </span>
-                  )}
-                </span>
-              </label>
-            )}
           </div>
           <div className="flex shrink-0 items-center justify-end gap-2 border-t border-border px-5 py-3">
             {erro && (

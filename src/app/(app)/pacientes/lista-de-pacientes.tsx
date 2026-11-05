@@ -34,7 +34,7 @@ const VISOES: [Visao, string, string][] = [
 const entrada =
   "w-full rounded-xl border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft";
 
-export function ListaDePacientes({ pacientes, visao }: { pacientes: PacienteDaLista[]; visao: Visao }) {
+export function ListaDePacientes({ pacientes, visao, semPlano }: { pacientes: PacienteDaLista[]; visao: Visao; semPlano?: boolean }) {
   const [busca, setBusca] = useState("");
   const [inativos, setInativos] = useState(false);
   const [nivel, setNivel] = useState<NivelCadastral | null>(null);
@@ -168,7 +168,7 @@ export function ListaDePacientes({ pacientes, visao }: { pacientes: PacienteDaLi
                     {[p.dataNascimento && idade(p.dataNascimento), p.responsavel && `Resp.: ${p.responsavel}`, p.celular].filter(Boolean).join(" · ") || "—"}
                   </span>
                 </span>
-                <span className="hidden shrink-0 text-xs text-muted sm:block">{p.plano?.nome ?? "Sem plano"}</span>
+                {!semPlano && <span className="hidden shrink-0 text-xs text-muted sm:block">{p.plano?.nome ?? "Sem plano"}</span>}
               </Link>
             </li>
           ))}
