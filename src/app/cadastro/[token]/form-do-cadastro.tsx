@@ -3,6 +3,7 @@
 // Cadastro guiado: primeiro a pessoa confirma quem é, depois informa o nome de usuário, o e-mail e a senha.
 
 import { useActionState, useState } from "react";
+import { sugerirUsuario } from "@/lib/auth/nome-de-usuario";
 import { concluirCadastro } from "./actions";
 
 const entrada = "rounded-lg border border-border bg-surface px-3 py-2 font-normal outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft";
@@ -33,9 +34,9 @@ export function FormDoCadastro({ token, profissional, emailDoCadastro }: { token
       <div className="flex flex-col gap-1.5">
         <label className="flex flex-col gap-1.5 font-medium">
           Nome de usuário
-          <input name="usuario" autoComplete="username" autoCapitalize="none" spellCheck={false} defaultValue={estado?.usuario} required minLength={3} maxLength={30} autoFocus aria-describedby="regra-do-usuario" className={entrada} />
+          <input name="usuario" autoComplete="username" autoCapitalize="none" spellCheck={false} defaultValue={estado?.usuario ?? sugerirUsuario(profissional)} required minLength={3} maxLength={30} autoFocus aria-describedby="regra-do-usuario" className={entrada} />
         </label>
-        <p id="regra-do-usuario" className="text-xs text-muted">Letras sem acento, números, ponto, hífen ou sublinhado. Ex.: ana.costa</p>
+        <p id="regra-do-usuario" className="text-xs text-muted">Sugerido a partir do seu nome; você pode trocar. Use letras sem acento, números, ponto, hífen ou sublinhado.</p>
       </div>
       <label className="flex flex-col gap-1.5 font-medium">
         E-mail

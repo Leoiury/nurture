@@ -75,6 +75,9 @@ test("o link guia o profissional e cria o login já vinculado, uma única vez", 
   await pagina.reload();
   await pagina.getByRole("button", { name: "Sou eu, continuar" }).click();
 
+  // O nome de usuário já vem sugerido a partir do nome do profissional.
+  await expect(pagina.getByLabel("Nome de usuário")).toHaveValue(/^dra\.convite\.\d+$/);
+
   // Erros de digitação não gastam o link.
   const usuario = `convite.${n}`;
   await preencher(pagina, usuario, SENHA, "outra-senha-123");
