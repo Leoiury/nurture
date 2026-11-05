@@ -6,6 +6,8 @@ import { ATENDIMENTOS_SEM_VALOR } from "@/lib/agenda/sem-valor";
 import { FUSO } from "@/lib/agenda/tempo";
 import { ehProfissional, podeVerClinico, usuarioAtual } from "@/lib/auth/usuario";
 import { createClient } from "@/lib/supabase/server";
+import { carregarArquivos } from "../../arquivos/dados";
+import { ListaDeArquivos } from "../../arquivos/lista-de-arquivos";
 import { FichaDoPaciente } from "./ficha-do-paciente";
 import { HistoricoDoPaciente, type AtendimentoDoHistorico } from "./historico-do-paciente";
 import { ResponsaveisDoPaciente, type ResponsavelDaFicha } from "./responsaveis-do-paciente";
@@ -80,6 +82,8 @@ export default async function PacientePage({ params }: PageProps<"/pacientes/[id
   if (paciente.error || atendimentos.error || planos.error || vinculos.error) throw new Error("Não foi possível carregar o paciente.");
   if (!paciente.data) notFound();
 
+  // Conteúdo clínico: a recepção não vê (o banco também bloqueia).
+  const arquivos = clinico ? await carregarArquivos(id) : null;
   const responsaveis: ResponsavelDaFicha[] = vinculos.data.map(({ responsavel: r }) => ({
     id: r.id,
     nome: r.nome,
@@ -111,6 +115,12 @@ export default async function PacientePage({ params }: PageProps<"/pacientes/[id
       </Link>
       <FichaDoPaciente paciente={semValores ? { ...paciente.data, plano: null, pendencias_cadastrais: paciente.data.pendencias_cadastrais.filter((x) => x !== "plano") } : paciente.data} planos={planos.data} semPlano={semValores} />
       <ResponsaveisDoPaciente pacienteId={id} responsaveis={responsaveis} />
+      {arquivos && (
+        <section aria-label="Arquivos" className="flex flex-col gap-3 rounded-3xl bg-surface p-5 shadow-sm ring-1 ring-black/5">
+          <h2 className="font-semibold">Arquivos</h2>
+          <ListaDeArquivos pacienteId={id} arquivos={arquivos} />
+        </section>
+      )}
       {registros && registros.data.length > 0 && (
         <section aria-label="Registros de atendimento" className="flex flex-col gap-3 rounded-3xl bg-surface p-5 shadow-sm ring-1 ring-black/5">
           <h2 className="font-semibold">Registros de atendimento</h2>
