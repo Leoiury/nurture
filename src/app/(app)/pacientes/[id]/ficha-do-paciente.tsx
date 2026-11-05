@@ -30,7 +30,7 @@ type Plano = { id: string; nome: string; ativo: boolean };
 
 const dataBr = (d: string) => d.split("-").reverse().join("/");
 
-export function FichaDoPaciente({ paciente: p, planos }: { paciente: Paciente; planos: Plano[] }) {
+export function FichaDoPaciente({ paciente: p, planos, semPlano }: { paciente: Paciente; planos: Plano[]; semPlano?: boolean }) {
   const [editando, setEditando] = useState(false);
   const endereco = [p.endereco, p.bairro, [p.cidade, p.uf].filter(Boolean).join(" – "), p.cep].filter(Boolean).join(", ");
 
@@ -53,7 +53,7 @@ export function FichaDoPaciente({ paciente: p, planos }: { paciente: Paciente; p
         </button>
       </header>
 
-      <div className="grid gap-4 md:grid-cols-[2fr_1fr]">
+      <div className={semPlano ? "grid gap-4" : "grid gap-4 md:grid-cols-[2fr_1fr]"}>
         <section className="rounded-3xl bg-surface p-5 shadow-sm ring-1 ring-black/5" aria-label="Informações do paciente">
           <div className="mb-3 flex flex-wrap items-center gap-2">
             <h2 className="font-semibold">Informações</h2>
@@ -66,7 +66,6 @@ export function FichaDoPaciente({ paciente: p, planos }: { paciente: Paciente; p
             {p.pendencias_cadastrais.length > 0 && <span className="text-xs text-muted">Falta: {p.pendencias_cadastrais.join(", ")}</span>}
           </div>
           <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-sm">
-            <Item rotulo="Responsável">{p.responsavel}</Item>
             <Item rotulo="Celular">
               {p.celular && (
                 <a href={`tel:${p.celular.replace(/\D/g, "")}`} className="text-accent hover:underline">
@@ -80,7 +79,7 @@ export function FichaDoPaciente({ paciente: p, planos }: { paciente: Paciente; p
           </dl>
         </section>
 
-        <section className="flex flex-col gap-3 rounded-3xl bg-surface p-5 shadow-sm ring-1 ring-black/5" aria-label="Plano do paciente">
+        {!semPlano && <section className="flex flex-col gap-3 rounded-3xl bg-surface p-5 shadow-sm ring-1 ring-black/5" aria-label="Plano do paciente">
           <h2 className="font-semibold">Plano</h2>
           {p.plano ? (
             <div
@@ -99,10 +98,10 @@ export function FichaDoPaciente({ paciente: p, planos }: { paciente: Paciente; p
             </p>
           )}
           <p className="text-xs text-muted">Sugerido ao marcar atendimentos; cada atendimento pode ter outro plano.</p>
-        </section>
+        </section>}
       </div>
 
-      {editando && <PainelDeEdicao paciente={p} planos={planos} aoFechar={() => setEditando(false)} />}
+      {editando && <PainelDeEdicao paciente={p} planos={planos} semPlano={semPlano} aoFechar={() => setEditando(false)} />}
     </>
   );
 }
@@ -119,11 +118,10 @@ function Item({ rotulo, children }: { rotulo: string; children: ReactNode }) {
 const entrada =
   "w-full rounded-xl border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft";
 
-function PainelDeEdicao({ paciente: p, planos, aoFechar }: { paciente: Paciente; planos: Plano[]; aoFechar: () => void }) {
+function PainelDeEdicao({ paciente: p, planos, semPlano, aoFechar }: { paciente: Paciente; planos: Plano[]; semPlano?: boolean; aoFechar: () => void }) {
   const [dados, setDados] = useState<DadosDoPaciente>({
     id: p.id,
     nome: p.nome,
-    responsavel: p.responsavel ?? "",
     dataNascimento: p.data_nascimento ?? "",
     cpf: p.cpf ? formatarCpf(p.cpf) : "",
     celular: p.celular ?? "",
@@ -181,9 +179,6 @@ function PainelDeEdicao({ paciente: p, planos, aoFechar }: { paciente: Paciente;
             <Campo rotulo="Nome" largo>
               <input {...campo("nome")} className={entrada} />
             </Campo>
-            <Campo rotulo="Responsável" largo>
-              <input {...campo("responsavel")} className={entrada} />
-            </Campo>
             <Campo rotulo="Nascimento">
               <input type="date" {...campo("dataNascimento")} className={entrada} />
             </Campo>
@@ -196,7 +191,7 @@ function PainelDeEdicao({ paciente: p, planos, aoFechar }: { paciente: Paciente;
             <Campo rotulo="E-mail">
               <input {...campo("email")} type="email" className={entrada} />
             </Campo>
-            <Campo rotulo="Plano" largo>
+            {!semPlano && <Campo rotulo="Plano" largo>
               <select value={dados.planoId ?? ""} onChange={(e) => setDados({ ...dados, planoId: e.target.value || null })} className={entrada}>
                 <option value="">Sem plano padrão</option>
                 {planos
@@ -208,7 +203,7 @@ function PainelDeEdicao({ paciente: p, planos, aoFechar }: { paciente: Paciente;
                     </option>
                   ))}
               </select>
-            </Campo>
+            </Campo>}
             <Campo rotulo="Endereço" largo>
               <input {...campo("endereco")} className={entrada} />
             </Campo>

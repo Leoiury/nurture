@@ -13,6 +13,8 @@ export type UsuarioAtual = {
   perfil: Perfil;
   ativo: boolean;
   profissionalId: string | null;
+  /** Cores escolhidas para o calendário do profissional (ver coresDoStatus). */
+  coresStatus: unknown;
 };
 
 /** O usuário logado e seu perfil (tabela usuarios). Uma consulta por requisição. */
@@ -21,12 +23,12 @@ export const usuarioAtual = cache(async (): Promise<UsuarioAtual | null> => {
   const { data } = await supabase.auth.getClaims();
   const id = data?.claims.sub;
   if (!id) return null;
-  const { data: u } = await supabase.from("usuarios").select("id, email, usuario, nome, perfil, ativo, profissional_id").eq("id", id).maybeSingle();
+  const { data: u } = await supabase.from("usuarios").select("id, email, usuario, nome, perfil, ativo, profissional_id, cores_status").eq("id", id).maybeSingle();
   if (!u) {
     // Login sem linha em usuarios (não deveria acontecer): acesso limitado.
-    return { id, email: String(data.claims.email ?? ""), usuario: null, nome: String(data.claims.email ?? ""), perfil: "limitado", ativo: true, profissionalId: null };
+    return { id, email: String(data.claims.email ?? ""), usuario: null, nome: String(data.claims.email ?? ""), perfil: "limitado", ativo: true, profissionalId: null, coresStatus: null };
   }
-  return { id: u.id, email: u.email, usuario: u.usuario, nome: u.nome, perfil: u.perfil, ativo: u.ativo, profissionalId: u.profissional_id };
+  return { id: u.id, email: u.email, usuario: u.usuario, nome: u.nome, perfil: u.perfil, ativo: u.ativo, profissionalId: u.profissional_id, coresStatus: u.cores_status };
 });
 
 export async function ehAdm(): Promise<boolean> {

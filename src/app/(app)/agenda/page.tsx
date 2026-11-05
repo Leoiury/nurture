@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { coresDoStatus } from "@/lib/agenda/cores";
 import { carregarAgenda, carregarAtendimentosCitados, carregarLembretes } from "@/lib/agenda/dados";
 import { separarCalendarioPessoal } from "@/lib/agenda/pessoal";
 import { sobreAtendimento, type Operacao } from "@/lib/agenda/planejamento";
@@ -44,7 +45,9 @@ export default async function AgendaPage({ searchParams }: PageProps<"/agenda">)
   ]);
   if (rascunho?.error) throw rascunho.error;
   const calendario = pessoal ? separarCalendarioPessoal(daSemana, usuario?.profissionalId ?? "", partesNoFuso(new Date().toISOString())) : null;
-  const atendimentos = calendario?.meus ?? daSemana;
+  // Perfil profissional: a cor segue o status, e o plano não chega à tela. ADM e recepção não mudam.
+  const cores = soPessoal ? coresDoStatus(usuario?.coresStatus) : undefined;
+  const atendimentos = cores ? (calendario?.meus ?? daSemana).map((a) => ({ ...a, plano: null, corDoStatus: cores[a.status] })) : (calendario?.meus ?? daSemana);
   const profissionais = pessoal ? todosOsProfissionais.filter((p) => p.id === usuario?.profissionalId) : todosOsProfissionais;
   const operacoes = (rascunho?.data?.operacoes ?? []) as unknown as Operacao[];
 
@@ -100,6 +103,7 @@ export default async function AgendaPage({ searchParams }: PageProps<"/agenda">)
         especiais={especiais}
         lembretes={lembretes}
         pessoal={calendario ? { outros: calendario.outros } : undefined}
+        coresDoStatus={cores}
         pacienteFiltrado={pacienteFiltrado}
         planejamento={noPlanejamento ? { operacoes, base, urlSair: url(visao, false) } : undefined}
         urlDoPlanejamento={ehAdm && !noPlanejamento && !pessoal ? url(visao, true) : undefined}

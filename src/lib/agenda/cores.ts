@@ -1,5 +1,8 @@
 // Paleta de cores dos planos (cor do card na agenda). A tela de criação/edição
-// de planos oferece apenas estas opções, para manter a agenda legível.
+// de planos oferece apenas estas opções, para manter a agenda legível. As cores
+// por status, no calendário do profissional, usam a mesma paleta.
+
+import type { Status } from "./dados";
 
 export const PALETA_PLANOS = [
   { nome: "Azul", hex: "#4A90D9" },
@@ -16,6 +19,35 @@ export const PALETA_PLANOS = [
   { nome: "Marrom", hex: "#B08968" },
   { nome: "Cinza", hex: "#D0D3D4" },
 ] as const;
+
+/** Cores do calendário do profissional, antes de ele personalizar. */
+export const CORES_STATUS_PADRAO: Record<Status, string> = {
+  marcado: "#4A90D9",
+  confirmado: "#7FD1C7",
+  atendido: "#2E7D5B",
+  faltou: "#D9534F",
+  desmarcado: "#D0D3D4",
+};
+
+export const ROTULOS_DOS_STATUS: [Status, string][] = [
+  ["marcado", "Marcado"],
+  ["confirmado", "Confirmado"],
+  ["atendido", "Atendido"],
+  ["faltou", "Faltou"],
+  ["desmarcado", "Desmarcado"],
+];
+
+/** As cores escolhidas pelo profissional, sobre o padrão; o que não for da paleta é ignorado. */
+export function coresDoStatus(salvas: unknown): Record<Status, string> {
+  const cores = { ...CORES_STATUS_PADRAO };
+  if (!salvas || typeof salvas !== "object") return cores;
+  const validas = new Set<string>(PALETA_PLANOS.map((c) => c.hex));
+  for (const [status] of ROTULOS_DOS_STATUS) {
+    const cor = (salvas as Record<string, unknown>)[status];
+    if (typeof cor === "string" && validas.has(cor)) cores[status] = cor;
+  }
+  return cores;
+}
 
 export const TEXTO_ESCURO = "#1f2421";
 export const TEXTO_CLARO = "#ffffff";

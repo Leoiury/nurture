@@ -19,6 +19,7 @@ type MenuProps = {
   aoAlternar: (id: string) => void;
   aoMostrarTodos: () => void;
   planos: [string, string][];
+  tituloDaLegenda: string;
   compactar: boolean;
   aoCompactar: (v: boolean) => void;
   mostrarDesmarcados: boolean;
@@ -188,7 +189,7 @@ export function MenuLateral(props: MenuProps) {
 
         {props.planos.length > 0 && (
           <section className="flex flex-col gap-2">
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">Planos</h3>
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">{props.tituloDaLegenda}</h3>
             <ul className="flex flex-col gap-1.5 px-2">
               {props.planos.map(([nome, cor]) => (
                 <li key={nome} className="flex items-center gap-2.5 text-sm">

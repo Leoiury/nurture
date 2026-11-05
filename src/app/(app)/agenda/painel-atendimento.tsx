@@ -229,7 +229,7 @@ export function PainelAtendimento({ id, aoFechar, aoEditar, mostrarLinkDoPacient
                   href={dados.anamnese.id ? `/anamnese/${dados.anamnese.id}` : `/anamnese?atendimento=${a.id}`}
                   className={`${dados.anamnese.salva ? botaoSecundario : botaoPrimario} self-start`}
                 >
-                  {dados.anamnese.salva ? "Ver anamnese" : dados.anamnese.id ? "Continuar anamnese" : "Realizar anamnese"}
+                  {dados.anamnese.salva ? "Ver" : dados.anamnese.id ? "Continuar" : "Realizar"} {dados.anamnese.nome}
                 </Link>
               </section>
             )}
@@ -296,14 +296,10 @@ export function PainelAtendimento({ id, aoFechar, aoEditar, mostrarLinkDoPacient
                     >
                       Reativar
                     </button>
-                  ) : (
-                    <button type="button" onClick={() => setModo("desmarcar")} className={botaoSecundario}>
-                      Desmarcar
-                    </button>
-                  )}
+                  ) : null}
                 </div>
                 {a.status !== "desmarcado" && !acoes.planejamento && (
-                  <div role="radiogroup" aria-label="Status" className="flex gap-0.5 rounded-full bg-black/[0.04] p-1">
+                  <div role="radiogroup" aria-label="Status" className="flex flex-wrap gap-0.5 rounded-2xl bg-black/[0.04] p-1">
                     {STATUS_RAPIDOS.map((s) => (
                       <button
                         key={s}
@@ -319,6 +315,17 @@ export function PainelAtendimento({ id, aoFechar, aoEditar, mostrarLinkDoPacient
                         {ROTULO_STATUS[s]}
                       </button>
                     ))}
+                    {/* Desmarcar pede o motivo: abre o formulário em vez de trocar na hora. */}
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked={false}
+                      disabled={trabalhando}
+                      onClick={() => setModo("desmarcar")}
+                      className="flex-1 rounded-full px-2 py-1.5 text-[13px] text-muted transition hover:text-foreground"
+                    >
+                      {ROTULO_STATUS.desmarcado}
+                    </button>
                   </div>
                 )}
               </section>
@@ -370,11 +377,15 @@ export function PainelAtendimento({ id, aoFechar, aoEditar, mostrarLinkDoPacient
             <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5">
               <dt className="text-muted">{a.profissionais.length > 1 ? "Profissionais" : "Profissional"}</dt>
               <dd>{a.profissionais.map((x) => x.profissional.nome).join(", ")}</dd>
-              <dt className="text-muted">Plano</dt>
-              <dd className="flex items-center gap-1.5">
-                {a.plano && <span className="inline-block size-3 rounded-sm" style={{ background: a.plano.cor }} />}
-                {a.plano?.nome ?? "—"}
-              </dd>
+              {!dados.semValores && (
+                <>
+                  <dt className="text-muted">Plano</dt>
+                  <dd className="flex items-center gap-1.5">
+                    {a.plano && <span className="inline-block size-3 rounded-sm" style={{ background: a.plano.cor }} />}
+                    {a.plano?.nome ?? "—"}
+                  </dd>
+                </>
+              )}
               <dt className="text-muted">Tipo</dt>
               <dd>{a.tipo?.nome ?? "—"}</dd>
               {!dados.semValores && (
@@ -480,7 +491,7 @@ export function PainelAtendimento({ id, aoFechar, aoEditar, mostrarLinkDoPacient
                     </Linha>
                   )}
                   {p.email && <Linha rotulo="E-mail">{p.email}</Linha>}
-                  <Linha rotulo="Plano padrão">{p.plano?.nome ?? "—"}</Linha>
+                  {!dados.semValores && <Linha rotulo="Plano padrão">{p.plano?.nome ?? "—"}</Linha>}
                 </dl>
                 {mostrarLinkDoPaciente && (
                   <Link

@@ -21,6 +21,8 @@ export type AtendimentoDoHistorico = {
   profissionais: string[];
   tipo: string | null;
   plano: { nome: string; cor: string } | null;
+  /** Perfil profissional: a cor do status, no lugar da do plano. */
+  cor?: string;
   observacoes: number;
 };
 
@@ -171,7 +173,7 @@ export function HistoricoDoPaciente({ atendimentos }: { atendimentos: Atendiment
 }
 
 function CardDoHistorico({ atendimento: a, aoAbrir }: { atendimento: AtendimentoDoHistorico; aoAbrir: () => void }) {
-  const cor = a.plano?.cor ?? "#9ca3af";
+  const cor = a.cor ?? a.plano?.cor ?? "#9ca3af";
   const inicio = new Date(a.inicio);
   return (
     <button

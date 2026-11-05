@@ -125,7 +125,7 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao, realizar }: P
       .then((o) => {
         if (!ativo) return;
         setOpcoes(o);
-        if (realizar === "anamnese") setTipoId(o.tipos.find((t) => t.abreAnamnese)?.id ?? null);
+        if (realizar === "anamnese") setTipoId(o.tipos.find((t) => t.abreAnamnese && /anamnese/i.test(t.nome))?.id ?? null);
         // Perfil profissional: sempre participa do que marca.
         if (!edicao && o.meuProfissional) {
           const eu = o.profissionais.find((p) => p.id === o.meuProfissional);
@@ -293,7 +293,7 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao, realizar }: P
   const podeTornarPadrao = planoMudou && planoId !== planoDoPaciente;
   // O perfil profissional não mexe nos valores: dos ajustes, só o plano padrão.
   const semValores = !!opcoes?.semValores;
-  const perguntarPlano = planoMudou && (!semValores || podeTornarPadrao);
+  const perguntarPlano = planoMudou && !semValores;
   const valorAtual = lerValor(valor);
   const perguntarValor = !semValores && !!edicao && !Number.isNaN(valorAtual) && valorAtual !== edicao.valor;
   // Paciente com atendimento no horário: o profissional confirma antes de marcar.
@@ -504,7 +504,7 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao, realizar }: P
                 {cadastrandoPaciente && (
                   <CadastroRapido
                     nomeInicial={paciente ? "" : busca}
-                    planos={opcoes.planos}
+                    planos={semValores ? [] : opcoes.planos}
                     aoCancelar={() => setCadastrandoPaciente(false)}
                     aoCriar={(novo) => {
                       setOpcoes({ ...opcoes, pacientes: [...opcoes.pacientes, novo].sort((a, b) => a.nome.localeCompare(b.nome)) });
@@ -632,7 +632,7 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao, realizar }: P
 
               {/* Plano, tipo e valor */}
               <div className="grid grid-cols-2 gap-3">
-                <Campo rotulo="Plano" id="campo-plano">
+                {!semValores && <Campo rotulo="Plano" id="campo-plano">
                   <select id="campo-plano" value={planoId ?? ""} onChange={(e) => escolherPlano(e.target.value || null)} className={entrada}>
                     <option value="">—</option>
                     {opcoes.planos
@@ -644,7 +644,7 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao, realizar }: P
                         </option>
                       ))}
                   </select>
-                </Campo>
+                </Campo>}
                 {!semValores && <Campo rotulo="Valor (R$)" id="campo-valor">
                   <input
                     id="campo-valor"
@@ -966,14 +966,14 @@ export function CadastroRapido({
       <input value={responsavel} onChange={(e) => setResponsavel(e.target.value)} placeholder="Responsável (opcional)" aria-label="Responsável" className={entrada} />
       <div className="grid grid-cols-2 gap-2">
         <input value={celular} onChange={(e) => setCelular(e.target.value)} placeholder="Celular" inputMode="tel" aria-label="Celular" className={entrada} />
-        <select value={planoId ?? ""} onChange={(e) => setPlanoId(e.target.value || null)} aria-label="Plano do paciente" className={entrada}>
+        {planos.length > 0 && <select value={planoId ?? ""} onChange={(e) => setPlanoId(e.target.value || null)} aria-label="Plano do paciente" className={entrada}>
           <option value="">Plano…</option>
           {planos.filter((p) => p.ativo).map((p) => (
             <option key={p.id} value={p.id}>
               {p.nome}
             </option>
           ))}
-        </select>
+        </select>}
       </div>
       {erro && <p className="text-xs text-danger">{erro}</p>}
       <div className="flex justify-end gap-2">

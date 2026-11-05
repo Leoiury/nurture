@@ -22,7 +22,7 @@ export default async function AnamneseDetalhePage({ params, searchParams }: Page
     usuarioAtual(),
     supabase
       .from("anamneses")
-      .select("id, conteudo, observacoes, versao, salva_em, profissional_id, paciente:pacientes(id, nome), profissional:profissionais(nome)")
+      .select("id, titulo, conteudo, observacoes, versao, salva_em, profissional_id, paciente:pacientes(id, nome), profissional:profissionais(nome)")
       .eq("id", id)
       .maybeSingle(),
     supabase.from("anamneses_versoes").select("versao, conteudo, observacoes, salva_em").eq("anamnese_id", id).order("versao", { ascending: false }),
@@ -45,7 +45,7 @@ export default async function AnamneseDetalhePage({ params, searchParams }: Page
       if (error) throw new Error("Não foi possível carregar as perguntas.");
       itens = sincronizarComModelo(base, modelo);
     }
-    return <FormularioDaAnamnese id={a.id} paciente={paciente} itensIniciais={itens} observacoesIniciais={rascunho.data?.observacoes ?? a.observacoes} versao={a.versao} />;
+    return <FormularioDaAnamnese id={a.id} titulo={a.titulo} paciente={paciente} itensIniciais={itens} observacoesIniciais={rascunho.data?.observacoes ?? a.observacoes} versao={a.versao} />;
   }
 
   // Leitura: a última versão, ou a escolhida no histórico.
@@ -59,7 +59,7 @@ export default async function AnamneseDetalhePage({ params, searchParams }: Page
     <>
       <CabecalhoDaAnamnese pacienteId={paciente.id} voltarDoModelo={`/anamnese/${a.id}`} comModelo={!!eu?.profissionalId}>
         <p className="text-xs font-semibold tracking-wide text-muted uppercase">
-          Anamnese de {a.profissional.nome} · {dataHora.format(new Date(exibida.salva_em))}
+          {a.titulo} de {a.profissional.nome} · {dataHora.format(new Date(exibida.salva_em))}
         </p>
         <Link href={`/pacientes/${paciente.id}`} className="block truncate text-lg font-semibold tracking-tight hover:text-accent">
           {paciente.nome}

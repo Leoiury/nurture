@@ -70,6 +70,16 @@ update pacientes p
   from (select id, row_number() over (order by nome) as n from pacientes) o
  where o.id = p.id;
 
+-- Responsáveis (mesma regra da migration): quem tem o mesmo nome completo é uma pessoa só.
+with grupos as (
+  select min(responsavel) as nome, array_agg(id) as pacientes from pacientes where responsavel is not null group by lower(responsavel)
+),
+novos as (
+  insert into responsaveis (nome) select nome from grupos returning id, nome
+)
+insert into paciente_responsaveis (paciente_id, responsavel_id)
+select unnest(g.pacientes), n.id from grupos g join novos n on n.nome = g.nome;
+
 -- Agenda: para cada profissional e dia útil, horários a cada 45 min (manhã e
 -- tarde, sem o almoço). Cerca de 60% dos horários ficam ocupados. Gerada numa
 -- tabela temporária e depois gravada em atendimentos + atendimento_profissionais.

@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import type { AtendimentoAgenda, Lembretes, ProfissionalAgenda } from "@/lib/agenda/dados";
+import { ROTULOS_DOS_STATUS } from "@/lib/agenda/cores";
+import type { AtendimentoAgenda, Lembretes, ProfissionalAgenda, Status } from "@/lib/agenda/dados";
 import { semExpediente, type DiaEspecial } from "@/lib/agenda/feriados";
 import type { Segmento } from "@/lib/agenda/layout";
 import { formatarHora, nomeCurtoDoDia, partesNoFuso } from "@/lib/agenda/tempo";
@@ -61,16 +62,18 @@ type Props = {
   alternarCalendario?: { href: string; rotulo: string };
   /** Quem atende: o "+" oferece também realizar um atendimento ou uma anamnese. */
   meuProfissional?: string;
+  /** Perfil profissional: cores por status na legenda, sem plano nos filtros, e os desmarcados à vista. */
+  coresDoStatus?: Record<Status, string>;
 };
 
-export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais, atendimentos, especiais, lembretes, navegacao, navegacaoNoMenu, planejamento, urlDoPlanejamento, pessoal, pacienteFiltrado, alternarCalendario, meuProfissional }: Props) {
+export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais, atendimentos, especiais, lembretes, navegacao, navegacaoNoMenu, planejamento, urlDoPlanejamento, pessoal, pacienteFiltrado, alternarCalendario, meuProfissional, coresDoStatus }: Props) {
   // Profissionais sem atendimentos no período começam ocultos (podem ser exibidos no menu).
   const [ocultos, setOcultos] = useState<Set<string>>(
     () => new Set(pessoal ? [] : profissionais.filter((p) => !atendimentos.some((a) => a.profissionalIds.includes(p.id))).map((p) => p.id)),
   );
   // No calendário pessoal, o dia inteiro aparece: com poucos atendimentos, quase tudo ficaria compactado.
   const [compactar, setCompactar] = useState(!pessoal);
-  const [mostrarDesmarcados, setMostrarDesmarcados] = useState(false);
+  const [mostrarDesmarcados, setMostrarDesmarcados] = useState(!!coresDoStatus);
   const [expandidos, setExpandidos] = useState<Set<string>>(new Set());
   const [menuAberto, setMenuAberto] = useState(false);
   const [selecionado, setSelecionado] = useState<string | null>(null);
@@ -181,12 +184,13 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
     for (const t of filtros.tipos) tipos.add(t);
     const ordem = (a: string, b: string) => (a === "" ? 1 : b === "" ? -1 : a.localeCompare(b));
     return {
-      planos: [...planos].sort(([a], [b]) => ordem(a, b)).map(([nome, cor]) => ({ nome, cor })),
+      planos: coresDoStatus ? [] : [...planos].sort(([a], [b]) => ordem(a, b)).map(([nome, cor]) => ({ nome, cor })),
       tipos: [...tipos].sort(ordem),
     };
-  }, [atendimentosAtuais, filtros.planos, filtros.tipos]);
+  }, [atendimentosAtuais, filtros.planos, filtros.tipos, coresDoStatus]);
 
   const planos = useMemo(() => {
+    if (coresDoStatus) return ROTULOS_DOS_STATUS.map(([status, rotulo]): [string, string] => [rotulo, coresDoStatus[status]]);
     const m = new Map<string, string>();
     const tipos = new Map<string, string>();
     for (const a of atendimentos) {
@@ -196,7 +200,7 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
     // Tipos com cor própria (ex.: Temporário) também entram na legenda.
     for (const [tipo, cor] of tipos) m.set(`${tipo} (tipo)`, cor);
     return [...m].sort(([a], [b]) => a.localeCompare(b));
-  }, [atendimentos]);
+  }, [atendimentos, coresDoStatus]);
 
   /** No calendário pessoal, avisa antes se o novo horário afeta outro profissional. */
   function soltar(a: AtendimentoAgenda, de: string, alvo: AlvoDoArraste) {
@@ -443,6 +447,7 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
         aoAlternar={alternarProfissional}
         aoMostrarTodos={() => setOcultos(new Set())}
         planos={planos}
+        tituloDaLegenda={coresDoStatus ? "Status" : "Planos"}
         compactar={compactar}
         aoCompactar={(v) => {
           setCompactar(v);

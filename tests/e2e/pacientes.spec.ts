@@ -46,13 +46,16 @@ test("lista de pacientes: cadastro rápido, edição da ficha e busca sem acento
 
   await page.getByRole("button", { name: "Editar", exact: true }).click();
   const edicao = page.getByRole("dialog", { name: "Editar paciente" });
-  await edicao.getByLabel("Responsável").fill(`Maria ${sufixo}`);
   await edicao.getByLabel("CPF").fill("12345678901");
   await edicao.getByLabel("Plano").selectOption({ label: "Unimed" });
   await edicao.getByRole("button", { name: "Salvar" }).click();
   await expect(edicao).toBeHidden();
   const info = page.getByRole("region", { name: "Informações do paciente" });
-  await expect(info).toContainText(`Maria ${sufixo}`);
+  const responsaveis = page.getByRole("region", { name: "Responsáveis" });
+  await responsaveis.getByRole("button", { name: "Adicionar responsável" }).click();
+  await responsaveis.getByLabel("Nome completo").fill(`Maria ${sufixo}`);
+  await responsaveis.getByRole("button", { name: "Salvar responsável" }).click();
+  await expect(responsaveis.getByRole("listitem", { name: `Maria ${sufixo}` })).toBeVisible();
   await expect(info).toContainText("123.456.789-01");
   await expect(page.getByRole("region", { name: "Plano do paciente" })).toContainText("Unimed");
 
@@ -100,7 +103,6 @@ test("visão Cadastro: cores por nível, filtro e nível atualizado ao completar
   await page.getByRole("button", { name: "Editar", exact: true }).click();
   const edicao = page.getByRole("dialog", { name: "Editar paciente" });
   const campos: [string, string][] = [
-    ["Responsável", "Maria Teste"],
     ["Nascimento", "2018-05-10"],
     ["CPF", "12345678901"],
     ["Celular", "(49) 99999-0000"],
@@ -115,6 +117,12 @@ test("visão Cadastro: cores por nível, filtro e nível atualizado ao completar
   await edicao.getByLabel("Plano").selectOption({ label: "Unimed" });
   await edicao.getByRole("button", { name: "Salvar" }).click();
   await expect(edicao).toBeHidden();
+  // Falta só o responsável, que tem a própria seção.
+  await expect(info).toContainText("Falta: responsável");
+  const responsaveis = page.getByRole("region", { name: "Responsáveis" });
+  await responsaveis.getByRole("button", { name: "Adicionar responsável" }).click();
+  await responsaveis.getByLabel("Nome completo").fill("Maria Teste");
+  await responsaveis.getByRole("button", { name: "Salvar responsável" }).click();
   await expect(info).toContainText("Cadastro: completo");
 
   await page.goto("/pacientes?visao=cadastro");

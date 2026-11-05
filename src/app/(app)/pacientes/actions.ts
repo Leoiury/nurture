@@ -7,7 +7,6 @@ import { createClient } from "@/lib/supabase/server";
 export type DadosDoPaciente = {
   id: string;
   nome: string;
-  responsavel: string;
   dataNascimento: string; // AAAA-MM-DD ou vazio
   cpf: string;
   celular: string;
@@ -41,7 +40,6 @@ export async function atualizarPaciente(p: DadosDoPaciente): Promise<Resultado> 
     .from("pacientes")
     .update({
       nome,
-      responsavel: vazioParaNulo(p.responsavel),
       data_nascimento: p.dataNascimento || null,
       cpf: cpf || null,
       celular: vazioParaNulo(p.celular),

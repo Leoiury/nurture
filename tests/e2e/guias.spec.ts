@@ -135,7 +135,7 @@ test("desmarcado não gasta sessão; relacionar junta atendimentos à guia", asy
   // Desmarcar a 2ª: a do avulso passa a ser a sessão 2.
   await semana(page, 2);
   await abrirAtendimento(page, nome);
-  await painelDetalhes(page).getByRole("button", { name: "Desmarcar" }).click();
+  await painelDetalhes(page).getByRole("radio", { name: "Desmarcado" }).click();
   await painelDetalhes(page).getByRole("radio", { name: "Paciente desmarcou" }).check();
   await painelDetalhes(page).getByRole("button", { name: "Confirmar desmarcação" }).click();
   await expect(guia).toContainText("Sem guia.");

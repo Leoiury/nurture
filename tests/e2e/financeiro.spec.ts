@@ -148,7 +148,7 @@ test("financeiro em lote: seleciona vários, um pagamento quita todos, baixa (gl
   await abrirAtendimento(page, ana);
   const painel = painelDetalhes(page);
   await expect(painel).toContainText("Pago");
-  await painel.getByRole("button", { name: "Desmarcar" }).click();
+  await painel.getByRole("radio", { name: "Desmarcado" }).click();
   await expect(painel.getByRole("note")).toContainText("já tem R$ 120,00 pago");
   await painel.getByRole("radio", { name: "Paciente desmarcou" }).click();
   await painel.getByRole("button", { name: "Confirmar desmarcação" }).click();
