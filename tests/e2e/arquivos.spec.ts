@@ -16,10 +16,18 @@ const admin = novoCliente(env.SUPABASE_SECRET_KEY);
 const n = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 const SENHA = `senha-teste-${n}`;
 const logins: string[] = [];
+const profissionais: string[] = [];
 
 const PDF = Buffer.from("%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n");
 const DOCX = Buffer.concat([Buffer.from([0x50, 0x4b, 0x03, 0x04]), Buffer.alloc(40)]);
 const pdf = (name: string) => ({ name, mimeType: "application/pdf", buffer: PDF });
+
+// "Zeta" e inativo ao final: na agenda, a primeira coluna em ordem alfabética é a de outros testes.
+async function novoProfissional(rotulo: string) {
+  const { data } = await admin.from("profissionais").insert({ nome: `Zeta Arquivos ${rotulo} ${n}` }).select("id").single();
+  profissionais.push(data!.id);
+  return data as { id: string };
+}
 
 async function novoLogin(rotulo: string, perfil: "profissional" | "limitado", profissionalId: string | null) {
   const email = `arquivos.${rotulo}.${n}@teste.local`;
@@ -50,6 +58,7 @@ test.afterAll(async () => {
     await admin.from("arquivos_paciente").delete().eq("enviado_por", id);
     await admin.auth.admin.deleteUser(id);
   }
+  await admin.from("profissionais").update({ ativo: false }).in("id", profissionais);
 });
 
 test("na ficha: envia PDF e Word, abre, recusa o que não serve e exclui", async ({ page }) => {
@@ -99,8 +108,8 @@ test.describe("sem o login padrão", () => {
 
   test("na tela de atendimento: o profissional envia sem perder o texto, e o colega não vê", async ({ page }) => {
     const paciente = await novoPaciente("atendimento");
-    const { data: prof } = await admin.from("profissionais").insert({ nome: `Profissional Arquivos ${n}` }).select("id").single();
-    const { data: colega } = await admin.from("profissionais").insert({ nome: `Colega Arquivos ${n}` }).select("id").single();
+    const prof = await novoProfissional("Profissional");
+    const colega = await novoProfissional("Colega");
     const email = await novoLogin("prof", "profissional", prof!.id);
     const emailColega = await novoLogin("colega", "profissional", colega!.id);
     const inicio = new Date(`${diaDaSemanaAtual(1)}T10:00:00-03:00`);
@@ -153,12 +162,12 @@ test.describe("sem o login padrão", () => {
 
   test("quem atendeu vê o que foi ligado ao atendimento; o que foi enviado pela ficha fica com quem enviou", async ({ page }) => {
     const paciente = await novoPaciente("atendeu");
-    const { data: prof } = await admin.from("profissionais").insert({ nome: `Atendeu Arquivos ${n}` }).select("id").single();
+    const prof = await novoProfissional("Atendeu");
     const email = await novoLogin("atendeu", "profissional", prof!.id);
     const inicio = new Date(`${diaDaSemanaAtual(2)}T10:00:00-03:00`);
     const { data: at } = await admin.from("atendimentos").insert({ paciente_id: paciente.id, inicio: inicio.toISOString(), fim: new Date(inicio.getTime() + 45 * 60000).toISOString() }).select("id").single();
     await admin.from("atendimento_profissionais").insert({ atendimento_id: at!.id, profissional_id: prof!.id });
-    const { data: outro } = await admin.from("profissionais").insert({ nome: `Remetente Arquivos ${n}` }).select("id").single();
+    const outro = await novoProfissional("Remetente");
     const emailOutro = await novoLogin("remetente", "profissional", outro!.id);
     const { data: remetente } = await admin.from("usuarios").select("id").eq("profissional_id", outro!.id).single();
 
@@ -188,7 +197,7 @@ test.describe("sem o login padrão", () => {
 
   test("o ADM vê e abre o arquivo enviado por um profissional", async ({ page, browser }) => {
     const paciente = await novoPaciente("adm");
-    const { data: prof } = await admin.from("profissionais").insert({ nome: `Adm Arquivos ${n}` }).select("id").single();
+    const prof = await novoProfissional("Adm");
     const email = await novoLogin("doadm", "profissional", prof!.id);
     await entrar(page, email);
     await page.goto(`/pacientes/${paciente.id}`);
@@ -232,7 +241,7 @@ test.describe("sem o login padrão", () => {
 
   test("não registra arquivo de outro paciente nem o que outro login enviou", async () => {
     const [a, b] = [await novoPaciente("a"), await novoPaciente("b")];
-    const { data: prof } = await admin.from("profissionais").insert({ nome: `Registro Arquivos ${n}` }).select("id").single();
+    const prof = await novoProfissional("Registro");
     const email = await novoLogin("registro", "profissional", prof!.id);
     const api = novoCliente(env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY);
     await api.auth.signInWithPassword({ email, password: SENHA });
