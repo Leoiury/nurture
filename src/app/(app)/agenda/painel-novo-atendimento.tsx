@@ -365,8 +365,16 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao, realizar }: P
 
   const conflitosPorData = new Set(conflitos.map((c) => partesNoFuso(c.inicio).data));
   const especialDaData = especiais[data];
+  // O que falta para marcar, à vista no topo do painel: cada item fica verde quando cumprido.
+  const requisitos = [
+    { rotulo: "Selecionar paciente", ok: !!pacienteId },
+    { rotulo: "Selecionar profissional", ok: profissionais.length > 0 },
+    { rotulo: "Selecionar data", ok: !!data },
+    { rotulo: "Selecionar horário", ok: !!hora },
+    ...(realizar === "anamnese" ? [{ rotulo: "Selecionar tipo", ok: !!tipoAtual }] : []),
+  ];
   const podeSalvar =
-    (realizar !== "anamnese" || !!tipoAtual) && !!pacienteId && profissionais.length > 0 && !!data && !!hora && datas.length > 0 && !salvando && (!separados || itensDaSequencia.length > 0);
+    requisitos.every((r) => r.ok) && datas.length > 0 && !salvando && (!separados || itensDaSequencia.length > 0);
 
   return (
     <>
@@ -460,6 +468,8 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao, realizar }: P
                 </section>
               ) : (
                 <>
+              {!edicao && <ListaDeRequisitos itens={requisitos} />}
+
               {/* Paciente */}
               <Campo rotulo="Paciente" id="campo-paciente">
                 <div className="flex gap-2">
@@ -870,6 +880,24 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao, realizar }: P
         )}
       </aside>
     </>
+  );
+}
+
+function ListaDeRequisitos({ itens }: { itens: { rotulo: string; ok: boolean }[] }) {
+  return (
+    <ul aria-label="Para marcar" className="grid grid-cols-2 gap-x-3 gap-y-1 rounded-2xl bg-black/[0.03] px-4 py-3 text-sm">
+      {itens.map((r) => (
+        <li key={r.rotulo} className={`flex items-center gap-2 transition-colors ${r.ok ? "text-emerald-700" : "text-muted"}`}>
+          <span aria-hidden className={`inline-flex size-4 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${r.ok ? "bg-emerald-600 text-white" : "bg-black/[0.07] text-muted"}`}>
+            {r.ok ? "✓" : "✕"}
+          </span>
+          <span>
+            {r.rotulo}
+            <span className="sr-only">{r.ok ? ": feito" : ": pendente"}</span>
+          </span>
+        </li>
+      ))}
+    </ul>
   );
 }
 

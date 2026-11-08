@@ -7,6 +7,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 import type { ItemDaAnamnese } from "@/lib/anamnese/conteudo";
+import { BotaoDeArquivos } from "../arquivos/botao-de-arquivos";
+import type { ArquivoDoPaciente } from "../arquivos/dados";
 import { useGuardarSozinho } from "../guardar-sozinho";
 import { descartarEdicao, guardarRascunho, salvarAnamnese } from "./actions";
 import { CabecalhoDaAnamnese } from "./cabecalho";
@@ -22,9 +24,10 @@ type Props = {
   observacoesIniciais: string;
   /** Já salva: esta edição gera uma nova versão. */
   versao: number;
+  arquivos: ArquivoDoPaciente[];
 };
 
-export function FormularioDaAnamnese({ id, titulo, paciente, itensIniciais, observacoesIniciais, versao }: Props) {
+export function FormularioDaAnamnese({ id, titulo, paciente, itensIniciais, observacoesIniciais, versao, arquivos }: Props) {
   const router = useRouter();
   const [itens, setItens] = useState(itensIniciais);
   const [observacoes, setObservacoes] = useState(observacoesIniciais);
@@ -63,7 +66,12 @@ export function FormularioDaAnamnese({ id, titulo, paciente, itensIniciais, obse
 
   return (
     <>
-      <CabecalhoDaAnamnese pacienteId={paciente.id} voltarDoModelo={`/anamnese/${id}`} comModelo={versao === 0}>
+      <CabecalhoDaAnamnese
+        pacienteId={paciente.id}
+        voltarDoModelo={`/anamnese/${id}`}
+        comModelo={versao === 0}
+        arquivos={<BotaoDeArquivos paciente={paciente} origem={{ anamneseId: id }} arquivos={arquivos} />}
+      >
         <p className="text-xs font-semibold tracking-wide text-muted uppercase">{versao > 0 ? `Editando a versão ${versao}` : titulo}</p>
         <Link href={`/pacientes/${paciente.id}`} className="block truncate text-lg font-semibold tracking-tight hover:text-accent">
           {paciente.nome}

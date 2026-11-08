@@ -30,6 +30,27 @@ async function cadastrarPacienteNovo(page: Page, nome: string) {
   await expect(painel(page).getByLabel("Paciente")).toHaveValue(nome);
 }
 
+test("mostra o que falta para marcar, e cada item fica verde quando cumprido", async ({ page }) => {
+  await abrirPainel(page);
+  const lista = painel(page).getByRole("list", { name: "Para marcar" });
+  const item = (texto: string) => lista.getByRole("listitem").filter({ hasText: texto });
+  await expect(item("Selecionar paciente")).toContainText("pendente");
+  await expect(item("Selecionar profissional")).toContainText("pendente");
+  await expect(item("Selecionar horário")).toContainText("pendente");
+  // A data já vem com hoje.
+  await expect(item("Selecionar data")).toContainText("feito");
+  await expect(painel(page).getByRole("button", { name: "Salvar", exact: true })).toBeDisabled();
+
+  await cadastrarPacienteNovo(page, `Teste Requisitos ${Date.now()}`);
+  await expect(item("Selecionar paciente")).toContainText("feito");
+  await expect(item("Selecionar paciente")).toHaveClass(/text-emerald-700/);
+  await painel(page).getByLabel("Profissionais").selectOption({ index: 1 });
+  await expect(item("Selecionar profissional")).toContainText("feito");
+  await painel(page).getByLabel("Início").fill("12:30");
+  await expect(item("Selecionar horário")).toContainText("feito");
+  await expect(painel(page).getByRole("button", { name: "Salvar", exact: true })).toBeEnabled();
+});
+
 test("cria um atendimento avulso com paciente novo e ele aparece na agenda", async ({ page }) => {
   const nome = `Teste Avulso ${Date.now()}`;
   await abrirPainel(page);

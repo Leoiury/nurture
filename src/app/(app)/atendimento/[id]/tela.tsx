@@ -13,6 +13,8 @@ import type { Status } from "@/lib/agenda/dados";
 import type { ConteudoDoRegistro, Documento, ModeloDoRegistro } from "@/lib/atendimento/conteudo";
 import { useGuardarSozinho } from "../../guardar-sozinho";
 import type { DetalhesAtendimento } from "../../agenda/actions";
+import { BotaoDeArquivos } from "../../arquivos/botao-de-arquivos";
+import type { ArquivoDoPaciente } from "../../arquivos/dados";
 import { IconeGuia } from "../../agenda/icone-guia";
 import { dadosDeEdicao } from "../../agenda/painel-atendimento";
 import { PainelNovoAtendimento } from "../../agenda/painel-novo-atendimento";
@@ -27,6 +29,7 @@ const ROTULO_GUIA: Record<SituacaoDaGuia, string> = { ok: "em dia", vencendo: "p
 type Props = {
   id: string;
   cabecalho: CabecalhoDoAtendimento;
+  arquivos: ArquivoDoPaciente[];
   guia: SituacaoDaGuia | null;
   sessaoDaGuia: { posicao: number; quantidade: number } | null;
   detalhes: DetalhesAtendimento;
@@ -38,7 +41,7 @@ type Props = {
   profissional: string;
 };
 
-export function TelaDoAtendimento({ id, cabecalho, guia, sessaoDaGuia, detalhes, conteudoInicial, versao, statusAtual, profissional }: Props) {
+export function TelaDoAtendimento({ id, cabecalho, arquivos, guia, sessaoDaGuia, detalhes, conteudoInicial, versao, statusAtual, profissional }: Props) {
   const router = useRouter();
   const [modelo, setModelo] = useState<ModeloDoRegistro>(conteudoInicial.modelo);
   const [editorAtivo, setEditorAtivo] = useState<Editor | null>(null);
@@ -111,6 +114,7 @@ export function TelaDoAtendimento({ id, cabecalho, guia, sessaoDaGuia, detalhes,
                 </button>
               ))}
             </div>
+            <BotaoDeArquivos paciente={cabecalho.paciente} origem={{ atendimentoId: id }} arquivos={arquivos} />
             <MenuSuspenso
               rotulo="Editar"
               estilo="inline-flex size-9 items-center justify-center rounded-full text-muted hover:bg-black/[0.05] hover:text-foreground"

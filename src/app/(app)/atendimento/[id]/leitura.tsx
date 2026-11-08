@@ -9,6 +9,8 @@ import type { DadosDoDocumento } from "@/lib/atendimento/exportar";
 import { FUSO, partesNoFuso } from "@/lib/agenda/tempo";
 import { LARGURA_COM_FOLHA, TextoDoRegistro } from "../editor-de-texto";
 import { AcoesDeExportacao } from "../exportacao";
+import { BotaoDeArquivos } from "../../arquivos/botao-de-arquivos";
+import type { ArquivoDoPaciente } from "../../arquivos/dados";
 
 export type RegistroParaLer = {
   profissionalId: string;
@@ -35,6 +37,7 @@ export const dadosDoDocumento = (c: CabecalhoDoAtendimento, profissional: string
 type Props = {
   id: string;
   cabecalho: CabecalhoDoAtendimento;
+  arquivos: ArquivoDoPaciente[];
   registros: RegistroParaLer[];
   profissionalInicial: string | null;
   versaoInicial: number | null;
@@ -43,7 +46,7 @@ type Props = {
   acabouDeFinalizar: boolean;
 };
 
-export function LeituraDosRegistros({ id, cabecalho, registros, profissionalInicial, versaoInicial, podeEditar, meuProfissional, acabouDeFinalizar }: Props) {
+export function LeituraDosRegistros({ id, cabecalho, arquivos, registros, profissionalInicial, versaoInicial, podeEditar, meuProfissional, acabouDeFinalizar }: Props) {
   const [profissionalId, setProfissionalId] = useState(registros.some((r) => r.profissionalId === profissionalInicial) ? profissionalInicial : (registros[0]?.profissionalId ?? null));
   const [versao, setVersao] = useState<number | null>(versaoInicial);
   const [avisoAberto, setAvisoAberto] = useState(acabouDeFinalizar);
@@ -59,6 +62,7 @@ export function LeituraDosRegistros({ id, cabecalho, registros, profissionalInic
           </Link>
           <p className="text-sm text-muted first-letter:uppercase">{horarioDoCabecalho(cabecalho)}</p>
         </div>
+        <BotaoDeArquivos paciente={cabecalho.paciente} origem={{ atendimentoId: id }} arquivos={arquivos} />
         {podeEditar && (
           <Link href={`/atendimento/${id}?editar=1`} className="shrink-0 rounded-full bg-accent px-5 py-2 text-sm font-medium text-white transition hover:brightness-110">
             {registro?.profissionalId === meuProfissional ? "Editar" : "Escrever o meu registro"}

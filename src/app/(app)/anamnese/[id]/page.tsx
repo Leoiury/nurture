@@ -5,6 +5,8 @@ import { sincronizarComModelo, type ItemDaAnamnese } from "@/lib/anamnese/conteu
 import { FUSO } from "@/lib/agenda/tempo";
 import { usuarioAtual } from "@/lib/auth/usuario";
 import { createClient } from "@/lib/supabase/server";
+import { BotaoDeArquivos } from "../../arquivos/botao-de-arquivos";
+import { carregarArquivos } from "../../arquivos/dados";
 import { CabecalhoDaAnamnese } from "../cabecalho";
 import { FormularioDaAnamnese } from "../formulario";
 
@@ -34,6 +36,7 @@ export default async function AnamneseDetalhePage({ params, searchParams }: Page
 
   const ehAutor = !!eu?.profissionalId && a.profissional_id === eu.profissionalId;
   const paciente = a.paciente;
+  const arquivos = await carregarArquivos(paciente.id);
 
   // Preenchendo: em andamento, ou o autor pediu para editar uma salva.
   if (ehAutor && (!a.salva_em || editar === "1")) {
@@ -45,7 +48,7 @@ export default async function AnamneseDetalhePage({ params, searchParams }: Page
       if (error) throw new Error("Não foi possível carregar as perguntas.");
       itens = sincronizarComModelo(base, modelo);
     }
-    return <FormularioDaAnamnese id={a.id} titulo={a.titulo} paciente={paciente} itensIniciais={itens} observacoesIniciais={rascunho.data?.observacoes ?? a.observacoes} versao={a.versao} />;
+    return <FormularioDaAnamnese id={a.id} titulo={a.titulo} paciente={paciente} itensIniciais={itens} observacoesIniciais={rascunho.data?.observacoes ?? a.observacoes} versao={a.versao} arquivos={arquivos} />;
   }
 
   // Leitura: a última versão, ou a escolhida no histórico.
@@ -57,7 +60,12 @@ export default async function AnamneseDetalhePage({ params, searchParams }: Page
 
   return (
     <>
-      <CabecalhoDaAnamnese pacienteId={paciente.id} voltarDoModelo={`/anamnese/${a.id}`} comModelo={!!eu?.profissionalId}>
+      <CabecalhoDaAnamnese
+        pacienteId={paciente.id}
+        voltarDoModelo={`/anamnese/${a.id}`}
+        comModelo={!!eu?.profissionalId}
+        arquivos={<BotaoDeArquivos paciente={paciente} origem={{ anamneseId: a.id }} arquivos={arquivos} />}
+      >
         <p className="text-xs font-semibold tracking-wide text-muted uppercase">
           {a.titulo} de {a.profissional.nome} · {dataHora.format(new Date(exibida.salva_em))}
         </p>
