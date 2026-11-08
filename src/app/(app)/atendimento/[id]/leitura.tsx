@@ -62,7 +62,7 @@ export function LeituraDosRegistros({ id, cabecalho, arquivos, registros, profis
           </Link>
           <p className="text-sm text-muted first-letter:uppercase">{horarioDoCabecalho(cabecalho)}</p>
         </div>
-        <BotaoDeArquivos paciente={cabecalho.paciente} atendimentoId={id} arquivos={arquivos} />
+        <BotaoDeArquivos paciente={cabecalho.paciente} origem={{ atendimentoId: id }} arquivos={arquivos} />
         {podeEditar && (
           <Link href={`/atendimento/${id}?editar=1`} className="shrink-0 rounded-full bg-accent px-5 py-2 text-sm font-medium text-white transition hover:brightness-110">
             {registro?.profissionalId === meuProfissional ? "Editar" : "Escrever o meu registro"}

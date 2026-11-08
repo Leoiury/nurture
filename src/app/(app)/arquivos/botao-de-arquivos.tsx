@@ -1,19 +1,21 @@
 "use client";
 
-// Cabeçalho da tela de atendimento: um clipe com a quantidade, que abre os arquivos num painel.
+// Cabeçalho do atendimento e da anamnese: um clipe com a quantidade, que abre os arquivos num painel.
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import type { Origem } from "./actions";
 import type { ArquivoDoPaciente } from "./dados";
 import { ListaDeArquivos } from "./lista-de-arquivos";
 
 type Props = {
   paciente: { id: string; nome: string };
-  atendimentoId: string;
+  /** O que for enviado por aqui fica ligado a este atendimento ou anamnese. */
+  origem: Origem;
   arquivos: ArquivoDoPaciente[];
 };
 
-export function BotaoDeArquivos({ paciente, atendimentoId, arquivos }: Props) {
+export function BotaoDeArquivos({ paciente, origem, arquivos }: Props) {
   const [aberto, setAberto] = useState(false);
 
   useEffect(() => {
@@ -54,7 +56,7 @@ export function BotaoDeArquivos({ paciente, atendimentoId, arquivos }: Props) {
               </button>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
-              <ListaDeArquivos pacienteId={paciente.id} atendimentoId={atendimentoId} arquivos={arquivos} />
+              <ListaDeArquivos pacienteId={paciente.id} origem={origem} arquivos={arquivos} />
             </div>
           </aside>
         </>,

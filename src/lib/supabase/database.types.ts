@@ -226,6 +226,7 @@ export type Database = {
       }
       arquivos_paciente: {
         Row: {
+          anamnese_id: string | null
           atendimento_id: string | null
           caminho: string
           enviado_em: string
@@ -240,6 +241,7 @@ export type Database = {
           tipo_mime: string
         }
         Insert: {
+          anamnese_id?: string | null
           atendimento_id?: string | null
           caminho: string
           enviado_em?: string
@@ -254,6 +256,7 @@ export type Database = {
           tipo_mime: string
         }
         Update: {
+          anamnese_id?: string | null
           atendimento_id?: string | null
           caminho?: string
           enviado_em?: string
@@ -268,6 +271,13 @@ export type Database = {
           tipo_mime?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "arquivos_paciente_anamnese_id_fkey"
+            columns: ["anamnese_id"]
+            isOneToOne: false
+            referencedRelation: "anamneses"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "arquivos_paciente_atendimento_id_fkey"
             columns: ["atendimento_id"]
@@ -2197,6 +2207,7 @@ export type Database = {
       recusar_exclusao: { Args: { p_id: string }; Returns: number }
       registrar_arquivo: {
         Args: {
+          p_anamnese: string
           p_atendimento: string
           p_caminho: string
           p_nome: string

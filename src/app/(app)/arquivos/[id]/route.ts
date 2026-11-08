@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { BUCKET_DE_ARQUIVOS, ehPdf } from "@/lib/arquivos";
+import { BUCKET_DE_ARQUIVOS, abreNoNavegador } from "@/lib/arquivos";
 import { podeVerClinico } from "@/lib/auth/usuario";
 import { createClient } from "@/lib/supabase/server";
 
-/** Abre um arquivo do paciente: PDF no navegador, Word como download, por um link que vale 1 minuto. */
+/** Abre um arquivo do paciente: PDF e imagem no navegador, Word como download, por um link que vale 1 minuto. */
 export async function GET(_request: Request, { params }: RouteContext<"/arquivos/[id]">) {
   const { id } = await params;
   const naoEncontrado = new NextResponse("Arquivo não encontrado.", { status: 404 });
@@ -17,7 +17,7 @@ export async function GET(_request: Request, { params }: RouteContext<"/arquivos
 
   // O nome vai à mão: a opção "download" da biblioteca codifica duas vezes, e o acento vira "%C3%B3".
   const destino = new URL(data.signedUrl);
-  if (!ehPdf(arquivo.tipo_mime)) destino.searchParams.set("download", arquivo.nome);
+  if (!abreNoNavegador(arquivo.tipo_mime)) destino.searchParams.set("download", arquivo.nome);
   const resposta = NextResponse.redirect(destino);
   resposta.headers.set("Cache-Control", "no-store");
   resposta.headers.set("Referrer-Policy", "no-referrer");

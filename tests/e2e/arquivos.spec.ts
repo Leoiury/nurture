@@ -20,7 +20,9 @@ const profissionais: string[] = [];
 
 const PDF = Buffer.from("%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n");
 const DOCX = Buffer.concat([Buffer.from([0x50, 0x4b, 0x03, 0x04]), Buffer.alloc(40)]);
+const PNG = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(40)]);
 const pdf = (name: string) => ({ name, mimeType: "application/pdf", buffer: PDF });
+const png = (name: string) => ({ name, mimeType: "image/png", buffer: PNG });
 
 // "Zeta" e inativo ao final: na agenda, a primeira coluna em ordem alfabética é a de outros testes.
 async function novoProfissional(rotulo: string) {
@@ -61,23 +63,26 @@ test.afterAll(async () => {
   await admin.from("profissionais").update({ ativo: false }).in("id", profissionais);
 });
 
-test("na ficha: envia PDF e Word, abre, recusa o que não serve e exclui", async ({ page }) => {
+test("na ficha: envia PDF, Word e imagem, abre, recusa o que não serve e exclui", async ({ page }) => {
   const paciente = await novoPaciente("ficha");
   await page.goto(`/pacientes/${paciente.id}`);
   await expect(secao(page)).toContainText("Nenhum arquivo.");
   const entrada = secao(page).getByLabel("Escolher arquivos");
 
-  await entrada.setInputFiles([pdf("Laudo escolar.pdf"), { name: "Relatório.docx", mimeType: "", buffer: DOCX }]);
+  await entrada.setInputFiles([pdf("Laudo escolar.pdf"), { name: "Relatório.docx", mimeType: "", buffer: DOCX }, png("Desenho.png")]);
   await expect(secao(page).getByRole("listitem", { name: "Laudo escolar.pdf" })).toContainText("PDF");
   await expect(secao(page).getByRole("listitem", { name: "Relatório.docx" })).toContainText("Word");
+  await expect(secao(page).getByRole("listitem", { name: "Desenho.png" })).toContainText("Imagem");
 
   // O caminho no Storage não leva o nome do arquivo.
   const { data: linhas } = await admin.from("arquivos_paciente").select("id, caminho, nome, tipo_mime").eq("paciente_id", paciente.id);
-  expect(linhas).toHaveLength(2);
-  for (const l of linhas!) expect(l.caminho).toMatch(new RegExp(`^${paciente.id}/[0-9a-f-]{36}\\.(pdf|docx)$`));
+  expect(linhas).toHaveLength(3);
+  for (const l of linhas!) expect(l.caminho).toMatch(new RegExp(`^${paciente.id}/[0-9a-f-]{36}\\.(pdf|docx|png)$`));
   const doPdf = linhas!.find((l) => l.nome.endsWith(".pdf"))!;
   const doWord = linhas!.find((l) => l.nome.endsWith(".docx"))!;
+  const daImagem = linhas!.find((l) => l.nome.endsWith(".png"))!;
   expect(doWord.tipo_mime).toContain("wordprocessingml");
+  expect(daImagem.tipo_mime).toBe("image/png");
 
   // PDF abre no navegador; Word vem como download, com o nome original.
   const abertoPdf = await page.request.get(`/arquivos/${doPdf.id}`);
@@ -87,9 +92,16 @@ test("na ficha: envia PDF e Word, abre, recusa o que não serve e exclui", async
   const abertoWord = await page.request.get(`/arquivos/${doWord.id}`);
   expect(abertoWord.status()).toBe(200);
   expect(abertoWord.headers()["content-disposition"]).toContain("filename*=UTF-8''Relat%C3%B3rio.docx");
+  // A imagem também abre no navegador.
+  const abertaImagem = await page.request.get(`/arquivos/${daImagem.id}`);
+  expect(abertaImagem.status()).toBe(200);
+  expect(abertaImagem.headers()["content-type"]).toContain("image/png");
+  expect(abertaImagem.headers()["content-disposition"] ?? "").not.toContain("attachment");
 
+  await entrada.setInputFiles([{ name: "animacao.gif", mimeType: "image/gif", buffer: PDF }]);
+  await expect(secao(page).getByRole("alert").filter({ hasText: "apenas PDF, Word ou imagem" })).toBeVisible();
   await entrada.setInputFiles([{ name: "foto.png", mimeType: "image/png", buffer: PDF }]);
-  await expect(secao(page).getByRole("alert").filter({ hasText: "apenas PDF ou Word" })).toBeVisible();
+  await expect(secao(page).getByRole("alert").filter({ hasText: "foto.png: O conteúdo não confere" })).toBeVisible();
   await entrada.setInputFiles([{ name: "falso.pdf", mimeType: "application/pdf", buffer: DOCX }]);
   await expect(secao(page).getByRole("alert").filter({ hasText: "não confere" })).toBeVisible();
 
@@ -239,6 +251,49 @@ test.describe("sem o login padrão", () => {
     await admin.from("arquivos_paciente").delete().eq("id", arquivo!.id);
   });
 
+  test("na triagem: o autor anexa uma imagem, que fica ligada a ela e ao atendimento; o colega não vê", async ({ page }) => {
+    const paciente = await novoPaciente("triagem");
+    const prof = await novoProfissional("Triagem");
+    const colega = await novoProfissional("Colega Triagem");
+    const email = await novoLogin("triagem", "profissional", prof!.id);
+    const emailColega = await novoLogin("colegatriagem", "profissional", colega!.id);
+    const inicio = new Date(`${diaDaSemanaAtual(3)}T10:00:00-03:00`);
+    const { data: at } = await admin.from("atendimentos").insert({ paciente_id: paciente.id, inicio: inicio.toISOString(), fim: new Date(inicio.getTime() + 45 * 60000).toISOString() }).select("id").single();
+    await admin.from("atendimento_profissionais").insert({ atendimento_id: at!.id, profissional_id: prof!.id });
+    const { data: triagem } = await admin.from("anamneses").insert({ paciente_id: paciente.id, profissional_id: prof!.id, atendimento_id: at!.id, titulo: "Triagem" }).select("id").single();
+
+    await entrar(page, email);
+    await page.goto(`/anamnese/${triagem!.id}`);
+    await page.getByRole("button", { name: "Arquivos do paciente: 0" }).click();
+    const painel = page.getByRole("dialog", { name: "Arquivos do paciente" });
+    await painel.getByLabel("Escolher arquivos").setInputFiles([png("Foto da escrita.png")]);
+    await expect(painel.getByRole("listitem", { name: "Foto da escrita.png" })).toContainText("nesta anamnese");
+
+    const { data: linha } = await admin.from("arquivos_paciente").select("id, anamnese_id, atendimento_id").eq("paciente_id", paciente.id).single();
+    expect(linha!.anamnese_id).toBe(triagem!.id);
+    expect(linha!.atendimento_id).toBe(at!.id);
+
+    await page.goto(`/pacientes/${paciente.id}`);
+    await expect(secao(page).getByRole("listitem", { name: "Foto da escrita.png" }).getByRole("link", { name: "ver anamnese" })).toBeVisible();
+
+    const api = novoCliente(env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY);
+    await api.auth.signInWithPassword({ email: emailColega, password: SENHA });
+    expect((await api.from("arquivos_paciente").select("id").eq("id", linha!.id)).data).toEqual([]);
+  });
+
+  test("não liga o arquivo à anamnese de outro paciente", async () => {
+    const [a, b] = [await novoPaciente("anamnese a"), await novoPaciente("anamnese b")];
+    const prof = await novoProfissional("Anamnese Alheia");
+    const email = await novoLogin("anamnesealheia", "profissional", prof!.id);
+    const { data: daOutra } = await admin.from("anamneses").insert({ paciente_id: b.id, profissional_id: prof!.id }).select("id").single();
+    const api = novoCliente(env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY);
+    await api.auth.signInWithPassword({ email, password: SENHA });
+    const caminho = `${a.id}/${crypto.randomUUID()}.png`;
+    expect((await api.storage.from("arquivos-pacientes").upload(caminho, PNG, { contentType: "image/png" })).error).toBeNull();
+    const r = await api.rpc("registrar_arquivo", { p_paciente: a.id, p_atendimento: null as unknown as string, p_anamnese: daOutra!.id, p_nome: "x.png", p_caminho: caminho });
+    expect(r.error).not.toBeNull();
+  });
+
   test("não registra arquivo de outro paciente nem o que outro login enviou", async () => {
     const [a, b] = [await novoPaciente("a"), await novoPaciente("b")];
     const prof = await novoProfissional("Registro");
@@ -247,7 +302,7 @@ test.describe("sem o login padrão", () => {
     await api.auth.signInWithPassword({ email, password: SENHA });
     const meu = `${a.id}/${crypto.randomUUID()}.pdf`;
     expect((await api.storage.from("arquivos-pacientes").upload(meu, PDF, { contentType: "application/pdf" })).error).toBeNull();
-    const args = { p_atendimento: null as unknown as string, p_nome: "a.pdf" };
+    const args = { p_atendimento: null as unknown as string, p_anamnese: null as unknown as string, p_nome: "a.pdf" };
     expect((await api.rpc("registrar_arquivo", { ...args, p_paciente: b.id, p_caminho: meu })).error).not.toBeNull();
     const alheio = `${a.id}/${crypto.randomUUID()}.pdf`;
     await admin.storage.from("arquivos-pacientes").upload(alheio, PDF, { contentType: "application/pdf" });

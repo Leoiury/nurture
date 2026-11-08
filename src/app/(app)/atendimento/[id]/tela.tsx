@@ -114,7 +114,7 @@ export function TelaDoAtendimento({ id, cabecalho, arquivos, guia, sessaoDaGuia,
                 </button>
               ))}
             </div>
-            <BotaoDeArquivos paciente={cabecalho.paciente} atendimentoId={id} arquivos={arquivos} />
+            <BotaoDeArquivos paciente={cabecalho.paciente} origem={{ atendimentoId: id }} arquivos={arquivos} />
             <MenuSuspenso
               rotulo="Editar"
               estilo="inline-flex size-9 items-center justify-center rounded-full text-muted hover:bg-black/[0.05] hover:text-foreground"

@@ -6,35 +6,35 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
-import { BUCKET_DE_ARQUIVOS, EXTENSOES_ACEITAS, ehPdf, extensaoDoArquivo, formatarTamanho, mimeDoArquivo, problemaNoArquivo } from "@/lib/arquivos";
+import { BUCKET_DE_ARQUIVOS, BYTES_DA_ASSINATURA, EXTENSOES_ACEITAS, extensaoDoArquivo, formatarTamanho, mimeDoArquivo, problemaNoArquivo, rotuloDoTipo } from "@/lib/arquivos";
 import { FUSO } from "@/lib/agenda/tempo";
 import { createClient } from "@/lib/supabase/client";
-import { excluirArquivo, registrarArquivo } from "./actions";
+import { excluirArquivo, registrarArquivo, type Origem } from "./actions";
 import type { ArquivoDoPaciente } from "./dados";
 
 const dataBr = new Intl.DateTimeFormat("pt-BR", { timeZone: FUSO, day: "2-digit", month: "2-digit", year: "numeric" });
 
 type Props = {
   pacienteId: string;
-  /** Na tela de atendimento: o que for enviado fica ligado a ele. */
-  atendimentoId?: string;
+  /** No atendimento ou na anamnese: o que for enviado fica ligado a eles. */
+  origem?: Origem;
   arquivos: ArquivoDoPaciente[];
 };
 
-export function ListaDeArquivos({ pacienteId, atendimentoId, arquivos }: Props) {
+export function ListaDeArquivos({ pacienteId, origem = {}, arquivos }: Props) {
   const router = useRouter();
   const entrada = useRef<HTMLInputElement>(null);
   const [progresso, setProgresso] = useState<string | null>(null);
   const [erros, setErros] = useState<string[]>([]);
 
   async function enviarUm(arquivo: File): Promise<string | null> {
-    const primeiros = new Uint8Array(await arquivo.slice(0, 4).arrayBuffer());
+    const primeiros = new Uint8Array(await arquivo.slice(0, BYTES_DA_ASSINATURA).arrayBuffer());
     const problema = problemaNoArquivo(arquivo.name, arquivo.size, primeiros);
     if (problema) return problema;
     const caminho = `${pacienteId}/${crypto.randomUUID()}.${extensaoDoArquivo(arquivo.name)}`;
     const { error } = await createClient().storage.from(BUCKET_DE_ARQUIVOS).upload(caminho, arquivo, { contentType: mimeDoArquivo(arquivo.name)!, upsert: false });
     if (error) return "Não foi possível enviar.";
-    const r = await registrarArquivo(pacienteId, atendimentoId ?? null, arquivo.name, caminho);
+    const r = await registrarArquivo(pacienteId, origem, arquivo.name, caminho);
     return r.ok ? null : r.erro;
   }
 
@@ -70,7 +70,7 @@ export function ListaDeArquivos({ pacienteId, atendimentoId, arquivos }: Props) 
         <button type="button" disabled={!!progresso} onClick={() => entrada.current?.click()} className="rounded-full bg-black/[0.04] px-4 py-2 font-medium hover:bg-black/[0.07] disabled:opacity-50">
           {progresso ?? "Enviar arquivo"}
         </button>
-        <span className="text-xs text-muted">PDF ou Word, até 20 MB. Só você, o profissional do atendimento e os administradores veem.</span>
+        <span className="text-xs text-muted">PDF, Word ou imagem, até 20 MB. Só você, o profissional do atendimento e os administradores veem.</span>
       </div>
       {erros.map((erro) => (
         <p key={erro} role="alert" className="text-danger">
@@ -82,7 +82,7 @@ export function ListaDeArquivos({ pacienteId, atendimentoId, arquivos }: Props) 
       ) : (
         <ul className="flex flex-col gap-1">
           {arquivos.map((a) => (
-            <ItemDoArquivo key={a.id} arquivo={a} pacienteId={pacienteId} atendimentoAtual={atendimentoId} />
+            <ItemDoArquivo key={a.id} arquivo={a} pacienteId={pacienteId} atual={origem} />
           ))}
         </ul>
       )}
@@ -90,7 +90,7 @@ export function ListaDeArquivos({ pacienteId, atendimentoId, arquivos }: Props) 
   );
 }
 
-function ItemDoArquivo({ arquivo: a, pacienteId, atendimentoAtual }: { arquivo: ArquivoDoPaciente; pacienteId: string; atendimentoAtual?: string }) {
+function ItemDoArquivo({ arquivo: a, pacienteId, atual }: { arquivo: ArquivoDoPaciente; pacienteId: string; atual: Origem }) {
   const router = useRouter();
   const [excluindo, setExcluindo] = useState(false);
   const [trabalhando, setTrabalhando] = useState(false);
@@ -98,7 +98,7 @@ function ItemDoArquivo({ arquivo: a, pacienteId, atendimentoAtual }: { arquivo: 
 
   async function excluir() {
     setTrabalhando(true);
-    const r = await excluirArquivo(a.id, pacienteId, a.atendimentoId ?? atendimentoAtual ?? null).catch(() => ({ ok: false as const, erro: "Falha de conexão." }));
+    const r = await excluirArquivo(a.id, pacienteId, { atendimentoId: a.atendimentoId ?? atual.atendimentoId, anamneseId: a.anamneseId ?? atual.anamneseId }).catch(() => ({ ok: false as const, erro: "Falha de conexão." }));
     setTrabalhando(false);
     if (!r.ok) return setErro(r.erro);
     router.refresh();
@@ -113,15 +113,8 @@ function ItemDoArquivo({ arquivo: a, pacienteId, atendimentoAtual }: { arquivo: 
             {a.nome}
           </a>
           <p className="text-xs text-muted">
-            {ehPdf(a.tipoMime) ? "PDF" : "Word"} · {formatarTamanho(a.tamanho)} · {dataBr.format(new Date(a.enviadoEm))} · {a.enviadoPor}
-            {a.atendimentoId && (a.atendimentoId === atendimentoAtual ? " · neste atendimento" : (
-              <>
-                {" · "}
-                <Link href={`/atendimento/${a.atendimentoId}`} className="hover:underline">
-                  ver atendimento
-                </Link>
-              </>
-            ))}
+            {rotuloDoTipo(a.tipoMime)} · {formatarTamanho(a.tamanho)} · {dataBr.format(new Date(a.enviadoEm))} · {a.enviadoPor}
+            <OndeFoiEnviado arquivo={a} atual={atual} />
           </p>
         </div>
         {a.podeExcluir && !excluindo && (
@@ -149,5 +142,24 @@ function ItemDoArquivo({ arquivo: a, pacienteId, atendimentoAtual }: { arquivo: 
         </p>
       )}
     </li>
+  );
+}
+
+/** Onde o arquivo foi anexado: aqui mesmo, ou um link para lá. */
+function OndeFoiEnviado({ arquivo: a, atual }: { arquivo: ArquivoDoPaciente; atual: Origem }) {
+  const [aqui, rotulo, href] = a.anamneseId
+    ? [a.anamneseId === atual.anamneseId, "anamnese", `/anamnese/${a.anamneseId}`]
+    : a.atendimentoId
+      ? [a.atendimentoId === atual.atendimentoId, "atendimento", `/atendimento/${a.atendimentoId}`]
+      : [false, null, null];
+  if (!rotulo || !href) return null;
+  if (aqui) return rotulo === "anamnese" ? " · nesta anamnese" : " · neste atendimento";
+  return (
+    <>
+      {" · "}
+      <Link href={href} className="hover:underline">
+        ver {rotulo}
+      </Link>
+    </>
   );
 }
