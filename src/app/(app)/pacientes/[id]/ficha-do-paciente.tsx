@@ -1,10 +1,15 @@
 "use client";
 
-// Informações e plano do paciente, com edição num painel lateral.
+// Informações e plano do paciente, com edição num painel lateral. O menu ao lado de
+// "Editar" exclui os atendimentos de agora em diante.
 
+import { useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { formatarCpf, idade, nivelCadastral, type NivelCadastral } from "@/lib/pacientes";
+import { ITEM_DO_MENU, MenuSuspenso } from "../../atendimento/menu-suspenso";
 import { atualizarPaciente, type DadosDoPaciente } from "../actions";
+import { pedirInativacao, reativarParaMim } from "../actions-inativacao";
+import { AvisoDeInativacao, PainelExcluirFuturos, PedidosDeInativacao, type PedidoDeInativacao } from "./inativacao";
 
 type Paciente = {
   id: string;
@@ -30,8 +35,20 @@ type Plano = { id: string; nome: string; ativo: boolean };
 
 const dataBr = (d: string) => d.split("-").reverse().join("/");
 
-export function FichaDoPaciente({ paciente: p, planos, semPlano }: { paciente: Paciente; planos: Plano[]; semPlano?: boolean }) {
+type Props = {
+  paciente: Paciente;
+  planos: Plano[];
+  /** Perfil profissional: sem plano, e a inativação vira pedido. */
+  semPlano?: boolean;
+  /** Recepção e ADM: pedidos de inativação em aberto. */
+  pedidos: PedidoDeInativacao[];
+  /** Profissional: a inativação que ele pediu ainda espera a recepção. */
+  minhaInativacaoPedida: boolean;
+};
+
+export function FichaDoPaciente({ paciente: p, planos, semPlano, pedidos, minhaInativacaoPedida }: Props) {
   const [editando, setEditando] = useState(false);
+  const [excluindo, setExcluindo] = useState(false);
   const endereco = [p.endereco, p.bairro, [p.cidade, p.uf].filter(Boolean).join(" – "), p.cep].filter(Boolean).join(", ");
 
   return (
@@ -41,6 +58,7 @@ export function FichaDoPaciente({ paciente: p, planos, semPlano }: { paciente: P
           <h1 className="text-2xl font-semibold tracking-tight">
             {p.nome}
             {!p.ativo && <span className="ml-2 rounded-full bg-black/5 px-2 py-0.5 align-middle text-xs font-normal text-muted">inativo</span>}
+            {minhaInativacaoPedida && <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 align-middle text-xs font-normal text-amber-900">aguardando confirmação</span>}
           </h1>
           {p.data_nascimento && (
             <p className="text-sm text-muted">
@@ -48,10 +66,23 @@ export function FichaDoPaciente({ paciente: p, planos, semPlano }: { paciente: P
             </p>
           )}
         </div>
-        <button type="button" onClick={() => setEditando(true)} className="rounded-full bg-accent px-4 py-2 text-sm font-medium text-white hover:brightness-110">
-          Editar
-        </button>
+        <div className="flex items-center gap-1">
+          <button type="button" onClick={() => setEditando(true)} className="rounded-full bg-accent px-4 py-2 text-sm font-medium text-white hover:brightness-110">
+            Editar
+          </button>
+          <MenuSuspenso
+            rotulo="Mais ações do paciente"
+            estilo="inline-flex size-9 items-center justify-center rounded-full text-muted hover:bg-black/[0.05] hover:text-foreground"
+            conteudoDoBotao={<span aria-hidden className="text-lg leading-none">⋯</span>}
+          >
+            <button type="button" role="menuitem" onClick={() => setExcluindo(true)} className={`${ITEM_DO_MENU} text-danger`}>
+              {semPlano ? "Pedir exclusão dos meus atendimentos…" : "Excluir atendimentos…"}
+            </button>
+          </MenuSuspenso>
+        </div>
       </header>
+
+      {pedidos.length > 0 && <PedidosDeInativacao pacienteId={p.id} pedidos={pedidos} />}
 
       <div className={semPlano ? "grid gap-4" : "grid gap-4 md:grid-cols-[2fr_1fr]"}>
         <section className="rounded-3xl bg-surface p-5 shadow-sm ring-1 ring-black/5" aria-label="Informações do paciente">
@@ -101,7 +132,8 @@ export function FichaDoPaciente({ paciente: p, planos, semPlano }: { paciente: P
         </section>}
       </div>
 
-      {editando && <PainelDeEdicao paciente={p} planos={planos} semPlano={semPlano} aoFechar={() => setEditando(false)} />}
+      {editando && <PainelDeEdicao paciente={p} planos={planos} semPlano={semPlano} minhaInativacaoPedida={minhaInativacaoPedida} aoFechar={() => setEditando(false)} />}
+      {excluindo && <PainelExcluirFuturos pacienteId={p.id} nome={p.nome} profissional={!!semPlano} aoFechar={() => setExcluindo(false)} />}
     </>
   );
 }
@@ -118,7 +150,11 @@ function Item({ rotulo, children }: { rotulo: string; children: ReactNode }) {
 const entrada =
   "w-full rounded-xl border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft";
 
-function PainelDeEdicao({ paciente: p, planos, semPlano, aoFechar }: { paciente: Paciente; planos: Plano[]; semPlano?: boolean; aoFechar: () => void }) {
+type PropsDaEdicao = { paciente: Paciente; planos: Plano[]; semPlano?: boolean; minhaInativacaoPedida: boolean; aoFechar: () => void };
+
+function PainelDeEdicao({ paciente: p, planos, semPlano, minhaInativacaoPedida, aoFechar }: PropsDaEdicao) {
+  const router = useRouter();
+  const [motivoInativacao, setMotivoInativacao] = useState("");
   const [dados, setDados] = useState<DadosDoPaciente>({
     id: p.id,
     nome: p.nome,
@@ -149,13 +185,22 @@ function PainelDeEdicao({ paciente: p, planos, semPlano, aoFechar }: { paciente:
     return () => window.removeEventListener("keydown", aoTeclar);
   }, [aoFechar]);
 
+  // O profissional não inativa direto: pede, e o pedido leva os atendimentos futuros dele.
+  const pedindoInativacao = !!semPlano && p.ativo && !dados.ativo;
+  const reativando = !!semPlano && !p.ativo && dados.ativo;
+
   async function salvar() {
+    if (pedindoInativacao && !motivoInativacao.trim()) return setErro("Informe o motivo da inativação.");
     setSalvando(true);
     setErro(null);
-    const r = await atualizarPaciente(dados).catch(() => ({ ok: false as const, erro: "Falha de conexão." }));
+    const falha = { ok: false as const, erro: "Falha de conexão." };
+    let r: { ok: true } | { ok: false; erro: string } = await atualizarPaciente(dados).catch(() => falha);
+    if (r.ok && pedindoInativacao) r = await pedirInativacao(p.id, motivoInativacao).catch(() => falha);
+    if (r.ok && reativando) r = await reativarParaMim(p.id).catch(() => falha);
     setSalvando(false);
     if (!r.ok) return setErro(r.erro);
     aoFechar();
+    router.refresh();
   }
 
   return (
@@ -219,13 +264,24 @@ function PainelDeEdicao({ paciente: p, planos, semPlano, aoFechar }: { paciente:
             <Campo rotulo="CEP">
               <input {...campo("cep")} inputMode="numeric" className={entrada} />
             </Campo>
-            <label className="col-span-2 flex cursor-pointer items-center gap-2">
-              <input type="checkbox" checked={dados.ativo} onChange={(e) => setDados({ ...dados, ativo: e.target.checked })} className="size-4 accent-[var(--accent)]" />
+            <label className={`col-span-2 flex items-center gap-2 ${minhaInativacaoPedida ? "opacity-60" : "cursor-pointer"}`}>
+              <input
+                type="checkbox"
+                checked={dados.ativo}
+                disabled={minhaInativacaoPedida}
+                onChange={(e) => setDados({ ...dados, ativo: e.target.checked })}
+                className="size-4 accent-[var(--accent)]"
+              />
               <span>
                 Ativo
-                <span className="block text-xs text-muted">Inativo: some da busca ao marcar atendimentos; o histórico continua.</span>
+                <span className="block text-xs text-muted">
+                  {minhaInativacaoPedida
+                    ? "Você pediu a inativação: aguardando a recepção ou um administrador."
+                    : "Inativo: some da busca ao marcar atendimentos; o histórico continua."}
+                </span>
               </span>
             </label>
+            {pedindoInativacao && <AvisoDeInativacao pacienteId={p.id} nome={p.nome} motivo={motivoInativacao} aoMudarMotivo={setMotivoInativacao} />}
           </div>
           <div className="flex shrink-0 items-center justify-end gap-2 border-t border-border px-5 py-3">
             {erro && (

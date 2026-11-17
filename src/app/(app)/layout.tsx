@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { sair } from "@/lib/auth/actions";
 import { usuarioAtual } from "@/lib/auth/usuario";
 import { NavPrincipal } from "./nav-principal";
+import { carregarSolicitacoes } from "./solicitacoes/dados";
 
 export default async function AppLayout({ children }: LayoutProps<"/">) {
   const usuario = await usuarioAtual();
@@ -21,6 +22,9 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
     );
   }
 
+  // Pedidos à espera de decisão, para a contagem no menu (o profissional não decide).
+  const pendentes = usuario.perfil === "profissional" ? 0 : (await carregarSolicitacoes().catch(() => [])).length;
+
   return (
     // Altura fixa da janela: as páginas ocupam o espaço restante (a agenda se ajusta a ele).
     <div className="flex h-dvh flex-col">
@@ -30,7 +34,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
           <Link href="/agenda" className="hidden text-lg font-semibold tracking-tight sm:inline">
             Nurture
           </Link>
-          <NavPrincipal perfil={usuario.perfil} />
+          <NavPrincipal perfil={usuario.perfil} pendentes={pendentes} />
         </div>
         <div className="flex items-center gap-3 text-sm">
           <Link href="/conta" title="Minha conta" className="hidden text-muted hover:text-foreground sm:inline">
