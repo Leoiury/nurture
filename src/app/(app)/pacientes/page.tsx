@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { ehProfissional, usuarioAtual } from "@/lib/auth/usuario";
+import { pacientesOcultosParaMim } from "@/lib/pacientes-ocultos";
 import { createClient } from "@/lib/supabase/server";
 import { ListaDePacientes, type PacienteDaLista } from "./lista-de-pacientes";
 
@@ -15,12 +16,20 @@ export default async function PacientesPage({ searchParams }: PageProps<"/pacien
   const supabase = await createClient();
   const eu = await usuarioAtual();
   const semPlano = await ehProfissional();
-  const { data, error } = await supabase
-    .from("pacientes")
-    .select(semPlano ? LISTA_SEM_VALOR : LISTA)
-    .order("nome")
-    .limit(5000);
-  if (error) throw new Error("Não foi possível carregar os pacientes.");
+  const [{ data, error }, pedidos, ocultos] = await Promise.all([
+    supabase
+      .from("pacientes")
+      .select(semPlano ? LISTA_SEM_VALOR : LISTA)
+      .order("nome")
+      .limit(5000),
+    // Em aberto: para a recepção e o ADM, todos; para o profissional, os dele.
+    (eu?.profissionalId && semPlano
+      ? supabase.from("inativacoes_pedidas").select("paciente_id").is("decisao", null).eq("profissional_id", eu.profissionalId)
+      : supabase.from("inativacoes_pedidas").select("paciente_id").is("decisao", null)),
+    pacientesOcultosParaMim(),
+  ]);
+  if (error || pedidos.error) throw new Error("Não foi possível carregar os pacientes.");
+  const comPedido = new Set(pedidos.data.map((p) => p.paciente_id));
 
   const pacientes: PacienteDaLista[] = data.map((p) => ({
     id: p.id,
@@ -28,7 +37,9 @@ export default async function PacientesPage({ searchParams }: PageProps<"/pacien
     responsavel: p.responsavel,
     dataNascimento: p.data_nascimento,
     celular: p.celular,
-    ativo: p.ativo,
+    // Para quem pediu a inativação, o paciente já está entre os inativos.
+    ativo: p.ativo && !ocultos.has(p.id),
+    inativacaoPedida: comPedido.has(p.id),
     plano: semPlano ? null : p.plano,
     nivel: p.nivel_cadastral,
     pendencias: semPlano ? p.pendencias_cadastrais.filter((x) => x !== "plano") : p.pendencias_cadastrais,

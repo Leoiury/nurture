@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { ehDataValida } from "@/lib/agenda/tempo";
+import { ehProfissional } from "@/lib/auth/usuario";
 import { createClient } from "@/lib/supabase/server";
 
 export type DadosDoPaciente = {
@@ -50,7 +51,8 @@ export async function atualizarPaciente(p: DadosDoPaciente): Promise<Resultado> 
       uf: uf || null,
       cep: vazioParaNulo(p.cep),
       plano_id: p.planoId,
-      ativo: p.ativo,
+      // O profissional pede a inativação e reativa por funções próprias (actions-inativacao).
+      ...((await ehProfissional()) ? {} : { ativo: p.ativo }),
     })
     .eq("id", p.id);
   if (error) return { ok: false, erro: "Não foi possível salvar." };

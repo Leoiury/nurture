@@ -7,6 +7,8 @@ const ITENS = [
   { href: "/agenda", rotulo: "Agenda" },
   { href: "/pacientes", rotulo: "Pacientes" },
   { href: "/profissionais", rotulo: "Profissionais" },
+  // Pedidos dos profissionais: recepção e ADM decidem.
+  { href: "/solicitacoes", rotulo: "Solicitações" },
 ];
 
 const ITENS_PROFISSIONAL = [
@@ -18,7 +20,7 @@ const ITENS_PROFISSIONAL = [
 // Financeiro: só a direção.
 const ITENS_ADM = [{ href: "/financeiro", rotulo: "Financeiro" }];
 
-export function NavPrincipal({ perfil }: { perfil: "adm" | "limitado" | "profissional" }) {
+export function NavPrincipal({ perfil, pendentes = 0 }: { perfil: "adm" | "limitado" | "profissional"; pendentes?: number }) {
   const caminho = usePathname();
   return (
     // No celular, se não couber, só o menu rola (não a página).
@@ -30,9 +32,14 @@ export function NavPrincipal({ perfil }: { perfil: "adm" | "limitado" | "profiss
             key={i.href}
             href={i.href}
             aria-current={ativo ? "page" : undefined}
-            className={ativo ? "font-medium text-accent" : "text-muted hover:text-foreground"}
+            className={`inline-flex items-center gap-1.5 ${ativo ? "font-medium text-accent" : "text-muted hover:text-foreground"}`}
           >
             {i.rotulo}
+            {i.href === "/solicitacoes" && pendentes > 0 && (
+              <span aria-label={`${pendentes} pendentes`} className="rounded-full bg-amber-100 px-1.5 text-xs font-medium text-amber-900 tabular-nums">
+                {pendentes}
+              </span>
+            )}
           </Link>
         );
       })}

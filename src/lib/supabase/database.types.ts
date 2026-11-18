@@ -974,6 +974,77 @@ export type Database = {
           },
         ]
       }
+      inativacoes_pedidas: {
+        Row: {
+          decidido_em: string | null
+          decidido_por: string | null
+          decisao: string | null
+          id: string
+          motivo: string
+          paciente_id: string
+          pedido_em: string
+          pedido_por: string
+          pedido_por_nome: string
+          profissional_id: string
+          reativado_em: string | null
+        }
+        Insert: {
+          decidido_em?: string | null
+          decidido_por?: string | null
+          decisao?: string | null
+          id?: string
+          motivo: string
+          paciente_id: string
+          pedido_em?: string
+          pedido_por: string
+          pedido_por_nome: string
+          profissional_id: string
+          reativado_em?: string | null
+        }
+        Update: {
+          decidido_em?: string | null
+          decidido_por?: string | null
+          decisao?: string | null
+          id?: string
+          motivo?: string
+          paciente_id?: string
+          pedido_em?: string
+          pedido_por?: string
+          pedido_por_nome?: string
+          profissional_id?: string
+          reativado_em?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inativacoes_pedidas_decidido_por_fkey"
+            columns: ["decidido_por"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inativacoes_pedidas_paciente_id_fkey"
+            columns: ["paciente_id"]
+            isOneToOne: false
+            referencedRelation: "pacientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inativacoes_pedidas_pedido_por_fkey"
+            columns: ["pedido_por"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inativacoes_pedidas_profissional_id_fkey"
+            columns: ["profissional_id"]
+            isOneToOne: false
+            referencedRelation: "profissionais"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       jornadas: {
         Row: {
           atualizado_em: string
@@ -2017,6 +2088,10 @@ export type Database = {
         }
         Returns: number
       }
+      decidir_inativacao: {
+        Args: { p_decisao: string; p_id: string }
+        Returns: number
+      }
       definir_cores_status: { Args: { p_cores: Json }; Returns: undefined }
       definir_escala: {
         Args: { p_intervalos: Json; p_profissional: string }
@@ -2071,6 +2146,14 @@ export type Database = {
           p_alcance: Database["public"]["Enums"]["alcance_serie"]
           p_id: string
           p_motivo: string
+        }
+        Returns: number
+      }
+      excluir_futuros_do_paciente: {
+        Args: {
+          p_motivo: string
+          p_paciente: string
+          p_profissionais: string[]
         }
         Returns: number
       }
@@ -2131,6 +2214,14 @@ export type Database = {
       }
       mudar_plano_dos_futuros: {
         Args: { p_ignorar?: string; p_paciente: string; p_plano: string }
+        Returns: number
+      }
+      pedir_exclusao_dos_futuros: {
+        Args: { p_motivo: string; p_paciente: string }
+        Returns: number
+      }
+      pedir_inativacao: {
+        Args: { p_motivo: string; p_paciente: string }
         Returns: number
       }
       perfil_do_login: {
@@ -2203,6 +2294,10 @@ export type Database = {
       reajustar_plano: {
         Args: { p_antigos: Json; p_plano: string }
         Returns: number
+      }
+      reativar_paciente_para_mim: {
+        Args: { p_paciente: string }
+        Returns: undefined
       }
       recusar_exclusao: { Args: { p_id: string }; Returns: number }
       registrar_arquivo: {
