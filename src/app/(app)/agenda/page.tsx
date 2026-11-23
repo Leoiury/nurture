@@ -104,6 +104,7 @@ export default async function AgendaPage({ searchParams }: PageProps<"/agenda">)
         lembretes={lembretes}
         pessoal={calendario ? { outros: calendario.outros } : undefined}
         coresDoStatus={cores}
+        coresParaAlternar={soPessoal ? undefined : coresDoStatus(usuario?.coresStatus)}
         pacienteFiltrado={pacienteFiltrado}
         planejamento={noPlanejamento ? { operacoes, base, urlSair: url(visao, false) } : undefined}
         urlDoPlanejamento={ehAdm && !noPlanejamento && !pessoal ? url(visao, true) : undefined}

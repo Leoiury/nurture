@@ -16,7 +16,7 @@ import { lerIdNovo, quando as quandoFormatado, type Operacao } from "@/lib/agend
 import { ProvedorDeAcoes } from "./acoes-da-agenda";
 import { mover } from "./actions";
 import { ProvedorDeArraste, type AlvoDoArraste } from "./arraste";
-import { agruparPorColuna, nomeAbreviado, useAlturaDoElemento, useModoFoco } from "./comum";
+import { agruparPorColuna, nomeAbreviado, useAlturaDoElemento, useCorPor, useModoFoco } from "./comum";
 import type { NovoNoHorario } from "./coluna-clicavel";
 import { FiltrosAvancados, type OpcoesDosFiltros } from "./filtros-avancados";
 import { MenuLateral } from "./menu-lateral";
@@ -64,9 +64,11 @@ type Props = {
   meuProfissional?: string;
   /** Perfil profissional: cores por status na legenda, sem plano nos filtros, e os desmarcados à vista. */
   coresDoStatus?: Record<Status, string>;
+  /** Agenda completa: cores por status do usuário, para alternar com as dos planos no menu. */
+  coresParaAlternar?: Record<Status, string>;
 };
 
-export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais, atendimentos, especiais, lembretes, navegacao, navegacaoNoMenu, planejamento, urlDoPlanejamento, pessoal, pacienteFiltrado, alternarCalendario, meuProfissional, coresDoStatus }: Props) {
+export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais, atendimentos, especiais, lembretes, navegacao, navegacaoNoMenu, planejamento, urlDoPlanejamento, pessoal, pacienteFiltrado, alternarCalendario, meuProfissional, coresDoStatus, coresParaAlternar }: Props) {
   // Profissionais sem atendimentos no período começam ocultos (podem ser exibidos no menu).
   const [ocultos, setOcultos] = useState<Set<string>>(
     () => new Set(pessoal ? [] : profissionais.filter((p) => !atendimentos.some((a) => a.profissionalIds.includes(p.id))).map((p) => p.id)),
@@ -83,6 +85,9 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
   const [realizando, setRealizando] = useState<{ qual: "atendimento" | "anamnese"; data: string; hora: string } | null>(null);
   const [editando, setEditando] = useState<DadosEdicao | null>(null);
   const [foco, setFoco] = useModoFoco();
+  const [corPor, setCorPor] = useCorPor();
+  // Cores por status: sempre no calendário do profissional; na agenda completa, se escolhido no menu.
+  const coresPorStatus = coresDoStatus ?? (coresParaAlternar && corPor === "status" ? coresParaAlternar : undefined);
   const [aviso, setAviso] = useState<{ texto: string; desfazer?: () => void } | null>(null);
   // Calendário pessoal: pergunta antes de mover para um horário com impacto em outro profissional.
   const [confirmacao, setConfirmacao] = useState<{ textos: string[]; aoConfirmar: () => void } | null>(null);
@@ -155,11 +160,13 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
         )
         .map((a) => (textos.has(a.id) ? { ...a, divergencia: textos.get(a.id) } : a))
         // Bolo no card: o paciente faz aniversário no dia do atendimento.
-        .map((a) => (aniversariantes.has(`${a.data}|${a.pacienteId}`) ? { ...a, aniversario: true } : a)),
+        .map((a) => (aniversariantes.has(`${a.data}|${a.pacienteId}`) ? { ...a, aniversario: true } : a))
+        // Cores por status escolhidas no menu (o calendário do profissional já chega com elas).
+        .map((a) => (coresPorStatus && !coresDoStatus ? { ...a, corDoStatus: coresPorStatus[a.status] } : a)),
       filtros,
       modoDoFiltro,
     );
-  }, [atendimentosAtuais, ocultos, mostrarDesmarcados, divergencias, aniversariantes, filtros, modoDoFiltro]);
+  }, [atendimentosAtuais, ocultos, mostrarDesmarcados, divergencias, aniversariantes, filtros, modoDoFiltro, coresPorStatus, coresDoStatus]);
   const ajuste = useMemo(
     () =>
       totalDeFiltros > 0 && modoDoFiltro === "esconder" && ajustarAgenda ? ajustarAoFiltro(visiveis, colunasVisiveis.map((p) => p.id)) : null,
@@ -189,7 +196,7 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
   }, [atendimentosAtuais, filtros.planos, filtros.tipos, coresDoStatus]);
 
   const planos = useMemo(() => {
-    if (coresDoStatus) return ROTULOS_DOS_STATUS.map(([status, rotulo]): [string, string] => [rotulo, coresDoStatus[status]]);
+    if (coresPorStatus) return ROTULOS_DOS_STATUS.map(([status, rotulo]): [string, string] => [rotulo, coresPorStatus[status]]);
     const m = new Map<string, string>();
     const tipos = new Map<string, string>();
     for (const a of atendimentos) {
@@ -199,7 +206,7 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
     // Tipos com cor própria (ex.: Temporário) também entram na legenda.
     for (const [tipo, cor] of tipos) m.set(`${tipo} (tipo)`, cor);
     return [...m].sort(([a], [b]) => a.localeCompare(b));
-  }, [atendimentos, coresDoStatus]);
+  }, [atendimentos, coresPorStatus]);
 
   /** No calendário pessoal, avisa antes se o novo horário afeta outro profissional. */
   function soltar(a: AtendimentoAgenda, de: string, alvo: AlvoDoArraste) {
@@ -446,7 +453,9 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
         aoAlternar={alternarProfissional}
         aoMostrarTodos={() => setOcultos(new Set())}
         planos={planos}
-        tituloDaLegenda={coresDoStatus ? "Status" : "Planos"}
+        tituloDaLegenda={coresPorStatus ? "Status" : "Planos"}
+        corPor={corPor}
+        aoMudarCorPor={coresParaAlternar && !coresDoStatus ? setCorPor : undefined}
         compactar={compactar}
         aoCompactar={(v) => {
           setCompactar(v);

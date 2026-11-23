@@ -64,7 +64,8 @@ export default async function ContaPage() {
           </Link>
         </section>
       )}
-      {u.perfil === "profissional" && <CoresDoCalendario iniciais={coresDoStatus(u.coresStatus)} />}
+      {/* Profissional: cores do calendário. ADM e recepção: usadas ao escolher "Status" nas cores da agenda. */}
+      <CoresDoCalendario iniciais={coresDoStatus(u.coresStatus)} />
       {u.profissionalId && u.perfil !== "limitado" && <PastaDeExportacao />}
       <TrocarSenha />
     </div>
