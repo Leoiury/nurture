@@ -106,7 +106,7 @@ test("só altera os próprios atendimentos, sem mexer no valor", async () => {
     ["profissional_mover_atendimento", { p_id: doColega, p_inicio: instante(dia, "10:00") }],
     ["profissional_alterar_status", { p_id: doColega, p_status: "atendido" }],
     ["profissional_desmarcar_atendimentos", { p_id: doColega, p_alcance: "este", p_motivo: "x" }],
-    ["profissional_solicitar_exclusao", { p_id: doColega, p_alcance: "este", p_motivo: "x" }],
+    ["profissional_excluir_atendimentos", { p_id: doColega, p_alcance: "este", p_motivo: "x" }],
   ] as const) {
     expect((await api.rpc(funcao, args)).error?.message, funcao).toContain("próprios atendimentos");
   }
@@ -223,7 +223,7 @@ test("ao arrastar, mostra em cinza os horários com outros e pergunta antes de m
   await contexto.close();
 });
 
-test("excluir vira pedido: some para ele e fica apagado até a confirmação", async ({ browser, page }) => {
+test("exclui direto, e a recepção e o ADM recebem o aviso", async ({ browser, page }) => {
   const segunda = segundaDaqui(24);
   const id = await novoAtendimento([eu], segunda, "09:00");
 
@@ -235,28 +235,31 @@ test("excluir vira pedido: some para ele e fica apagado até a confirmação", a
   const painel = painelDetalhes(dele);
   await expect(painel.getByText("Valor", { exact: true })).toHaveCount(0);
   await painel.getByRole("button", { name: "Excluir atendimento…" }).click();
-  await expect(painel).toContainText("a recepção confirma a exclusão");
+  await expect(painel).toContainText("a recepção e a direção recebem um aviso");
   await painel.getByLabel("Motivo da exclusão").fill("Marcado por engano");
   await painel.getByRole("button", { name: "Excluir", exact: true }).click();
   await expect(painel).toHaveCount(0);
   await dele.reload();
   await expect(cardDoPaciente(dele, NOME_PACIENTE)).toHaveCount(0);
+  // O profissional não vê os avisos da equipe.
+  await dele.goto("/notificacoes");
+  await expect(dele.getByRole("region", { name: "Avisos" })).toHaveCount(0);
   await contexto.close();
 
-  // Ainda não foi excluído de fato; quem não é profissional confirma.
-  expect((await admin.from("atendimentos").select("excluido_em").eq("id", id).single()).data!.excluido_em).toBeNull();
-  expect((await api.rpc("confirmar_exclusao", { p_id: id })).data).toBe(0);
-
+  // Excluído de fato, sem confirmação.
+  expect((await admin.from("atendimentos").select("excluido_em").eq("id", id).single()).data!.excluido_em).not.toBeNull();
   await page.goto(`/agenda?semana=${segunda}`);
-  const card = page.locator(`[data-atendimento="${id}"]`).first();
-  await expect(card).toHaveAttribute("data-esmaecido", "");
-  await card.click();
-  const doAdm = painelDetalhes(page);
-  await expect(doAdm).toContainText("Exclusão solicitada pelo profissional");
-  await expect(doAdm).toContainText("Marcado por engano");
-  await doAdm.getByRole("button", { name: "Confirmar exclusão" }).click();
-  await expect(doAdm).toHaveCount(0);
-  await expect.poll(async () => (await admin.from("atendimentos").select("excluido_em").eq("id", id).single()).data!.excluido_em).not.toBeNull();
+  await expect(page.locator(`[data-atendimento="${id}"]`)).toHaveCount(0);
+
+  // O aviso, para a recepção e o ADM.
+  const { data: aviso } = await admin.from("notificacoes").select("id, tipo, motivo, atendimentos").contains("atendimentos", JSON.stringify([{ id }])).single();
+  expect(aviso!.tipo).toBe("exclusao");
+  expect(aviso!.motivo).toBe("Marcado por engano");
+  await page.goto("/notificacoes");
+  const item = page.getByRole("region", { name: "Avisos" }).getByRole("listitem", { name: `Exclusão: ${NOME_PACIENTE}` }).filter({ hasText: "Marcado por engano" });
+  await expect(item).toContainText("excluiu 1 atendimento de");
+  await item.getByRole("button", { name: "Marcar como lido" }).click();
+  await expect(item.getByRole("button", { name: "Marcar como lido" })).toHaveCount(0);
 });
 
 test("ADM que também atende alterna entre a agenda completa e o próprio calendário", async ({ browser }) => {
@@ -291,17 +294,4 @@ test("ADM que também atende alterna entre a agenda completa e o próprio calend
 
   await contexto.close();
   await admin.auth.admin.deleteUser(criado.data.user.id);
-});
-
-test("recusar o pedido traz o atendimento de volta", async ({ page }) => {
-  const segunda = segundaDaqui(25);
-  const id = await novoAtendimento([eu], segunda, "09:00");
-  expect((await api.rpc("profissional_solicitar_exclusao", { p_id: id, p_alcance: "este", p_motivo: "Engano" })).error).toBeNull();
-  expect((await api.from("atendimentos_equipe").select("id").eq("id", id)).data).toEqual([]);
-
-  await page.goto(`/agenda?semana=${segunda}`);
-  await page.locator(`[data-atendimento="${id}"]`).first().click();
-  await painelDetalhes(page).getByRole("button", { name: "Manter atendimento" }).click();
-  await expect(painelDetalhes(page).getByRole("region", { name: "Pedido de exclusão" })).toHaveCount(0);
-  expect((await api.from("atendimentos_equipe").select("id").eq("id", id)).data).toHaveLength(1);
 });

@@ -8,7 +8,6 @@ import { carregarDiasEspeciais, carregarEscalas } from "@/lib/agenda/dados";
 import { escalaDoDia, intersecao } from "@/lib/agenda/escala";
 import { semExpediente } from "@/lib/agenda/feriados";
 import { horariosEmSequencia, horariosLivres, type Ocupacao } from "@/lib/agenda/horarios-livres";
-import { semOsOcultos } from "@/lib/pacientes-ocultos";
 import { MAXIMO_DE_SESSOES, candidatasDaSerie, datasDaSerie, datasSemBloqueios, type FimDaSerie, type Frequencia } from "@/lib/agenda/recorrencia";
 import { profissionaisDoTipo, type TipoComProfissionais } from "@/lib/agenda/tipos";
 import { FUSO, ehDataValida, formatarHora, inicioDoDiaISO, instanteNoFuso, partesNoFuso, somarDias } from "@/lib/agenda/tempo";
@@ -38,8 +37,7 @@ export async function opcoesDoFormulario() {
     supabase.from("tipos_atendimento").select("id, nome, area, cor, abre_anamnese, cobrar, vinculos:tipos_atendimento_profissionais(profissional_id)").eq("ativo", true).order("nome"),
   ]);
   for (const r of [pacientes, profissionais, planos, tipos]) if (r.error) throw new Error("Não foi possível carregar o formulário.");
-  // Os que o profissional pediu para inativar não aparecem para ele.
-  const pacientesVisiveis = await semOsOcultos(pacientes.data!);
+  // Os ocultos pelo profissional continuam aqui: marcar um atendimento traz o paciente de volta.
   const tiposComProfissionais: TipoComProfissionais[] = tipos.data!.map((t) => ({
     id: t.id,
     nome: t.nome,
@@ -50,7 +48,7 @@ export async function opcoesDoFormulario() {
     cobrar: t.cobrar,
   }));
   // "Anteriores e futuros" nos ajustes de valor: só administradores.
-  return { pacientes: pacientesVisiveis, profissionais: profissionais.data!, planos: planos.data!, tipos: tiposComProfissionais, ehAdm: await ehAdm(), semValores, meuProfissional: semValores ? ((await usuarioAtual())?.profissionalId ?? null) : null };
+  return { pacientes: pacientes.data!, profissionais: profissionais.data!, planos: planos.data!, tipos: tiposComProfissionais, ehAdm: await ehAdm(), semValores, meuProfissional: semValores ? ((await usuarioAtual())?.profissionalId ?? null) : null };
 }
 
 export type OpcoesDoFormulario = Awaited<ReturnType<typeof opcoesDoFormulario>>;

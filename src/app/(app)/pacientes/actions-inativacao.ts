@@ -1,6 +1,7 @@
 "use server";
 
-// Inativação pedida pelo profissional e exclusão dos atendimentos futuros do paciente.
+// Atendimentos de agora em diante do paciente: a recepção e o ADM excluem (de todos ou
+// dos profissionais escolhidos); o profissional exclui os dele e oculta o paciente.
 
 import { revalidatePath } from "next/cache";
 import { ehProfissional, usuarioAtual } from "@/lib/auth/usuario";
@@ -15,7 +16,7 @@ function revalidar(pacienteId: string) {
   revalidatePath(`/pacientes/${pacienteId}`);
   revalidatePath("/pacientes");
   revalidatePath("/agenda");
-  revalidatePath("/solicitacoes");
+  revalidatePath("/notificacoes");
 }
 
 /** Mensagem do banco quando é uma regra nossa; senão, a genérica. */
@@ -24,10 +25,7 @@ function concluir(error: { message: string; code?: string } | null, quantidade: 
   return { ok: false, erro: error.code === "P0001" ? error.message : generica };
 }
 
-/**
- * Atendimentos de agora em diante, por profissional. O profissional só conta os dele
- * ainda sem pedido de exclusão; recepção e ADM veem todos.
- */
+/** Atendimentos de agora em diante, por profissional. O profissional só conta os dele. */
 export async function atendimentosFuturos(pacienteId: string): Promise<FuturosPorProfissional[]> {
   const [supabase, profissional, eu] = await Promise.all([createClient(), ehProfissional(), usuarioAtual()]);
   const { data, error } = await supabase
@@ -50,44 +48,24 @@ export async function atendimentosFuturos(pacienteId: string): Promise<FuturosPo
   return [...contagem.values()].sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
 }
 
-/** Profissional: o paciente sai da lista dele, e os atendimentos futuros dele entram no fluxo de exclusão. */
-export async function pedirInativacao(pacienteId: string, motivo: string): Promise<Resultado> {
-  if (!motivo.trim()) return { ok: false, erro: "Informe o motivo da inativação." };
-  const supabase = await createClient();
-  const { data, error } = await supabase.rpc("pedir_inativacao", { p_paciente: pacienteId, p_motivo: motivo.trim() });
-  if (!error) revalidar(pacienteId);
-  return concluir(error, data, "Não foi possível pedir a inativação.");
-}
-
-/** Profissional: volta a ver o paciente e, se ele estiver inativo, o reativa. */
-export async function reativarParaMim(pacienteId: string): Promise<Resultado> {
-  const supabase = await createClient();
-  const { error } = await supabase.rpc("reativar_paciente_para_mim", { p_paciente: pacienteId });
-  if (!error) revalidar(pacienteId);
-  return concluir(error, 0, "Não foi possível reativar o paciente.");
-}
-
-export type Decisao = "inativar" | "manter" | "recusar";
-
-/** Recepção ou ADM decide o pedido de inativação de um profissional. */
-export async function decidirInativacao(pedidoId: string, pacienteId: string, decisao: Decisao): Promise<Resultado> {
-  const supabase = await createClient();
-  const { data, error } = await supabase.rpc("decidir_inativacao", { p_id: pedidoId, p_decisao: decisao });
-  if (!error) revalidar(pacienteId);
-  return concluir(error, data, "Não foi possível registrar a decisão.");
-}
-
-/**
- * Exclui os atendimentos de agora em diante. Recepção e ADM excluem direto, de todos ou
- * dos profissionais escolhidos; o profissional só pede a exclusão dos dele.
- */
+/** Recepção e ADM: exclui os atendimentos de agora em diante, de todos ou dos profissionais escolhidos. */
 export async function excluirFuturos(pacienteId: string, profissionais: string[] | null, motivo: string): Promise<Resultado> {
   if (!motivo.trim()) return { ok: false, erro: "A exclusão exige uma observação." };
   if (profissionais && profissionais.length === 0) return { ok: false, erro: "Escolha ao menos um profissional." };
   const supabase = await createClient();
-  const { data, error } = (await ehProfissional())
-    ? await supabase.rpc("pedir_exclusao_dos_futuros", { p_paciente: pacienteId, p_motivo: motivo.trim() })
-    : await supabase.rpc("excluir_futuros_do_paciente", { p_paciente: pacienteId, p_profissionais: profissionais as string[], p_motivo: motivo.trim() });
+  const { data, error } = await supabase.rpc("excluir_futuros_do_paciente", { p_paciente: pacienteId, p_profissionais: profissionais as string[], p_motivo: motivo.trim() });
   if (!error) revalidar(pacienteId);
   return concluir(error, data, "Não foi possível excluir os atendimentos.");
+}
+
+/**
+ * Profissional: exclui os atendimentos dele com o paciente de agora em diante, e o paciente
+ * sai da lista dele até alguém marcar um atendimento entre os dois. A equipe é avisada.
+ */
+export async function ocultarPaciente(pacienteId: string, motivo: string): Promise<Resultado> {
+  if (!motivo.trim()) return { ok: false, erro: "Informe o motivo." };
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("ocultar_paciente", { p_paciente: pacienteId, p_motivo: motivo.trim() });
+  if (!error) revalidar(pacienteId);
+  return concluir(error, data, "Não foi possível ocultar o paciente.");
 }

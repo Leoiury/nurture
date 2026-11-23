@@ -158,8 +158,7 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
         .map((a) => (aniversariantes.has(`${a.data}|${a.pacienteId}`) ? { ...a, aniversario: true } : a)),
       filtros,
       modoDoFiltro,
-      // Exclusão pedida por um profissional: apagado até a recepção ou um ADM decidir.
-    ).map((a) => (a.exclusaoSolicitada ? { ...a, esmaecido: true } : a));
+    );
   }, [atendimentosAtuais, ocultos, mostrarDesmarcados, divergencias, aniversariantes, filtros, modoDoFiltro]);
   const ajuste = useMemo(
     () =>

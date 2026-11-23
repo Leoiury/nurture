@@ -118,7 +118,7 @@ test.describe("telas", () => {
     await expect(page).toHaveURL(/\/agenda/);
 
     const menu = page.locator("header nav");
-    await expect(menu.getByRole("link")).toHaveText(["Calendário", "Pacientes", "Configurações"]);
+    await expect(menu.getByRole("link")).toHaveText(["Calendário", "Pacientes", "Notificações", "Configurações"]);
 
     await page.goto("/profissionais");
     await expect(page).toHaveURL(/\/agenda/);

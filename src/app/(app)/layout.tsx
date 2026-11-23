@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { sair } from "@/lib/auth/actions";
 import { usuarioAtual } from "@/lib/auth/usuario";
 import { NavPrincipal } from "./nav-principal";
-import { carregarSolicitacoes } from "./solicitacoes/dados";
+import { contarNotificacoes } from "./notificacoes/dados";
 
 export default async function AppLayout({ children }: LayoutProps<"/">) {
   const usuario = await usuarioAtual();
@@ -22,8 +22,8 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
     );
   }
 
-  // Pedidos à espera de decisão, para a contagem no menu (o profissional não decide).
-  const pendentes = usuario.perfil === "profissional" ? 0 : (await carregarSolicitacoes().catch(() => [])).length;
+  // Pendências e avisos não lidos, para a contagem no menu.
+  const pendentes = await contarNotificacoes().catch(() => 0);
 
   return (
     // Altura fixa da janela: as páginas ocupam o espaço restante (a agenda se ajusta a ele).

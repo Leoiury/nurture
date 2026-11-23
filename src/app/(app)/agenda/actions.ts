@@ -15,7 +15,7 @@ type Status = Database["public"]["Enums"]["status_atendimento"];
 export type Alcance = Database["public"]["Enums"]["alcance_serie"];
 export type Resultado = { ok: true; quantidade?: number } | { ok: false; erro: string };
 
-const DETALHES = `id, inicio, fim, status, valor, observacao, motivo_desmarcacao, recorrencia_id, paciente_id, plano_id, tipo_id, exclusao_solicitada_em, exclusao_motivo,
+const DETALHES = `id, inicio, fim, status, valor, observacao, motivo_desmarcacao, recorrencia_id, paciente_id, plano_id, tipo_id,
        profissionais:atendimento_profissionais(profissional:profissionais(id, nome, especialidade)),
        plano:planos(nome, cor),
        tipo:tipos_atendimento(nome, abre_anamnese),
@@ -23,7 +23,7 @@ const DETALHES = `id, inicio, fim, status, valor, observacao, motivo_desmarcacao
        paciente:pacientes(id, nome, responsavel, data_nascimento, celular, email, plano:planos(nome))`;
 
 // Os mesmos detalhes sem valores, para o perfil profissional.
-const DETALHES_SEM_VALOR = `id, inicio, fim, status, observacao, motivo_desmarcacao, recorrencia_id, paciente_id, plano_id, tipo_id, exclusao_solicitada_em, exclusao_motivo,
+const DETALHES_SEM_VALOR = `id, inicio, fim, status, observacao, motivo_desmarcacao, recorrencia_id, paciente_id, plano_id, tipo_id,
        profissionais:atendimento_profissionais(profissional:profissionais(id, nome, especialidade)),
        plano:planos_equipe(nome, cor),
        tipo:tipos_atendimento(nome, abre_anamnese),
@@ -69,21 +69,6 @@ export async function detalhesAtendimento(id: string) {
     }
   }
 
-  // Quantos atendimentos entram no pedido de exclusão (a série pedida de uma vez).
-  let pedido = 0;
-  if (atendimento.exclusao_solicitada_em) {
-    pedido = 1;
-    if (atendimento.recorrencia_id) {
-      const { count } = await supabase
-        .from(ATENDIMENTOS_SEM_VALOR)
-        .select("id", { count: "exact", head: true })
-        .eq("recorrencia_id", atendimento.recorrencia_id)
-        .eq("exclusao_solicitada_em", atendimento.exclusao_solicitada_em)
-        .is("excluido_em", null);
-      pedido = count ?? 1;
-    }
-  }
-
   return {
     atendimento,
     semValores,
@@ -92,7 +77,6 @@ export async function detalhesAtendimento(id: string) {
     // Tamanho da série e quantos vêm a partir deste (inclusive), para as opções de alcance.
     serie: serie ? { total: serie.data.length, seguintes: serie.data.filter((s) => s.inicio >= atendimento.inicio).length } : null,
     observacoes: observacoes.data,
-    pedido,
     registro,
     anamnese,
     // Só a direção vê o financeiro.
@@ -144,23 +128,11 @@ export async function desmarcar(id: string, alcance: Alcance, motivo: string): P
 export async function excluir(id: string, alcance: Alcance, motivo: string): Promise<Resultado> {
   if (!motivo.trim()) return { ok: false, erro: "A exclusão exige uma observação." };
   const supabase = await createClient();
-  // O profissional só pede: a recepção ou um ADM confirma.
-  const funcao = (await ehProfissional()) ? "profissional_solicitar_exclusao" : "excluir_atendimentos";
+  // O profissional exclui os dele direto, e a recepção e o ADM recebem o aviso.
+  const profissional = await ehProfissional();
+  const funcao = profissional ? "profissional_excluir_atendimentos" : "excluir_atendimentos";
   const { data, error } = await supabase.rpc(funcao, { p_id: id, p_alcance: alcance, p_motivo: motivo.trim() });
-  return concluir(error, data ?? 0);
-}
-
-/** Confirma o pedido de exclusão de um profissional (este atendimento e os da série no mesmo pedido). */
-export async function confirmarExclusao(id: string): Promise<Resultado> {
-  const supabase = await createClient();
-  const { data, error } = await supabase.rpc("confirmar_exclusao", { p_id: id });
-  if (!error && !data) return { ok: false, erro: "Não foi possível confirmar a exclusão." };
-  return concluir(error, data ?? 0);
-}
-
-export async function recusarExclusao(id: string): Promise<Resultado> {
-  const supabase = await createClient();
-  const { data, error } = await supabase.rpc("recusar_exclusao", { p_id: id });
+  if (!error && profissional) revalidatePath("/notificacoes");
   return concluir(error, data ?? 0);
 }
 

@@ -55,8 +55,6 @@ export type AtendimentoAgenda = {
   divergencia?: string;
   /** Calendário pessoal: já terminou e ninguém registrou se aconteceu (ícone "!"). */
   pendente?: boolean;
-  /** Um profissional pediu a exclusão: fica apagado até a recepção ou um ADM decidir. */
-  exclusaoSolicitada?: boolean;
   /** Só no planejamento: como o atendimento difere da agenda real. */
   rascunho?: "novo" | "alterado" | "desmarcado";
 };
@@ -92,11 +90,11 @@ export async function carregarDiasEspeciais(primeiroDia: string, ultimoDia: stri
 }
 
 const SELECAO_DA_AGENDA =
-  "id, id_legado, paciente_id, tipo_id, inicio, fim, status, valor, recorrencia_id, exclusao_solicitada_em, profissionais:atendimento_profissionais(profissional:profissionais(id, nome)), paciente:pacientes(nome, nivel_cadastral), plano:planos(nome, cor, exige_guia), tipo:tipos_atendimento(nome, area, cor)";
+  "id, id_legado, paciente_id, tipo_id, inicio, fim, status, valor, recorrencia_id, profissionais:atendimento_profissionais(profissional:profissionais(id, nome)), paciente:pacientes(nome, nivel_cadastral), plano:planos(nome, cor, exige_guia), tipo:tipos_atendimento(nome, area, cor)";
 
 // A mesma seleção sem valores, para o perfil profissional.
 const SELECAO_DA_AGENDA_SEM_VALOR =
-  "id, id_legado, paciente_id, tipo_id, inicio, fim, status, recorrencia_id, exclusao_solicitada_em, profissionais:atendimento_profissionais(profissional:profissionais(id, nome)), paciente:pacientes(nome, nivel_cadastral), plano:planos_equipe(nome, cor, exige_guia), tipo:tipos_atendimento(nome, area, cor)" as typeof SELECAO_DA_AGENDA;
+  "id, id_legado, paciente_id, tipo_id, inicio, fim, status, recorrencia_id, profissionais:atendimento_profissionais(profissional:profissionais(id, nome)), paciente:pacientes(nome, nivel_cadastral), plano:planos_equipe(nome, cor, exige_guia), tipo:tipos_atendimento(nome, area, cor)" as typeof SELECAO_DA_AGENDA;
 
 type LinhaDaAgenda = {
   id: string;
@@ -112,7 +110,6 @@ type LinhaDaAgenda = {
   plano: { nome: string; cor: string; exige_guia: boolean } | null;
   tipo: { nome: string; area: string | null; cor: string | null } | null;
   valor: number | null;
-  exclusao_solicitada_em: string | null;
 };
 
 function paraAgenda(a: LinhaDaAgenda): AtendimentoAgenda {
@@ -139,17 +136,20 @@ function paraAgenda(a: LinhaDaAgenda): AtendimentoAgenda {
     importado: a.id_legado !== null,
     // Na visão sem valores, o campo nem vem: o filtro "sem valor" não se aplica.
     semValor: a.valor === null,
-    exclusaoSolicitada: !!a.exclusao_solicitada_em,
   };
 }
 
-/** Situação da guia de cada atendimento (cobertura calculada no banco, por série). */
+/** Situação da guia de cada atendimento (cobertura calculada no banco, pelo saldo do paciente). */
 async function comGuias(linhas: LinhaDaAgenda[]): Promise<AtendimentoAgenda[]> {
-  const series = [...new Set(linhas.map((a) => a.recorrencia_id).filter((r): r is string => !!r))];
+  const pacientes = [...new Set(linhas.map((a) => a.paciente_id).filter((p): p is string => !!p))];
   const cobertura = new Map<string, { posicao: number; quantidade: number; renovada: boolean }>();
-  if (series.length) {
-    const supabase = await createClient();
-    const { data, error } = await supabase.from("guias_dos_atendimentos").select("atendimento_id, posicao, quantidade, renovada").in("recorrencia_id", series);
+  const supabase = await createClient();
+  // Em lotes: a lista de pacientes vai na URL.
+  for (let i = 0; i < pacientes.length; i += 150) {
+    const { data, error } = await supabase
+      .from("guias_dos_atendimentos")
+      .select("atendimento_id, posicao, quantidade, renovada")
+      .in("paciente_id", pacientes.slice(i, i + 150));
     if (error) throw error;
     for (const c of data) cobertura.set(c.atendimento_id!, { posicao: c.posicao!, quantidade: c.quantidade!, renovada: c.renovada! });
   }

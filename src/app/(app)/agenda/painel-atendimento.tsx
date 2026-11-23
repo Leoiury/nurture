@@ -13,9 +13,7 @@ import { FUSO, partesNoFuso, formatarHora } from "@/lib/agenda/tempo";
 import {
   adicionarObservacao,
   alterarStatus,
-  confirmarExclusao,
   detalhesAtendimento,
-  recusarExclusao,
   type Alcance,
   type DetalhesAtendimento,
   type Resultado,
@@ -200,28 +198,6 @@ export function PainelAtendimento({ id, aoFechar, aoEditar, mostrarLinkDoPacient
               </section>
             )}
 
-            {/* Pedido de exclusão de um profissional: a recepção ou um ADM decide. */}
-            {a.exclusao_solicitada_em && !dados.semValores && (
-              <section aria-label="Pedido de exclusão" className="flex flex-col gap-2 rounded-xl bg-red-50 px-3 py-2.5 ring-1 ring-red-200">
-                <p className="font-semibold text-danger">Exclusão solicitada pelo profissional</p>
-                <p>{a.exclusao_motivo}</p>
-                {dados.pedido > 1 && <p className="text-xs text-muted">O pedido inclui {dados.pedido} atendimentos desta série.</p>}
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    disabled={trabalhando}
-                    onClick={() => executar(() => confirmarExclusao(a.id), aoFechar)}
-                    className="rounded-full bg-danger px-4 py-2 text-sm font-medium text-white hover:brightness-110 disabled:opacity-50"
-                  >
-                    Confirmar exclusão
-                  </button>
-                  <button type="button" disabled={trabalhando} onClick={() => executar(() => recusarExclusao(a.id), recarregar)} className={botaoSecundario}>
-                    Manter atendimento
-                  </button>
-                </div>
-              </section>
-            )}
-
             {/* Tipo Anamnese: abre a anamnese, e não o registro. */}
             {modo === "ver" && !acoes.planejamento && dados.anamnese && (dados.anamnese.atende || dados.anamnese.id) && (
               <section aria-label="Anamnese do atendimento" className="flex flex-col gap-2">
@@ -353,7 +329,7 @@ export function PainelAtendimento({ id, aoFechar, aoEditar, mostrarLinkDoPacient
 
             {modo === "excluir" && (
               <FormExcluir
-                comoPedido={dados.semValores}
+                profissional={dados.semValores}
                 serie={dados.serie}
                 pago={dados.financeiro?.recebido ?? 0}
                 trabalhando={trabalhando}
@@ -649,15 +625,15 @@ function FormDesmarcar({
 }
 
 function FormExcluir({
-  comoPedido,
+  profissional,
   serie,
   pago,
   trabalhando,
   aoCancelar,
   aoConfirmar,
 }: {
-  /** Perfil profissional: a exclusão só vale depois de confirmada pela recepção ou por um ADM. */
-  comoPedido: boolean;
+  /** Perfil profissional: a recepção e a direção recebem o aviso da exclusão. */
+  profissional: boolean;
   serie: Serie;
   pago: number;
   trabalhando: boolean;
@@ -671,8 +647,8 @@ function FormExcluir({
     <section className="flex flex-col gap-3 rounded-2xl bg-red-50 p-4 ring-1 ring-red-200" aria-label="Excluir atendimento">
       <p className="font-semibold text-danger">Excluir atendimento</p>
       <p className="text-muted">
-        {comoPedido
-          ? "O atendimento sai do seu calendário, e a recepção confirma a exclusão. Para faltas e cancelamentos, use “Desmarcar”."
+        {profissional
+          ? "O atendimento some da agenda, e a recepção e a direção recebem um aviso. Para faltas e cancelamentos, use “Desmarcar”."
           : "O atendimento some da agenda, mas fica guardado com esta observação, a data e quem excluiu. Para faltas e cancelamentos, use “Desmarcar”."}
       </p>
       <AvisoDePago pago={pago} />

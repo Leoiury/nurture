@@ -57,7 +57,7 @@ export type DadosEdicao = {
 type Props = {
   aoFechar: () => void;
   /** Pré-preenchimento (ex.: ao clicar num horário vazio da grade). */
-  inicial?: { data?: string; hora?: string; profissionalId?: string; pacienteId?: string };
+  inicial?: { data?: string; hora?: string; profissionalId?: string; pacienteId?: string; tipoId?: string };
   /** Se informado, o painel edita este atendimento em vez de criar um novo. */
   edicao?: DadosEdicao;
   /** Avulso, acontecendo agora: entra no calendário e já abre para escrever. */
@@ -92,7 +92,7 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao, realizar }: P
   const [hora, setHora] = useState(edicao?.hora ?? inicial?.hora ?? "");
   const [duracao, setDuracao] = useState(edicao?.duracaoMin ?? 45);
   const [planoId, setPlanoId] = useState<string | null>(edicao?.planoId ?? null);
-  const [tipoId, setTipoId] = useState<string | null>(edicao?.tipoId ?? null);
+  const [tipoId, setTipoId] = useState<string | null>(edicao?.tipoId ?? inicial?.tipoId ?? null);
   const [valor, setValor] = useState(edicao?.valor != null ? String(edicao.valor).replace(".", ",") : "");
   // Digitado à mão (ou já gravado, na edição): trocar o tipo não o substitui.
   const [valorDigitado, setValorDigitado] = useState(!!edicao);

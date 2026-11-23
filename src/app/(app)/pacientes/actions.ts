@@ -51,7 +51,7 @@ export async function atualizarPaciente(p: DadosDoPaciente): Promise<Resultado> 
       uf: uf || null,
       cep: vazioParaNulo(p.cep),
       plano_id: p.planoId,
-      // O profissional pede a inativação e reativa por funções próprias (actions-inativacao).
+      // Inativar e reativar: só a recepção e o ADM (o banco também bloqueia o profissional).
       ...((await ehProfissional()) ? {} : { ativo: p.ativo }),
     })
     .eq("id", p.id);

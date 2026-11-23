@@ -22,8 +22,8 @@ export type PacienteDaLista = {
   nivel: NivelCadastral;
   /** O que falta no cadastro (ex.: "CPF", "endereço"). */
   pendencias: string[];
-  /** Inativação pedida por um profissional, à espera da recepção (para o profissional, a dele). */
-  inativacaoPedida: boolean;
+  /** Profissional: ele ocultou o paciente; fica junto com os inativos. */
+  oculto: boolean;
 };
 
 type Visao = "lista" | "cadastro";
@@ -39,7 +39,6 @@ const entrada =
 export function ListaDePacientes({ pacientes, visao, semPlano }: { pacientes: PacienteDaLista[]; visao: Visao; semPlano?: boolean }) {
   const [busca, setBusca] = useState("");
   const [inativos, setInativos] = useState(false);
-  const [soPedidos, setSoPedidos] = useState(false);
   const [nivel, setNivel] = useState<NivelCadastral | null>(null);
   const [cadastrando, setCadastrando] = useState(false);
   const cadastro = visao === "cadastro";
@@ -49,13 +48,12 @@ export function ListaDePacientes({ pacientes, visao, semPlano }: { pacientes: Pa
     const termo = paraBusca(busca);
     return pacientes.filter(
       (p) =>
-        (soPedidos ? p.inativacaoPedida : inativos || p.ativo) &&
+        (inativos || (p.ativo && !p.oculto)) &&
         (!termo || paraBusca(p.nome).includes(termo) || (p.responsavel && paraBusca(p.responsavel).includes(termo))),
     );
-  }, [pacientes, busca, inativos, soPedidos]);
+  }, [pacientes, busca, inativos]);
   const visiveis = cadastro && nivel ? encontrados.filter((p) => p.nivel === nivel) : encontrados;
-  const totalInativos = pacientes.filter((p) => !p.ativo).length;
-  const totalPedidos = semPlano ? 0 : pacientes.filter((p) => p.inativacaoPedida).length;
+  const totalInativos = pacientes.filter((p) => !p.ativo || p.oculto).length;
 
   return (
     <>
@@ -95,13 +93,7 @@ export function ListaDePacientes({ pacientes, visao, semPlano }: { pacientes: Pa
         {totalInativos > 0 && (
           <label className="flex cursor-pointer items-center gap-2 text-sm text-muted">
             <input type="checkbox" checked={inativos} onChange={(e) => setInativos(e.target.checked)} className="size-4 accent-[var(--accent)]" />
-            Mostrar inativos ({totalInativos})
-          </label>
-        )}
-        {totalPedidos > 0 && (
-          <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-amber-800">
-            <input type="checkbox" checked={soPedidos} onChange={(e) => setSoPedidos(e.target.checked)} className="size-4 accent-[var(--accent)]" />
-            Inativação pedida ({totalPedidos})
+            {semPlano ? "Mostrar inativos e ocultos" : "Mostrar inativos"} ({totalInativos})
           </label>
         )}
         <span className="ml-auto text-sm text-muted">
@@ -151,7 +143,7 @@ export function ListaDePacientes({ pacientes, visao, semPlano }: { pacientes: Pa
                   <span className="min-w-0 flex-1">
                     <span className={`block truncate font-medium ${p.ativo ? "" : "text-muted"}`}>
                       {p.nome}
-                      <SelosDoPaciente paciente={p} semPlano={semPlano} />
+                      <SelosDoPaciente paciente={p} />
                     </span>
                     <span className="block truncate text-xs text-muted">
                       {p.pendencias.length ? `Falta: ${p.pendencias.join(", ")}` : "Cadastro completo"}
@@ -172,7 +164,7 @@ export function ListaDePacientes({ pacientes, visao, semPlano }: { pacientes: Pa
                 <span className="min-w-0 flex-1">
                   <span className={`block truncate font-medium ${p.ativo ? "" : "text-muted"}`}>
                     {p.nome}
-                    <SelosDoPaciente paciente={p} semPlano={semPlano} />
+                    <SelosDoPaciente paciente={p} />
                   </span>
                   <span className="block truncate text-xs text-muted">
                     {[p.dataNascimento && idade(p.dataNascimento), p.responsavel && `Resp.: ${p.responsavel}`, p.celular].filter(Boolean).join(" · ") || "—"}
@@ -230,15 +222,11 @@ function CadastroRapido({ nomeInicial, aoCancelar }: { nomeInicial: string; aoCa
   );
 }
 
-function SelosDoPaciente({ paciente: p, semPlano }: { paciente: PacienteDaLista; semPlano?: boolean }) {
+function SelosDoPaciente({ paciente: p }: { paciente: PacienteDaLista }) {
   return (
     <>
       {!p.ativo && <span className="ml-2 rounded-full bg-black/5 px-2 py-0.5 text-xs font-normal">inativo</span>}
-      {p.inativacaoPedida && (
-        <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-normal text-amber-900">
-          {semPlano ? "aguardando confirmação" : "inativação pedida"}
-        </span>
-      )}
+      {p.oculto && <span className="ml-2 rounded-full bg-black/5 px-2 py-0.5 text-xs font-normal">oculto</span>}
     </>
   );
 }

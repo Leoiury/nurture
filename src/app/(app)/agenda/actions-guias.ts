@@ -1,250 +1,214 @@
 "use server";
 
-// Guias de autorização do convênio: gerar, renovar, excluir e relacionar atendimentos.
-// A cobertura (que atendimentos cada guia cobre) é calculada no banco
-// (guias_dos_atendimentos); aqui ficam as datas dos atendimentos que faltam.
+// Guias de autorização do convênio como saldo do paciente: um controle (plano,
+// profissionais e marco zero) soma as guias recebidas, e gastam sessão os atendimentos
+// do paciente no plano, com um dos profissionais, desde o marco zero. A cobertura é
+// calculada no banco (guias_dos_atendimentos). Gerar, renovar e editar: só recepção e ADM.
 
-import { ATENDIMENTOS_SEM_VALOR } from "@/lib/agenda/sem-valor";
-import { ehProfissional } from "@/lib/auth/usuario";
 import { revalidatePath } from "next/cache";
-import { carregarDiasEspeciais } from "@/lib/agenda/dados";
-import { semExpediente } from "@/lib/agenda/feriados";
-import { candidatasDeContinuacao, frequenciaEntre, proximasDatas } from "@/lib/agenda/guias";
-import type { Frequencia } from "@/lib/agenda/recorrencia";
-import { formatarHora, hoje, instanteNoFuso, partesNoFuso } from "@/lib/agenda/tempo";
+import { ATENDIMENTOS_SEM_VALOR } from "@/lib/agenda/sem-valor";
+import { instanteNoFuso } from "@/lib/agenda/tempo";
+import { ehProfissional } from "@/lib/auth/usuario";
 import { createClient } from "@/lib/supabase/server";
 
-type Resultado = { ok: true; quantidade?: number } | { ok: false; erro: string };
+type Resultado = { ok: true } | { ok: false; erro: string };
 
-/** Guia do atendimento e o que dá para fazer com ela no painel. */
+export type UsoDoProfissional = { id: string; nome: string; usadas: number; agendadas: number };
+
+export type ControleDeGuia = {
+  id: string;
+  planoId: string | null;
+  /** Nulo: qualquer plano. */
+  plano: string | null;
+  marcoZero: string;
+  profissionais: UsoDoProfissional[];
+  guias: { id: string; numero: string | null; quantidade: number; ordem: number }[];
+  total: number;
+  /** Sessões de atendimentos que já passaram. */
+  usadas: number;
+  /** Sessões reservadas por atendimentos marcados daqui em diante. */
+  agendadas: number;
+};
+
+/** Os controles de guia do paciente, com o uso de cada profissional. */
+export async function guiasDoPaciente(pacienteId: string): Promise<ControleDeGuia[]> {
+  const [supabase, profissional] = await Promise.all([createClient(), ehProfissional()]);
+  const { data: controles, error } = await supabase
+    .from("controles_de_guia")
+    .select("id, plano_id, marco_zero, profissionais:controles_de_guia_profissionais(profissional:profissionais(id, nome)), guias(id, numero, quantidade, ordem)")
+    .eq("paciente_id", pacienteId)
+    .order("marco_zero");
+  if (error) throw new Error("Não foi possível carregar as guias.");
+  if (controles.length === 0) return [];
+
+  const [usos, planos] = await Promise.all([
+    supabase
+      .from("atendimentos_dos_controles")
+      .select("controle_id, profissional_id, inicio")
+      .in(
+        "controle_id",
+        controles.map((c) => c.id),
+      )
+      .limit(10000),
+    supabase.from((profissional ? "planos_equipe" : "planos") as "planos").select("id, nome"),
+  ]);
+  if (usos.error || planos.error) throw new Error("Não foi possível carregar as guias.");
+
+  const agora = Date.now();
+  const nomeDoPlano = new Map(planos.data.map((p) => [p.id, p.nome]));
+  return controles.map((c) => {
+    const profissionais = new Map<string, UsoDoProfissional>(
+      c.profissionais.map(({ profissional: p }) => [p.id, { id: p.id, nome: p.nome, usadas: 0, agendadas: 0 }]),
+    );
+    let usadas = 0;
+    let agendadas = 0;
+    for (const u of usos.data) {
+      if (u.controle_id !== c.id) continue;
+      const passou = new Date(u.inicio!).getTime() < agora;
+      if (passou) usadas += 1;
+      else agendadas += 1;
+      const p = profissionais.get(u.profissional_id!);
+      if (p) p[passou ? "usadas" : "agendadas"] += 1;
+    }
+    const guias = [...c.guias].sort((a, b) => a.ordem - b.ordem);
+    return {
+      id: c.id,
+      planoId: c.plano_id,
+      plano: c.plano_id ? (nomeDoPlano.get(c.plano_id) ?? "Plano") : null,
+      marcoZero: c.marco_zero,
+      profissionais: [...profissionais.values()].sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR")),
+      guias,
+      total: guias.reduce((s, g) => s + g.quantidade, 0),
+      usadas,
+      agendadas,
+    };
+  });
+}
+
+/** Guia do atendimento: a sessão que ele gasta, o controle dele e o que dá para fazer. */
 export async function guiaDoAtendimento(id: string) {
   const supabase = await createClient();
   const { data: a, error } = await supabase
     .from(ATENDIMENTOS_SEM_VALOR)
-    .select("id, inicio, status, recorrencia_id, plano:planos_equipe(exige_guia)" as "id, inicio, status, recorrencia_id, plano:planos(exige_guia)")
+    .select(
+      "id, inicio, status, paciente_id, plano_id, plano:planos_equipe(exige_guia), profissionais:atendimento_profissionais(profissional_id)" as "id, inicio, status, paciente_id, plano_id, plano:planos(exige_guia), profissionais:atendimento_profissionais(profissional_id)",
+    )
     .eq("id", id)
     .single();
   if (error) throw new Error("Atendimento não encontrado.");
 
-  const [cobertura, cadeia] = await Promise.all([
-    supabase.from("guias_dos_atendimentos").select("guia_id, numero, ordem, posicao, quantidade, renovada").eq("atendimento_id", id).maybeSingle(),
-    a.recorrencia_id
-      ? supabase.from("guias").select("id, numero, ordem, a_partir_de").eq("recorrencia_id", a.recorrencia_id).order("ordem")
-      : null,
+  const [cobertura, controles, profissional] = await Promise.all([
+    supabase.from("guias_dos_atendimentos").select("controle_id, numero, ordem, posicao, quantidade, renovada, sessao, total").eq("atendimento_id", id).maybeSingle(),
+    a.paciente_id ? guiasDoPaciente(a.paciente_id) : Promise.resolve([]),
+    ehProfissional(),
   ]);
-  if (cobertura.error || cadeia?.error) throw new Error("Não foi possível carregar a guia.");
+  if (cobertura.error) throw new Error("Não foi possível carregar a guia.");
 
-  // O profissional vê a situação da guia; gerar e renovar ficam com a recepção.
-  const somenteLeitura = await ehProfissional();
-  const guias = cadeia?.data ?? [];
-  const ultima = guias.at(-1) ?? null;
+  const meus = new Set(a.profissionais.map((p) => p.profissional_id));
   const atual = cobertura.data;
-  const desmarcado = a.status === "desmarcado";
-  // Sem cobertura numa série com guia: antes do início da cadeia, ou depois do fim dela.
-  const antesDaCadeia = !atual && guias.length > 0 && a.inicio < guias[0].a_partir_de;
+  // O controle deste atendimento: o que o cobre ou, sem cobertura, o do mesmo profissional e plano.
+  const controle =
+    controles.find((c) => c.id === atual?.controle_id) ??
+    controles.find((c) => (c.planoId === null || c.planoId === a.plano_id) && c.profissionais.some((p) => meus.has(p.id))) ??
+    null;
   return {
     exigeGuia: a.plano?.exige_guia ?? false,
-    atual: atual && { id: atual.guia_id!, numero: atual.numero, ordem: atual.ordem!, posicao: atual.posicao!, quantidade: atual.quantidade!, renovada: atual.renovada! },
-    serie: !!a.recorrencia_id,
-    podeGerar: !somenteLeitura && !desmarcado && guias.length === 0,
-    podeRelacionar: !somenteLeitura,
-    /** Guia a renovar: a última da cadeia, se este atendimento está nela ou depois do fim. */
-    renovar: !somenteLeitura && !desmarcado && ultima && !antesDaCadeia && (!atual || atual.guia_id === ultima.id) ? { id: ultima.id, numero: ultima.numero } : null,
-    /** Excluir: só a última guia da cadeia. */
-    excluir: !somenteLeitura && atual && ultima && atual.guia_id === ultima.id ? ultima.id : null,
-    inicioDaCadeia: antesDaCadeia ? guias[0].a_partir_de : null,
+    atual: atual && {
+      numero: atual.numero,
+      ordem: atual.ordem!,
+      posicao: atual.posicao!,
+      quantidade: atual.quantidade!,
+      renovada: atual.renovada!,
+      sessao: atual.sessao!,
+      total: atual.total!,
+    },
+    controle,
+    /** O profissional vê a situação da guia; gerar, renovar e editar ficam com a recepção e o ADM. */
+    podeEditar: !profissional && a.status !== "desmarcado",
+    /** Sugestão para uma guia nova a partir deste atendimento. */
+    sugestao: { pacienteId: a.paciente_id, planoId: a.plano_id, profissionais: [...meus], marcoZero: a.inicio },
   };
 }
 
 export type GuiaDoAtendimento = Awaited<ReturnType<typeof guiaDoAtendimento>>;
 
-export type PedidoDeGuia =
-  | { tipo: "gerar"; atendimentoId: string; quantidade: number; numero: string; frequencia: Frequencia }
-  | { tipo: "renovar"; guiaId: string; quantidade: number; numero: string };
+/** Profissionais e planos que podem entrar numa guia. */
+export async function opcoesDaGuia() {
+  const supabase = await createClient();
+  const [profissionais, planos] = await Promise.all([
+    supabase.from("profissionais").select("id, nome").eq("ativo", true).order("nome"),
+    supabase.from("planos").select("id, nome, ativo, exige_guia").order("nome"),
+  ]);
+  if (profissionais.error || planos.error) throw new Error("Não foi possível carregar as opções.");
+  return { profissionais: profissionais.data, planos: planos.data };
+}
 
-type Plano = {
-  /** Atendimentos da série que a guia vai cobrir e já estão na agenda. */
-  agendados: number;
-  /** Instantes dos atendimentos que serão criados para completar a guia. */
-  novos: string[];
-  frequencia: Frequencia;
-  /** Atendimento avulso: vira uma série. */
-  avulso: boolean;
+export type OpcoesDaGuia = Awaited<ReturnType<typeof opcoesDaGuia>>;
+
+export type DadosDaGuia = {
+  planoId: string | null;
+  profissionais: string[];
+  /** Data (AAAA-MM-DD): os atendimentos a partir dela gastam sessão. */
+  marcoZero: string;
 };
 
-/** Quantos atendimentos a guia encontra na agenda e quais precisam ser criados (mesma conta do banco). */
-async function planejar(p: PedidoDeGuia): Promise<Plano> {
-  if (!(Number.isInteger(p.quantidade) && p.quantidade >= 1 && p.quantidade <= 120)) throw new Error("A guia deve ter de 1 a 120 atendimentos.");
-  const supabase = await createClient();
-
-  let serie: string | null;
-  let desde: string;
-  let necessarios = p.quantidade;
-  let frequencia: Frequencia = p.tipo === "gerar" ? p.frequencia : "semanal";
-  if (p.tipo === "gerar") {
-    const { data, error } = await supabase.from("atendimentos").select("inicio, recorrencia_id").eq("id", p.atendimentoId).single();
-    if (error) throw new Error("Atendimento não encontrado.");
-    serie = data.recorrencia_id;
-    desde = data.inicio;
-    if (!serie) {
-      // Avulso: ele mesmo é o primeiro; os demais seguem a frequência escolhida.
-      const ultima = partesNoFuso(data.inicio);
-      return { agendados: 1, avulso: true, frequencia, novos: await datasNovas(ultima.data, formatarHora(ultima.minutos), frequencia, p.quantidade - 1) };
-    }
-  } else {
-    const { data: guia, error } = await supabase.from("guias").select("recorrencia_id").eq("id", p.guiaId).single();
-    if (error) throw new Error("Guia não encontrada.");
-    serie = guia.recorrencia_id;
-    const cadeia = await supabase.from("guias").select("quantidade, a_partir_de").eq("recorrencia_id", serie);
-    if (cadeia.error) throw new Error("Não foi possível carregar a guia.");
-    desde = cadeia.data.map((g) => g.a_partir_de).sort()[0];
-    necessarios += cadeia.data.reduce((s, g) => s + g.quantidade, 0);
-  }
-
-  const [lista, regra] = await Promise.all([
-    supabase.from("atendimentos").select("inicio, status").eq("recorrencia_id", serie).is("excluido_em", null).order("inicio"),
-    supabase.from("recorrencias").select("frequencia").eq("id", serie).single(),
-  ]);
-  if (lista.error || regra.error) throw new Error("Não foi possível carregar a série.");
-  frequencia = regra.data.frequencia;
-
-  const validos = lista.data.filter((a) => a.status !== "desmarcado");
-  const disponiveis = validos.filter((a) => new Date(a.inicio) >= new Date(desde)).length;
-  const faltam = Math.max(necessarios - disponiveis, 0);
-  // A série continua depois do último atendimento, no horário do último que conta.
-  const ultima = partesNoFuso(lista.data.at(-1)!.inicio).data;
-  const modelo = partesNoFuso((validos.at(-1) ?? lista.data.at(-1)!).inicio);
-  return {
-    // As guias anteriores da cadeia ficam com os primeiros; esta, com os seguintes.
-    agendados: Math.min(Math.max(disponiveis - (necessarios - p.quantidade), 0), p.quantidade),
-    avulso: false,
-    frequencia,
-    novos: await datasNovas(ultima, formatarHora(modelo.minutos), frequencia, faltam),
-  };
+function validar(d: DadosDaGuia): string | null {
+  if (d.profissionais.length === 0) return "Escolha ao menos um profissional.";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(d.marcoZero)) return "Informe a data do marco zero.";
+  return null;
 }
 
-async function datasNovas(ultima: string, hora: string, frequencia: Frequencia, quantidade: number): Promise<string[]> {
-  if (quantidade <= 0) return [];
-  const candidatas = candidatasDeContinuacao(ultima, frequencia, hoje());
-  if (candidatas.length === 0) return [];
-  const especiais = await carregarDiasEspeciais(candidatas[0], candidatas.at(-1)!);
-  return proximasDatas(candidatas, quantidade, (d) => semExpediente(especiais[d])).map((d) => instanteNoFuso(d, hora));
+function quantidadeInvalida(quantidade: number) {
+  return !(Number.isInteger(quantidade) && quantidade >= 1 && quantidade <= 500);
 }
 
-/** Prévia no formulário: quantos já estão agendados e as datas que serão criadas. */
-export async function preverGuia(p: PedidoDeGuia): Promise<{ ok: true; agendados: number; novos: string[]; frequencia: Frequencia; avulso: boolean } | { ok: false; erro: string }> {
-  try {
-    return { ok: true, ...(await planejar(p)) };
-  } catch (e) {
-    return { ok: false, erro: (e as Error).message };
-  }
-}
-
-function concluir(error: { message: string } | null, quantidade?: number): Resultado {
-  if (error) return { ok: false, erro: error.message };
+function concluir(error: { message: string; code?: string } | null): Resultado {
+  if (error) return { ok: false, erro: error.code === "P0001" ? error.message : error.code === "42501" ? "Sem permissão para alterar guias." : "Não foi possível salvar a guia." };
   revalidatePath("/agenda");
   revalidatePath("/pacientes", "layout");
-  return { ok: true, quantidade };
+  revalidatePath("/notificacoes");
+  return { ok: true };
 }
 
-/** Gera ou renova a guia, criando os atendimentos que faltam. quantidade = atendimentos criados. */
-export async function salvarGuia(p: PedidoDeGuia): Promise<Resultado> {
-  let plano: Plano;
-  try {
-    plano = await planejar(p);
-  } catch (e) {
-    return { ok: false, erro: (e as Error).message };
-  }
+export async function criarGuia(pacienteId: string, dados: DadosDaGuia, numero: string, quantidade: number): Promise<Resultado> {
+  const invalido = validar(dados) ?? (quantidadeInvalida(quantidade) ? "A guia deve ter de 1 a 500 sessões." : null);
+  if (invalido) return { ok: false, erro: invalido };
   const supabase = await createClient();
-  const { error } =
-    p.tipo === "gerar"
-      ? await supabase.rpc("gerar_guia", {
-          p_atendimento: p.atendimentoId,
-          p_quantidade: p.quantidade,
-          p_numero: p.numero.trim() || undefined,
-          p_frequencia: plano.avulso ? p.frequencia : undefined,
-          p_novos: plano.novos,
-        })
-      : await supabase.rpc("renovar_guia", { p_guia: p.guiaId, p_quantidade: p.quantidade, p_numero: p.numero.trim() || undefined, p_novos: plano.novos });
-  return concluir(error, plano.novos.length);
-}
-
-export async function excluirGuia(id: string): Promise<Resultado> {
-  const supabase = await createClient();
-  const { error } = await supabase.rpc("excluir_guia", { p_guia: id });
+  const { error } = await supabase.rpc("criar_guia", {
+    p_paciente: pacienteId,
+    p_plano: dados.planoId as string,
+    p_profissionais: dados.profissionais,
+    p_marco_zero: instanteNoFuso(dados.marcoZero, "00:00"),
+    p_numero: numero.trim(),
+    p_quantidade: quantidade,
+  });
   return concluir(error);
 }
 
-export type ParaRelacionar = {
-  id: string;
-  inicio: string;
-  status: string;
-  profissionais: string;
-  /** Mesmo dia da semana e mesma hora do atendimento-base. */
-  mesmoHorario: boolean;
-  /** Está em outra série que já tem guia (não pode ser relacionado). */
-  emSerieComGuia: boolean;
-};
-
-/**
- * Atendimentos do paciente com o(s) mesmo(s) profissional(is), a partir do
- * atendimento-base, que ainda não estão na série dele.
- */
-export async function atendimentosParaRelacionar(id: string): Promise<ParaRelacionar[]> {
+/** Mais uma guia no saldo do controle. */
+export async function renovarGuia(controleId: string, numero: string, quantidade: number): Promise<Resultado> {
+  if (quantidadeInvalida(quantidade)) return { ok: false, erro: "A guia deve ter de 1 a 500 sessões." };
   const supabase = await createClient();
-  const { data: base, error } = await supabase
-    .from("atendimentos")
-    .select("id, inicio, paciente_id, recorrencia_id, profissionais:atendimento_profissionais(profissional_id)")
-    .eq("id", id)
-    .single();
-  if (error || !base.paciente_id) throw new Error("Atendimento não encontrado.");
-
-  const { data, error: erroLista } = await supabase
-    .from("atendimentos")
-    .select("id, inicio, status, recorrencia_id, profissionais:atendimento_profissionais(profissional:profissionais(id, nome))")
-    .eq("paciente_id", base.paciente_id)
-    .is("excluido_em", null)
-    .gte("inicio", base.inicio)
-    .neq("id", base.id)
-    .order("inicio");
-  if (erroLista) throw new Error("Não foi possível carregar os atendimentos.");
-
-  const daBase = new Set(base.profissionais.map((p) => p.profissional_id));
-  const candidatos = data.filter(
-    (a) => a.profissionais.some((p) => daBase.has(p.profissional.id)) && !(base.recorrencia_id && a.recorrencia_id === base.recorrencia_id),
-  );
-  const series = [...new Set(candidatos.map((a) => a.recorrencia_id).filter((r): r is string => !!r))];
-  const comGuia = new Set<string>();
-  if (series.length) {
-    const g = await supabase.from("guias").select("recorrencia_id").in("recorrencia_id", series);
-    if (g.error) throw new Error("Não foi possível carregar as guias.");
-    for (const x of g.data) comGuia.add(x.recorrencia_id);
-  }
-
-  const b = partesNoFuso(base.inicio);
-  const diaDaSemanaDe = (data: string) => new Date(`${data}T12:00:00Z`).getUTCDay();
-  return candidatos.map((a) => {
-    const p = partesNoFuso(a.inicio);
-    return {
-      id: a.id,
-      inicio: a.inicio,
-      status: a.status,
-      profissionais: a.profissionais.map((x) => x.profissional.nome).join(", "),
-      mesmoHorario: p.minutos === b.minutos && diaDaSemanaDe(p.data) === diaDaSemanaDe(b.data),
-      emSerieComGuia: !!a.recorrencia_id && comGuia.has(a.recorrencia_id),
-    };
-  });
+  const { error } = await supabase.rpc("renovar_guia", { p_controle: controleId, p_numero: numero.trim(), p_quantidade: quantidade });
+  return concluir(error);
 }
 
-/** Os escolhidos passam para a série do atendimento-base, com o plano e o valor dele. */
-export async function relacionarAtendimentos(baseId: string, ids: string[]): Promise<Resultado> {
-  if (ids.length === 0) return { ok: false, erro: "Escolha ao menos um atendimento." };
+export async function editarGuia(controleId: string, dados: DadosDaGuia): Promise<Resultado> {
+  const invalido = validar(dados);
+  if (invalido) return { ok: false, erro: invalido };
   const supabase = await createClient();
-  const { data: atendimentos, error } = await supabase.from("atendimentos").select("id, inicio").in("id", [baseId, ...ids]).order("inicio");
-  if (error) return { ok: false, erro: "Não foi possível carregar os atendimentos." };
-  // Se o base for avulso, a frequência da nova série vem do intervalo até o próximo.
-  const [primeiro, segundo] = atendimentos.map((a) => partesNoFuso(a.inicio).data);
-  const frequencia = segundo ? frequenciaEntre(primeiro, segundo) : "semanal";
-  const { data, error: erroRpc } = await supabase.rpc("relacionar_atendimentos", { p_base: baseId, p_ids: ids, p_frequencia: frequencia });
-  return concluir(erroRpc, data ?? 0);
+  const { error } = await supabase.rpc("editar_guia", {
+    p_controle: controleId,
+    p_plano: dados.planoId as string,
+    p_profissionais: dados.profissionais,
+    p_marco_zero: instanteNoFuso(dados.marcoZero, "00:00"),
+  });
+  return concluir(error);
+}
+
+/** Exclui a última guia do controle (desfaz um engano). */
+export async function excluirGuia(guiaId: string): Promise<Resultado> {
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("excluir_guia", { p_guia: guiaId });
+  return concluir(error);
 }

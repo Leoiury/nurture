@@ -16,20 +16,15 @@ export default async function PacientesPage({ searchParams }: PageProps<"/pacien
   const supabase = await createClient();
   const eu = await usuarioAtual();
   const semPlano = await ehProfissional();
-  const [{ data, error }, pedidos, ocultos] = await Promise.all([
+  const [{ data, error }, ocultos] = await Promise.all([
     supabase
       .from("pacientes")
       .select(semPlano ? LISTA_SEM_VALOR : LISTA)
       .order("nome")
       .limit(5000),
-    // Em aberto: para a recepção e o ADM, todos; para o profissional, os dele.
-    (eu?.profissionalId && semPlano
-      ? supabase.from("inativacoes_pedidas").select("paciente_id").is("decisao", null).eq("profissional_id", eu.profissionalId)
-      : supabase.from("inativacoes_pedidas").select("paciente_id").is("decisao", null)),
     pacientesOcultosParaMim(),
   ]);
-  if (error || pedidos.error) throw new Error("Não foi possível carregar os pacientes.");
-  const comPedido = new Set(pedidos.data.map((p) => p.paciente_id));
+  if (error) throw new Error("Não foi possível carregar os pacientes.");
 
   const pacientes: PacienteDaLista[] = data.map((p) => ({
     id: p.id,
@@ -37,9 +32,9 @@ export default async function PacientesPage({ searchParams }: PageProps<"/pacien
     responsavel: p.responsavel,
     dataNascimento: p.data_nascimento,
     celular: p.celular,
-    // Para quem pediu a inativação, o paciente já está entre os inativos.
-    ativo: p.ativo && !ocultos.has(p.id),
-    inativacaoPedida: comPedido.has(p.id),
+    ativo: p.ativo,
+    // O profissional ocultou: fica junto com os inativos, para ele.
+    oculto: ocultos.has(p.id),
     plano: semPlano ? null : p.plano,
     nivel: p.nivel_cadastral,
     pendencias: semPlano ? p.pendencias_cadastrais.filter((x) => x !== "plano") : p.pendencias_cadastrais,
