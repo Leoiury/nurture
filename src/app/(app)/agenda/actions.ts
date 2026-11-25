@@ -284,3 +284,11 @@ export async function ajustarPaciente(a: AjustesDoPaciente): Promise<Resultado> 
   revalidatePath("/pacientes", "layout");
   return { ok: true, quantidade };
 }
+
+/** Os atendimentos que desmarcar ou excluir com este alcance vai atingir (para conferir antes). */
+export async function previaDoAlcance(id: string, alcance: Alcance): Promise<{ id: string; inicio: string }[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("previa_do_alcance", { p_id: id, p_alcance: alcance });
+  if (error) throw new Error("Não foi possível conferir os atendimentos.");
+  return data.map((a) => ({ id: a.id, inicio: a.inicio }));
+}

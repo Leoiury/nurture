@@ -2492,6 +2492,17 @@ export type Database = {
         Returns: boolean
       }
       pode_ver_clinico: { Args: never; Returns: boolean }
+      previa_do_alcance: {
+        Args: {
+          p_alcance: Database["public"]["Enums"]["alcance_serie"]
+          p_id: string
+        }
+        Returns: {
+          id: string
+          inicio: string
+          status: Database["public"]["Enums"]["status_atendimento"]
+        }[]
+      }
       profissional_alterar_status: {
         Args: {
           p_id: string
@@ -2603,7 +2614,12 @@ export type Database = {
       }
     }
     Enums: {
-      alcance_serie: "este" | "seguintes" | "todos"
+      alcance_serie:
+        | "este"
+        | "seguintes"
+        | "todos"
+        | "mesmo_horario"
+        | "proximos_do_paciente"
       frequencia_recorrencia: "semanal" | "quinzenal" | "mensal"
       nivel_cadastral: "completo" | "falta_informacao" | "critico"
       perfil_usuario: "adm" | "limitado" | "profissional"
@@ -2744,7 +2760,13 @@ export const Constants = {
   },
   public: {
     Enums: {
-      alcance_serie: ["este", "seguintes", "todos"],
+      alcance_serie: [
+        "este",
+        "seguintes",
+        "todos",
+        "mesmo_horario",
+        "proximos_do_paciente",
+      ],
       frequencia_recorrencia: ["semanal", "quinzenal", "mensal"],
       nivel_cadastral: ["completo", "falta_informacao", "critico"],
       perfil_usuario: ["adm", "limitado", "profissional"],

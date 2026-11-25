@@ -84,7 +84,8 @@ test("série: desmarcar este e os próximos", async ({ page }) => {
 
   await painel.getByRole("radio", { name: "Desmarcado" }).click();
   await painel.getByRole("radio", { name: "Profissional ausente" }).click();
-  await painel.getByRole("radio", { name: "Este e os próximos (3)" }).click();
+  await painel.getByRole("radio", { name: /^Este e todos os próximos de / }).click();
+  await expect(painel.getByRole("status", { name: "Atendimentos atingidos" })).toContainText("3 atendimentos");
   await painel.getByRole("button", { name: "Confirmar desmarcação" }).click();
   await expect(painel.getByRole("status")).toHaveText("3 atendimentos desmarcados.");
 });

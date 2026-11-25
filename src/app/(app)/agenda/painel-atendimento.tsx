@@ -14,11 +14,13 @@ import {
   adicionarObservacao,
   alterarStatus,
   detalhesAtendimento,
+  previaDoAlcance,
   type Alcance,
   type DetalhesAtendimento,
   type Resultado,
 } from "./actions";
 import { useAcoesDaAgenda } from "./acoes-da-agenda";
+import { nomeAbreviado } from "./comum";
 import { recomecarAtendimento } from "../atendimento/actions";
 import { GuiaDoAtendimento } from "./guia-do-atendimento";
 import type { DadosEdicao } from "./painel-novo-atendimento";
@@ -309,7 +311,7 @@ export function PainelAtendimento({ id, aoFechar, aoEditar, mostrarLinkDoPacient
 
             {modo === "desmarcar" && (
               <FormDesmarcar
-                serie={dados.serie}
+                alvo={alvoDaAcao(a)}
                 pago={dados.financeiro?.recebido ?? 0}
                 trabalhando={trabalhando}
                 aoCancelar={() => setModo("ver")}
@@ -330,7 +332,7 @@ export function PainelAtendimento({ id, aoFechar, aoEditar, mostrarLinkDoPacient
             {modo === "excluir" && (
               <FormExcluir
                 profissional={dados.semValores}
-                serie={dados.serie}
+                alvo={alvoDaAcao(a)}
                 pago={dados.financeiro?.recebido ?? 0}
                 trabalhando={trabalhando}
                 aoCancelar={() => setModo("ver")}
@@ -517,35 +519,80 @@ function Observacao({ texto, rodape, automatica }: { texto: string; rodape: stri
   );
 }
 
-type Serie = DetalhesAtendimento["serie"];
+/** O atendimento sobre o qual se desmarca ou exclui, com o que as opções de alcance citam. */
+type AlvoDaAcao = { id: string; paciente: string; quando: string; profissional: string | null };
 
-/** Opções de alcance numa série (sem série, é sempre "só este"). */
-function EscolhaDeAlcance({
-  serie,
-  valor,
-  aoMudar,
-  comTodos,
-}: {
-  serie: Serie;
-  valor: Alcance;
-  aoMudar: (a: Alcance) => void;
-  comTodos: boolean;
-}) {
-  if (!serie || serie.total <= 1) return null;
+const diaDaSemanaLongo = new Intl.DateTimeFormat("pt-BR", { timeZone: FUSO, weekday: "long" });
+const dataDaPrevia = new Intl.DateTimeFormat("pt-BR", { timeZone: FUSO, weekday: "short", day: "2-digit", month: "2-digit" });
+
+function alvoDaAcao(a: DetalhesAtendimento["atendimento"]): AlvoDaAcao {
+  const dia = diaDaSemanaLongo.format(new Date(a.inicio));
+  // "toda segunda-feira", mas "todo sábado" e "todo domingo".
+  const todo = dia === "sábado" || dia === "domingo" ? "todo" : "toda";
+  return {
+    id: a.id,
+    paciente: a.paciente?.nome ?? "paciente",
+    quando: `${todo} ${dia} às ${formatarHora(partesNoFuso(a.inicio).minutos)}`,
+    profissional: a.profissionais[0]?.profissional.nome ?? null,
+  };
+}
+
+/**
+ * Só este; todos do paciente no mesmo dia da semana e horário; ou este e todos os
+ * próximos do paciente. Os dois últimos: só de agora em diante e com o mesmo profissional
+ * (o banco aplica a mesma regra). Antes de confirmar, mostra quais atendimentos entram.
+ */
+function EscolhaDeAlcance({ alvo, valor, aoMudar, desmarcar }: { alvo: AlvoDaAcao; valor: Alcance; aoMudar: (a: Alcance) => void; desmarcar?: boolean }) {
+  const [previa, setPrevia] = useState<{ alcance: Alcance; lista: { id: string; inicio: string }[] } | null>(null);
+  const [erro, setErro] = useState<string | null>(null);
+  useEffect(() => {
+    if (valor === "este") return;
+    let ativo = true;
+    previaDoAlcance(alvo.id, valor)
+      .then((lista) => ativo && (setPrevia({ alcance: valor, lista }), setErro(null)))
+      .catch((e: Error) => ativo && setErro(e.message));
+    return () => {
+      ativo = false;
+    };
+  }, [alvo.id, valor]);
+
+  const com = alvo.profissional ? ` com ${nomeAbreviado(alvo.profissional)}` : "";
   const opcoes: [Alcance, string][] = [
-    ["este", "Só este"],
-    ["seguintes", `Este e os próximos (${serie.seguintes})`],
-    ...(comTodos ? ([["todos", `Todos da série (${serie.total})`]] as [Alcance, string][]) : []),
+    ["este", desmarcar ? "Desmarcar só este" : "Excluir só este"],
+    ["mesmo_horario", `Todos de ${alvo.paciente} ${alvo.quando}${com}`],
+    ["proximos_do_paciente", `Este e todos os próximos de ${alvo.paciente}${com}`],
   ];
+  const lista = previa?.alcance === valor ? previa.lista : null;
+  const MOSTRAR = 8;
   return (
     <fieldset className="flex flex-col gap-1.5">
       <legend className="mb-1 text-xs font-semibold tracking-wide text-muted uppercase">Aplicar a</legend>
       {opcoes.map(([v, rotulo]) => (
-        <label key={v} className="flex cursor-pointer items-center gap-2">
-          <input type="radio" name="alcance" checked={valor === v} onChange={() => aoMudar(v)} className="accent-[var(--accent)]" />
+        <label key={v} className="flex cursor-pointer items-start gap-2">
+          <input type="radio" name="alcance" checked={valor === v} onChange={() => aoMudar(v)} className="mt-0.5 accent-[var(--accent)]" />
           {rotulo}
         </label>
       ))}
+      {valor !== "este" && (
+        <div role="status" aria-label="Atendimentos atingidos" className="mt-1 rounded-xl bg-surface px-3 py-2 text-xs ring-1 ring-border">
+          {erro ? (
+            <span className="text-danger">{erro}</span>
+          ) : !lista ? (
+            <span className="text-muted">Conferindo…</span>
+          ) : (
+            <>
+              <p className="font-medium">{lista.length === 1 ? "1 atendimento" : `${lista.length} atendimentos`} (só de agora em diante):</p>
+              <p className="mt-0.5 text-muted first-letter:uppercase">
+                {lista
+                  .slice(0, MOSTRAR)
+                  .map((x) => dataDaPrevia.format(new Date(x.inicio)).replace(",", ""))
+                  .join(" · ")}
+                {lista.length > MOSTRAR && ` · e mais ${lista.length - MOSTRAR}`}
+              </p>
+            </>
+          )}
+        </div>
+      )}
     </fieldset>
   );
 }
@@ -573,13 +620,13 @@ function AvisoDePago({ pago }: { pago: number }) {
 }
 
 function FormDesmarcar({
-  serie,
+  alvo,
   pago,
   trabalhando,
   aoCancelar,
   aoConfirmar,
 }: {
-  serie: Serie;
+  alvo: AlvoDaAcao;
   pago: number;
   trabalhando: boolean;
   aoCancelar: () => void;
@@ -611,7 +658,7 @@ function FormDesmarcar({
         aria-label="Detalhe do motivo"
         className={entrada}
       />
-      <EscolhaDeAlcance serie={serie} valor={alcance} aoMudar={setAlcance} comTodos={false} />
+      <EscolhaDeAlcance alvo={alvo} valor={alcance} aoMudar={setAlcance} desmarcar />
       <div className="flex justify-end gap-2">
         <button type="button" onClick={aoCancelar} className={botaoSecundario}>
           Voltar
@@ -626,7 +673,7 @@ function FormDesmarcar({
 
 function FormExcluir({
   profissional,
-  serie,
+  alvo,
   pago,
   trabalhando,
   aoCancelar,
@@ -634,7 +681,7 @@ function FormExcluir({
 }: {
   /** Perfil profissional: a recepção e a direção recebem o aviso da exclusão. */
   profissional: boolean;
-  serie: Serie;
+  alvo: AlvoDaAcao;
   pago: number;
   trabalhando: boolean;
   aoCancelar: () => void;
@@ -660,7 +707,7 @@ function FormExcluir({
         aria-label="Motivo da exclusão"
         className={entrada}
       />
-      <EscolhaDeAlcance serie={serie} valor={alcance} aoMudar={setAlcance} comTodos />
+      <EscolhaDeAlcance alvo={alvo} valor={alcance} aoMudar={setAlcance} />
       <div className="flex justify-end gap-2">
         <button type="button" onClick={aoCancelar} className={botaoSecundario}>
           Voltar
