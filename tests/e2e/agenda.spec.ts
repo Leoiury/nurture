@@ -193,9 +193,10 @@ test("Shift + clique num horário vazio abre o formulário preenchido", async ({
   const primeiroProfissional = await page.locator(".sticky.top-0 > div[title]").first().getAttribute("title");
   const { x, y, hora } = await horarioLivre(page);
 
-  // Sem a tecla: só uma dica, nada é aberto.
+  // Sem a tecla: só seleciona o horário (e mostra a dica), nada é aberto.
   await page.mouse.click(x, y);
   await expect(page.getByRole("status")).toContainText("segure Shift e clique");
+  await expect(page.locator("[data-cursor]")).toHaveAttribute("data-cursor", new RegExp(`\\|${hora}$`));
   await expect(page.getByRole("dialog", { name: "Novo atendimento" })).toHaveCount(0);
   // Ctrl não libera (só Shift).
   await page.keyboard.down("Control");

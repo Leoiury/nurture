@@ -16,7 +16,7 @@ import {
   descricaoMensal,
   type Frequencia,
 } from "@/lib/agenda/recorrencia";
-import { hoje as dataDeHoje, nomeCurtoDoDia, partesNoFuso } from "@/lib/agenda/tempo";
+import { hoje as dataDeHoje, nomeCurtoDoDia, partesNoFuso, somarDias } from "@/lib/agenda/tempo";
 import { AREAS, lerValor, valorSugerido } from "@/lib/agenda/valores";
 import { horariosDaSequencia } from "@/lib/agenda/horarios-livres";
 import { atendeOTipo, tipoSugerido } from "@/lib/agenda/tipos";
@@ -90,6 +90,8 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao, realizar }: P
   );
   const [data, setData] = useState(edicao?.data ?? inicial?.data ?? dataDeHoje());
   const [hora, setHora] = useState(edicao?.hora ?? inicial?.hora ?? "");
+  // Na criação: outros dias, cada um com o seu horário (com repetição, cada dia vira uma série).
+  const [outrosDias, setOutrosDias] = useState<{ data: string; hora: string }[]>([]);
   const [duracao, setDuracao] = useState(edicao?.duracaoMin ?? 45);
   const [planoId, setPlanoId] = useState<string | null>(edicao?.planoId ?? null);
   const [tipoId, setTipoId] = useState<string | null>(edicao?.tipoId ?? inicial?.tipoId ?? null);
@@ -185,15 +187,39 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao, realizar }: P
   );
   // Datas da série que caíram em feriado/recesso e foram puladas (até a última data mantida).
   const puladas = serie?.pularFeriados ? candidatas.filter((d) => bloqueado(d) && d <= (datas.at(-1) ?? d)) : [];
+  // Outros dias (só na criação): as datas de cada um, pela mesma regra de repetição.
+  const comOutrosDias = !edicao && !realizar && outrosDias.length > 0;
+  const datasDosOutros = useMemo(
+    () =>
+      outrosDias.map((d) => {
+        if (!d.data) return [];
+        if (!serie) return [d.data];
+        return serie.pularFeriados ? datasSemBloqueios(d.data, serie.frequencia, serie.fim, bloqueado) : datasDaSerie(d.data, serie.frequencia, serie.fim);
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [outrosDias, repetir, frequencia, fimPor, ate, sessoes, pularFeriados, especiais],
+  );
+  // Todas as datas candidatas, para consultar os feriados do período inteiro.
+  const todasCandidatas = useMemo(() => {
+    const extras = outrosDias.flatMap((d) => (!d.data ? [] : serie ? candidatasDaSerie(d.data, serie.frequencia, serie.fim) : [d.data]));
+    return extras.length ? [...candidatas, ...extras].sort() : candidatas;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [candidatas, outrosDias]);
+
+  function adicionarDia() {
+    const ultimo = outrosDias.at(-1) ?? { data, hora };
+    setOutrosDias([...outrosDias, { data: ultimo.data ? somarDias(ultimo.data, 1) : "", hora }]);
+  }
 
   // Com vários profissionais: um atendimento para cada, juntos ou em sequência (na ordem
   // escolhida), cada um com o tipo que ele atende (o do formulário, se ele atende; senão
   // o sugerido) e o valor da área.
   const separados = !edicao && profissionais.length > 1;
   const sequencia = separados && emSequencia;
-  const itensDaSequencia = useMemo(() => {
-    if (!separados || !hora || !opcoes) return [];
-    const horas = sequencia ? horariosDaSequencia(hora, duracao, profissionais.length) : profissionais.map(() => hora);
+  /** Um atendimento para cada profissional, a partir de um horário (juntos ou em sequência). */
+  function itensPara(inicio: string) {
+    if (!separados || !inicio || !opcoes) return [];
+    const horas = sequencia ? horariosDaSequencia(inicio, duracao, profissionais.length) : profissionais.map(() => inicio);
     if (!horas) return [];
     const doFormulario = opcoes.tipos.find((t) => t.id === tipoId);
     return profissionais.map((id, i) => {
@@ -201,14 +227,16 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao, realizar }: P
         doFormulario && atendeOTipo(doFormulario, id) ? doFormulario.id : (tipoSugerido(opcoes.profissionais.find((p) => p.id === id), opcoes.tipos) ?? tipoId);
       return { profissionalId: id, hora: horas[i], tipo: opcoes.tipos.find((t) => t.id === tipo) ?? null };
     });
-  }, [separados, sequencia, hora, duracao, profissionais, tipoId, opcoes]);
+  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const itensDaSequencia = useMemo(() => itensPara(hora), [separados, sequencia, hora, duracao, profissionais, tipoId, opcoes]);
 
-  // Feriados e recessos do período das datas candidatas.
+  // Feriados e recessos do período das datas candidatas (de todos os dias).
   useEffect(() => {
-    if (!candidatas.length) return;
+    if (!todasCandidatas.length) return;
     let ativo = true;
     const t = setTimeout(() => {
-      diasEspeciaisNoPeriodo(candidatas[0], candidatas.at(-1)!)
+      diasEspeciaisNoPeriodo(todasCandidatas[0], todasCandidatas.at(-1)!)
         .then((r) => {
           if (ativo) setEspeciais(r);
         })
@@ -218,7 +246,7 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao, realizar }: P
       ativo = false;
       clearTimeout(t);
     };
-  }, [candidatas]);
+  }, [todasCandidatas]);
 
   // Conflitos: consulta o banco um instante depois da última mudança nos campos.
   useEffect(() => {
@@ -227,16 +255,20 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao, realizar }: P
       // Na edição, o próprio atendimento (e a série, se o alcance for além dele) não conta.
       const ignorar = edicao ? { id: edicao.id, recorrenciaId: alcance === "este" ? null : edicao.recorrenciaId } : undefined;
       // Com vários: cada atendimento no seu horário, só com o seu profissional.
-      const consultas = separados
-        ? itensDaSequencia.map((i) => verificarConflitos({ data, hora: i.hora, duracaoMin: duracao, serie, profissionais: [i.profissionalId], pacienteId }))
-        : [verificarConflitos({ data, hora, duracaoMin: duracao, serie, profissionais, pacienteId, ignorar })];
+      // Outros dias: as mesmas consultas, cada dia no seu horário.
+      const dias = [{ data, hora }, ...(edicao || realizar ? [] : outrosDias.filter((d) => d.data && d.hora))];
+      const consultas = dias.flatMap((d) =>
+        separados
+          ? itensPara(d.hora).map((i) => verificarConflitos({ data: d.data, hora: i.hora, duracaoMin: duracao, serie, profissionais: [i.profissionalId], pacienteId }))
+          : [verificarConflitos({ data: d.data, hora: d.hora, duracaoMin: duracao, serie, profissionais, pacienteId, ignorar })],
+      );
       Promise.all(consultas)
         .then((r) => setConflitos(r.flat().sort((a, b) => a.inicio.localeCompare(b.inicio))))
         .catch(() => setConflitos([]));
     }, 400);
     return () => clearTimeout(temporizador);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, hora, duracao, repetir, frequencia, fimPor, ate, sessoes, pularFeriados, profissionais, pacienteId, alcance, separados, itensDaSequencia]);
+  }, [data, hora, duracao, repetir, frequencia, fimPor, ate, sessoes, pularFeriados, profissionais, pacienteId, alcance, separados, itensDaSequencia, outrosDias]);
 
   const paciente = opcoes?.pacientes.find((p) => p.id === pacienteId) ?? null;
   const sugestoes = useMemo(() => {
@@ -319,17 +351,29 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao, realizar }: P
     // Com a pergunta do valor, ela decide o alcance do valor (o resto da série mantém o seu).
     const valorSoNeste = perguntarValor && alcance !== "este";
     const novo = { ...comuns, serie, status, observacao: observacao.trim() };
-    const resultado = await (separados
+    // Cada dia (o principal e os outros): um atendimento, ou um com cada profissional.
+    const dias = [{ data, hora }, ...(comOutrosDias ? outrosDias : [])];
+    const lote = dias.flatMap((d) =>
+      separados
+        ? itensPara(d.hora).map((i) => ({
+            novo: {
+              ...novo,
+              data: d.data,
+              profissionais: [i.profissionalId],
+              hora: i.hora,
+              tipoId: i.tipo?.id ?? null,
+              // Valor digitado vale para todos; senão, o do plano para a área de cada tipo.
+              valor: valorDigitado ? valorNumero : valorSugerido(plano, i.tipo?.area),
+            },
+            exibicao: { ...exibicao, tipo: i.tipo?.nome ?? null, corDoTipo: i.tipo?.cor ?? null, area: i.tipo?.area ?? null },
+          }))
+        : [{ novo: { ...novo, data: d.data, hora: d.hora }, exibicao: { ...exibicao, area: tipoAtual?.area ?? null } }],
+    );
+    // Todos de uma vez: entram juntos ou nenhum.
+    const resultado = await (separados || comOutrosDias
       ? acoes.criarEmSequencia(
-          itensDaSequencia.map((i) => ({
-            ...novo,
-            profissionais: [i.profissionalId],
-            hora: i.hora,
-            tipoId: i.tipo?.id ?? null,
-            // Valor digitado vale para todos; senão, o do plano para a área de cada tipo.
-            valor: valorDigitado ? valorNumero : valorSugerido(plano, i.tipo?.area),
-          })),
-          itensDaSequencia.map((i) => ({ ...exibicao, tipo: i.tipo?.nome ?? null, corDoTipo: i.tipo?.cor ?? null, area: i.tipo?.area ?? null })),
+          lote.map((i) => i.novo),
+          lote.map((i) => i.exibicao),
         )
       : edicao
       ? acoes.editar({ ...comuns, id: edicao.id, alcance, valorSoNeste }, { ...exibicao, area: tipoAtual?.area ?? null })
@@ -373,8 +417,11 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao, realizar }: P
     { rotulo: "Selecionar horário", ok: !!hora },
     ...(realizar === "anamnese" ? [{ rotulo: "Selecionar tipo", ok: !!tipoAtual }] : []),
   ];
+  // Outros dias: todos com data, horário e ao menos uma data na repetição.
+  const outrosProntos = !comOutrosDias || outrosDias.every((d, i) => d.data && d.hora && datasDosOutros[i]?.length > 0 && (!separados || itensPara(d.hora).length > 0));
+  const totalACriar = (datas.length + (comOutrosDias ? datasDosOutros.reduce((s, l) => s + l.length, 0) : 0)) * (separados ? profissionais.length : 1);
   const podeSalvar =
-    requisitos.every((r) => r.ok) && datas.length > 0 && !salvando && (!separados || itensDaSequencia.length > 0);
+    requisitos.every((r) => r.ok) && datas.length > 0 && !salvando && (!separados || itensDaSequencia.length > 0) && outrosProntos;
 
   return (
     <>
@@ -583,6 +630,39 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao, realizar }: P
                   <input id="campo-hora" type="time" step={900} value={hora} onChange={(e) => setHora(e.target.value)} required className={entrada} />
                 </Campo>
               </div>
+
+              {/* Outros dias: cada um com o seu horário; com repetição, cada dia vira uma série. */}
+              {!edicao && !realizar && (
+                <section aria-label="Outros dias" className="-mt-2 flex flex-col gap-2">
+                  {outrosDias.map((d, i) => {
+                    const n = i + 2;
+                    const mudar = (campo: "data" | "hora", valor: string) => setOutrosDias(outrosDias.map((x, j) => (j === i ? { ...x, [campo]: valor } : x)));
+                    return (
+                      <div key={i} role="group" aria-label={`Dia ${n}`} className="grid grid-cols-[1fr_1fr_auto] items-center gap-3">
+                        <input type="date" aria-label={`Data do dia ${n}`} value={d.data} onChange={(e) => mudar("data", e.target.value)} required className={entrada} />
+                        <input type="time" aria-label={`Início do dia ${n}`} step={900} value={d.hora} onChange={(e) => mudar("hora", e.target.value)} required className={entrada} />
+                        <button
+                          type="button"
+                          onClick={() => setOutrosDias(outrosDias.filter((_, j) => j !== i))}
+                          aria-label={`Tirar o dia ${n}`}
+                          className="rounded-full px-2 py-1 text-muted hover:bg-black/[0.05] hover:text-danger"
+                        >
+                          ✕
+                        </button>
+                        {d.data && (
+                          <span className="col-span-3 -mt-1.5 text-[11px] text-muted">
+                            {dataCurta(d.data)}
+                            {repetir && datasDosOutros[i] && ` · ${datasDosOutros[i].length} atendimento${datasDosOutros[i].length === 1 ? "" : "s"}`}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                  <button type="button" onClick={adicionarDia} className="self-start text-sm font-medium text-accent hover:underline">
+                    + Outro dia
+                  </button>
+                </section>
+              )}
 
               {separados && (
                 <section aria-label={sequencia ? "Sequência" : "Atendimentos"} className="-mt-2 flex flex-col gap-1 rounded-xl bg-black/[0.03] px-3 py-2 text-sm">
@@ -871,8 +951,8 @@ export function PainelNovoAtendimento({ aoFechar, inicial, edicao, realizar }: P
                     ? quantidadeNaEdicao(edicao, alcance) > 1
                       ? `Salvar ${quantidadeNaEdicao(edicao, alcance)} atendimentos`
                       : "Salvar alterações"
-                    : datas.length * (separados ? profissionais.length : 1) > 1
-                      ? `Salvar ${datas.length * (separados ? profissionais.length : 1)} atendimentos`
+                    : totalACriar > 1
+                      ? `Salvar ${totalACriar} atendimentos`
                       : "Salvar"}
               </button>
             </div>
