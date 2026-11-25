@@ -8,11 +8,11 @@ import { carregarDiasEspeciais, carregarEscalas } from "@/lib/agenda/dados";
 import { escalaDoDia, intersecao } from "@/lib/agenda/escala";
 import { semExpediente } from "@/lib/agenda/feriados";
 import { horariosEmSequencia, horariosLivres, type Ocupacao } from "@/lib/agenda/horarios-livres";
-import { semOsOcultos } from "@/lib/pacientes-ocultos";
 import { MAXIMO_DE_SESSOES, candidatasDaSerie, datasDaSerie, datasSemBloqueios, type FimDaSerie, type Frequencia } from "@/lib/agenda/recorrencia";
 import { profissionaisDoTipo, type TipoComProfissionais } from "@/lib/agenda/tipos";
 import { FUSO, ehDataValida, formatarHora, inicioDoDiaISO, instanteNoFuso, partesNoFuso, somarDias } from "@/lib/agenda/tempo";
-import type { ArgsCriar } from "@/lib/agenda/planejamento";
+import type { ArgsCriar, Exibicao } from "@/lib/agenda/planejamento";
+import { fimDaCopia } from "@/lib/agenda/copiar";
 import type { Database } from "@/lib/supabase/database.types";
 import { ehAdm, ehProfissional, usuarioAtual } from "@/lib/auth/usuario";
 import { createClient } from "@/lib/supabase/server";
@@ -38,8 +38,7 @@ export async function opcoesDoFormulario() {
     supabase.from("tipos_atendimento").select("id, nome, area, cor, abre_anamnese, cobrar, vinculos:tipos_atendimento_profissionais(profissional_id)").eq("ativo", true).order("nome"),
   ]);
   for (const r of [pacientes, profissionais, planos, tipos]) if (r.error) throw new Error("Não foi possível carregar o formulário.");
-  // Os que o profissional pediu para inativar não aparecem para ele.
-  const pacientesVisiveis = await semOsOcultos(pacientes.data!);
+  // Os ocultos pelo profissional continuam aqui: marcar um atendimento traz o paciente de volta.
   const tiposComProfissionais: TipoComProfissionais[] = tipos.data!.map((t) => ({
     id: t.id,
     nome: t.nome,
@@ -50,7 +49,7 @@ export async function opcoesDoFormulario() {
     cobrar: t.cobrar,
   }));
   // "Anteriores e futuros" nos ajustes de valor: só administradores.
-  return { pacientes: pacientesVisiveis, profissionais: profissionais.data!, planos: planos.data!, tipos: tiposComProfissionais, ehAdm: await ehAdm(), semValores, meuProfissional: semValores ? ((await usuarioAtual())?.profissionalId ?? null) : null };
+  return { pacientes: pacientes.data!, profissionais: profissionais.data!, planos: planos.data!, tipos: tiposComProfissionais, ehAdm: await ehAdm(), semValores, meuProfissional: semValores ? ((await usuarioAtual())?.profissionalId ?? null) : null };
 }
 
 export type OpcoesDoFormulario = Awaited<ReturnType<typeof opcoesDoFormulario>>;
@@ -374,5 +373,53 @@ export async function buscarHorariosLivres(b: BuscaDeHorarios): Promise<{ sugest
   return {
     sugestoes: livres.slice(0, 80).map((l) => ({ data: l.data, hora: formatarHora(l.inicio), profissionalIds: l.profissionalIds })),
     ate: fim,
+  };
+}
+
+/**
+ * Colar (duplicar): um novo atendimento com os mesmos dados do copiado (paciente, plano,
+ * tipo, valor e duração), no dia, horário e profissional escolhidos. Se o copiado faz
+ * parte de uma série, o colado repete a série inteira a partir do dia escolhido.
+ */
+export async function duplicarAtendimento(
+  id: string,
+  destino: { data: string; hora: string; profissionalId: string },
+): Promise<{ ok: true; novo: NovoAtendimento; exibicao: Exibicao } | { ok: false; erro: string }> {
+  const supabase = await createClient();
+  const semValores = await ehProfissional();
+  const { data: a, error } = await supabase
+    .from(semValores ? ATENDIMENTOS_SEM_VALOR : "atendimentos")
+    .select(
+      (semValores
+        ? "inicio, fim, paciente_id, plano_id, tipo_id, paciente:pacientes(nome), plano:planos_equipe(nome, cor), tipo:tipos_atendimento(nome, cor, area), recorrencia:recorrencias(frequencia, data_inicio, data_fim, sessoes)"
+        : "inicio, fim, valor, paciente_id, plano_id, tipo_id, paciente:pacientes(nome), plano:planos(nome, cor), tipo:tipos_atendimento(nome, cor, area), recorrencia:recorrencias(frequencia, data_inicio, data_fim, sessoes)") as "inicio, fim, valor, paciente_id, plano_id, tipo_id, paciente:pacientes(nome), plano:planos(nome, cor), tipo:tipos_atendimento(nome, cor, area), recorrencia:recorrencias(frequencia, data_inicio, data_fim, sessoes)",
+    )
+    .eq("id", id)
+    .is("excluido_em", null)
+    .maybeSingle();
+  if (error || !a) return { ok: false, erro: "O atendimento copiado não existe mais." };
+  if (!a.paciente_id) return { ok: false, erro: "O atendimento copiado não tem paciente." };
+
+  const r = a.recorrencia;
+  const serie: Serie = r
+    ? { frequencia: r.frequencia, fim: fimDaCopia({ frequencia: r.frequencia, dataInicio: r.data_inicio, dataFim: r.data_fim, sessoes: r.sessoes }, destino.data), pularFeriados: true }
+    : null;
+  return {
+    ok: true,
+    novo: {
+      pacienteId: a.paciente_id,
+      profissionais: [destino.profissionalId],
+      data: destino.data,
+      hora: destino.hora,
+      duracaoMin: Math.round((Date.parse(a.fim) - Date.parse(a.inicio)) / 60000),
+      serie,
+      planoId: a.plano_id,
+      tipoId: a.tipo_id,
+      // O profissional não vê valores: o do plano é aplicado no banco.
+      valor: semValores ? null : (a.valor ?? null),
+      status: "marcado",
+      observacao: "",
+    },
+    exibicao: { paciente: a.paciente?.nome ?? null, plano: a.plano, tipo: a.tipo?.nome ?? null, corDoTipo: a.tipo?.cor ?? null, area: a.tipo?.area ?? null },
   };
 }

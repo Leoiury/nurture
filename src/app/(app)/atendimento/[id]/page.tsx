@@ -67,7 +67,7 @@ export default async function AtendimentoPage({ params, searchParams }: PageProp
         cabecalho={cabecalho}
         arquivos={arquivos}
         guia={situacaoDaGuia(guia.atual, guia.exigeGuia, a.status)}
-        sessaoDaGuia={guia.atual ? { posicao: guia.atual.posicao, quantidade: guia.atual.quantidade } : null}
+        sessaoDaGuia={guia.atual ? { posicao: guia.atual.sessao, quantidade: guia.atual.total } : null}
         detalhes={detalhes}
         conteudoInicial={conteudo}
         versao={meu?.versao ?? 0}

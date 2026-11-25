@@ -7,13 +7,15 @@ const ITENS = [
   { href: "/agenda", rotulo: "Agenda" },
   { href: "/pacientes", rotulo: "Pacientes" },
   { href: "/profissionais", rotulo: "Profissionais" },
-  // Pedidos dos profissionais: recepção e ADM decidem.
-  { href: "/solicitacoes", rotulo: "Solicitações" },
+  // Pendências (guias, devolutivas) e avisos de exclusões.
+  { href: "/notificacoes", rotulo: "Notificações" },
 ];
 
 const ITENS_PROFISSIONAL = [
   { href: "/agenda", rotulo: "Calendário" },
   { href: "/pacientes", rotulo: "Pacientes" },
+  // Guias perto do fim e devolutivas dos pacientes dele.
+  { href: "/notificacoes", rotulo: "Notificações" },
   { href: "/conta", rotulo: "Configurações" },
 ];
 
@@ -35,8 +37,8 @@ export function NavPrincipal({ perfil, pendentes = 0 }: { perfil: "adm" | "limit
             className={`inline-flex items-center gap-1.5 ${ativo ? "font-medium text-accent" : "text-muted hover:text-foreground"}`}
           >
             {i.rotulo}
-            {i.href === "/solicitacoes" && pendentes > 0 && (
-              <span aria-label={`${pendentes} pendentes`} className="rounded-full bg-amber-100 px-1.5 text-xs font-medium text-amber-900 tabular-nums">
+            {i.href === "/notificacoes" && pendentes > 0 && (
+              <span aria-label={`${pendentes} novas`} className="rounded-full bg-amber-100 px-1.5 text-xs font-medium text-amber-900 tabular-nums">
                 {pendentes}
               </span>
             )}

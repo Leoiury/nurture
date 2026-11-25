@@ -27,7 +27,7 @@ export function CoresDoCalendario({ iniciais }: { iniciais: Record<Status, strin
       <div className="flex items-start justify-between gap-3">
         <div>
           <h2 className="font-semibold">Cores do calendário</h2>
-          <p className="text-sm text-muted">A cor de cada atendimento segue o status dele. Só você vê estas cores.</p>
+          <p className="text-sm text-muted">A cor de cada atendimento pelo status dele (na agenda completa, ao escolher “Status” em Cores, no menu). Só você vê estas cores.</p>
         </div>
         <button type="button" onClick={() => void salvar(CORES_STATUS_PADRAO)} className="shrink-0 rounded-full bg-black/[0.04] px-4 py-2 text-sm font-medium hover:bg-black/[0.07]">
           Restaurar

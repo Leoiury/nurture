@@ -15,22 +15,23 @@ async function abrirAgenda(page: Page, caminho = "/agenda") {
 
 /**
  * O expediente 08:00–18:00 do primeiro dia cabe na altura visível do quadro?
- * Mede a extensão (independe de onde a rolagem parou): de 08:00 ao fim das 17:00,
- * mais os cabeçalhos fixos, tem que caber na altura do quadro.
+ * Mede a extensão (independe de onde a rolagem parou) no eixo de horas do primeiro dia:
+ * de 08:00 até 18:00, ou até o fim do eixo quando as últimas horas não têm atendimentos
+ * (horas vazias ficam recolhidas, e o rótulo delas não aparece). Mais os cabeçalhos fixos,
+ * tem que caber na altura do quadro.
  */
 async function expedienteCabeNaTela(page: Page) {
   const CABECALHOS_FIXOS = 80; // profissionais + dia (empilhada) ou dias + profissionais (lado a lado)
   return page.evaluate((cabecalhos) => {
     const quadro = document.querySelector<HTMLElement>(".overflow-auto.rounded-3xl")!;
-    // Rótulos do eixo de horas (fora dos cards); o primeiro de cada hora é o do primeiro dia.
-    const rotulos = [...quadro.querySelectorAll("span")].filter((s) => !s.closest("button"));
-    const y = (t: string) => rotulos.find((s) => s.textContent === t)?.getBoundingClientRect().top;
-    const oito = y("08:00");
-    const dezesseis = y("16:00");
-    const dezessete = y("17:00");
-    if (oito === undefined || dezesseis === undefined || dezessete === undefined) return false;
-    const fimDoExpediente = dezessete + (dezessete - dezesseis); // 18:00
-    return fimDoExpediente - oito + cabecalhos <= quadro.clientHeight;
+    // Rótulos do eixo de horas (fora dos cards); o primeiro 08:00 é o do primeiro dia.
+    const oito = [...quadro.querySelectorAll("span")].find((s) => !s.closest("button") && s.textContent === "08:00");
+    // Rótulo → segmento da hora → eixo do dia.
+    const eixo = oito?.parentElement?.parentElement;
+    if (!oito || !eixo) return false;
+    const dezoito = [...eixo.querySelectorAll("span")].find((s) => s.textContent === "18:00");
+    const fim = dezoito ? dezoito.getBoundingClientRect().top : eixo.getBoundingClientRect().bottom;
+    return fim - oito.getBoundingClientRect().top + cabecalhos <= quadro.clientHeight;
   }, CABECALHOS_FIXOS);
 }
 
@@ -192,9 +193,10 @@ test("Shift + clique num horário vazio abre o formulário preenchido", async ({
   const primeiroProfissional = await page.locator(".sticky.top-0 > div[title]").first().getAttribute("title");
   const { x, y, hora } = await horarioLivre(page);
 
-  // Sem a tecla: só uma dica, nada é aberto.
+  // Sem a tecla: só seleciona o horário (e mostra a dica), nada é aberto.
   await page.mouse.click(x, y);
   await expect(page.getByRole("status")).toContainText("segure Shift e clique");
+  await expect(page.locator("[data-cursor]")).toHaveAttribute("data-cursor", new RegExp(`\\|${hora}$`));
   await expect(page.getByRole("dialog", { name: "Novo atendimento" })).toHaveCount(0);
   // Ctrl não libera (só Shift).
   await page.keyboard.down("Control");

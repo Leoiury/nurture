@@ -59,13 +59,34 @@ export function esperadoDe(a: AtendimentoAgenda): Esperado {
 
 /** Posição no tempo, para "este e os próximos". */
 const momento = (a: AtendimentoAgenda) => `${a.data} ${formatarHora(a.inicio)}`;
+/** Agora, no mesmo formato de `momento`. */
+function momentoAtual() {
+  const p = partesNoFuso(new Date().toISOString());
+  return `${p.data} ${formatarHora(p.minutos)}`;
+}
 
 function diasEntre(de: string, ate: string): number {
   return Math.round((Date.parse(`${ate}T12:00:00Z`) - Date.parse(`${de}T12:00:00Z`)) / 86_400_000);
 }
 
-/** Os atendimentos atingidos por uma operação numa série (mesma regra do banco). */
-function doAlcance(lista: AtendimentoAgenda[], base: AtendimentoAgenda, alcance: string): AtendimentoAgenda[] {
+/**
+ * Os atendimentos atingidos por uma operação (mesma regra do banco, atendimentos_do_alcance):
+ * na série, ou do paciente com o mesmo profissional, de agora em diante, no mesmo dia da
+ * semana e horário ("mesmo_horario") ou deste em diante ("proximos_do_paciente").
+ */
+export function doAlcance(lista: AtendimentoAgenda[], base: AtendimentoAgenda, alcance: string, agora: string = momentoAtual()): AtendimentoAgenda[] {
+  if (alcance === "mesmo_horario" || alcance === "proximos_do_paciente") {
+    const diaDaSemana = (d: string) => new Date(`${d}T12:00:00Z`).getUTCDay();
+    return lista.filter(
+      (a) =>
+        a.id === base.id ||
+        (a.pacienteId === base.pacienteId &&
+          a.status !== "desmarcado" &&
+          momento(a) >= agora &&
+          a.profissionalIds.some((p) => base.profissionalIds.includes(p)) &&
+          (alcance === "proximos_do_paciente" ? momento(a) >= momento(base) : diaDaSemana(a.data) === diaDaSemana(base.data) && a.inicio === base.inicio)),
+    );
+  }
   if (alcance === "este" || !base.recorrenciaId) return [base];
   return lista.filter((a) => a.recorrenciaId === base.recorrenciaId && (alcance === "todos" || momento(a) >= momento(base)));
 }
@@ -223,7 +244,13 @@ const quandoIso = (iso: string) => {
   return quando(p.data, p.minutos);
 };
 
-const ALCANCE: Record<string, string> = { este: "", seguintes: " (este e os próximos da série)", todos: " (toda a série)" };
+const ALCANCE: Record<string, string> = {
+  este: "",
+  seguintes: " (este e os próximos da série)",
+  todos: " (toda a série)",
+  mesmo_horario: " (todos do paciente neste dia da semana e horário)",
+  proximos_do_paciente: " (este e todos os próximos do paciente)",
+};
 
 export function descreverCriacao(args: ArgsCriar, exibicao: Exibicao, profissionais: string): string {
   const n = args.p_inicios.length;

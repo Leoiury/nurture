@@ -175,3 +175,38 @@ export function useModoFoco(): [boolean, (ativo: boolean) => void] {
 
 /** Card que difere da agenda real (planejamento): contorno tracejado âmbar. */
 export const MARCA_DO_RASCUNHO = "outline-2 outline-dashed -outline-offset-2 outline-amber-500";
+
+/** Cor dos cards na agenda completa: pelo plano (padrão) ou pelo status. */
+export type CorPor = "plano" | "status";
+
+const CHAVE_COR_POR = "nurture:agenda:cor-por";
+const EVENTO_COR_POR = "nurture:cor-por";
+let corPorEmMemoria: CorPor = "plano";
+
+function lerCorPor(): CorPor {
+  try {
+    return localStorage.getItem(CHAVE_COR_POR) === "status" ? "status" : "plano";
+  } catch {
+    return corPorEmMemoria;
+  }
+}
+
+function assinarCorPor(aoMudar: () => void) {
+  window.addEventListener(EVENTO_COR_POR, aoMudar);
+  return () => window.removeEventListener(EVENTO_COR_POR, aoMudar);
+}
+
+/** A escolha fica no navegador (vale ao recarregar e ao trocar de semana). */
+export function useCorPor(): [CorPor, (v: CorPor) => void] {
+  const corPor = useSyncExternalStore(assinarCorPor, lerCorPor, () => "plano" as CorPor);
+  function definir(v: CorPor) {
+    corPorEmMemoria = v;
+    try {
+      localStorage.setItem(CHAVE_COR_POR, v);
+    } catch {
+      // armazenamento indisponível: vale só enquanto a página estiver aberta
+    }
+    window.dispatchEvent(new Event(EVENTO_COR_POR));
+  }
+  return [corPor, definir];
+}

@@ -7,11 +7,12 @@ import { FUSO } from "@/lib/agenda/tempo";
 import { ehProfissional, podeVerClinico, usuarioAtual } from "@/lib/auth/usuario";
 import { pacientesOcultosParaMim } from "@/lib/pacientes-ocultos";
 import { createClient } from "@/lib/supabase/server";
+import { guiasDoPaciente } from "../../agenda/actions-guias";
 import { carregarArquivos } from "../../arquivos/dados";
 import { ListaDeArquivos } from "../../arquivos/lista-de-arquivos";
 import { FichaDoPaciente } from "./ficha-do-paciente";
 import { HistoricoDoPaciente, type AtendimentoDoHistorico } from "./historico-do-paciente";
-import type { PedidoDeInativacao } from "./inativacao";
+import { GuiasDoPaciente } from "./guias-do-paciente";
 import { ResponsaveisDoPaciente, type ResponsavelDaFicha } from "./responsaveis-do-paciente";
 
 export const metadata: Metadata = { title: "Paciente · Nurture" };
@@ -87,32 +88,7 @@ export default async function PacientePage({ params }: PageProps<"/pacientes/[id
   // Conteúdo clínico: a recepção não vê (o banco também bloqueia).
   const arquivos = clinico ? await carregarArquivos(id) : null;
 
-  // Pedidos de inativação em aberto. A recepção e o ADM decidem; o profissional só vê o dele.
-  const [abertos, ocultos] = await Promise.all([
-    supabase.from("inativacoes_pedidas").select("id, profissional_id, pedido_por, pedido_por_nome, motivo, pedido_em").eq("paciente_id", id).is("decisao", null).order("pedido_em"),
-    pacientesOcultosParaMim(),
-  ]);
-  if (abertos.error) throw new Error("Não foi possível carregar o paciente.");
-  const minhaInativacaoPedida = semValores && abertos.data.some((p) => p.profissional_id === eu?.profissionalId);
-  let pedidos: PedidoDeInativacao[] = [];
-  if (!semValores && abertos.data.length > 0) {
-    // Os atendimentos de cada pedido: exclusão pedida no mesmo instante, ainda sem decisão.
-    const { data: aguardando, error } = await supabase
-      .from("atendimentos")
-      .select("exclusao_solicitada_em, exclusao_solicitada_por")
-      .eq("paciente_id", id)
-      .is("excluido_em", null)
-      .not("exclusao_solicitada_em", "is", null);
-    if (error) throw new Error("Não foi possível carregar o paciente.");
-    const instante = (t: string) => new Date(t).getTime();
-    pedidos = abertos.data.map((p) => ({
-      id: p.id,
-      pedidoPor: p.pedido_por_nome,
-      motivo: p.motivo,
-      pedidoEm: p.pedido_em,
-      atendimentos: aguardando.filter((a) => a.exclusao_solicitada_por === p.pedido_por && instante(a.exclusao_solicitada_em!) === instante(p.pedido_em)).length,
-    }));
-  }
+  const [ocultos, guias] = await Promise.all([pacientesOcultosParaMim(), guiasDoPaciente(id)]);
   const responsaveis: ResponsavelDaFicha[] = vinculos.data.map(({ responsavel: r }) => ({
     id: r.id,
     nome: r.nome,
@@ -147,8 +123,6 @@ export default async function PacientePage({ params }: PageProps<"/pacientes/[id
           semValores
             ? {
                 ...paciente.data,
-                // Para quem pediu a inativação, o paciente já está inativo.
-                ativo: paciente.data.ativo && !ocultos.has(id),
                 plano: null,
                 pendencias_cadastrais: paciente.data.pendencias_cadastrais.filter((x) => x !== "plano"),
               }
@@ -156,9 +130,10 @@ export default async function PacientePage({ params }: PageProps<"/pacientes/[id
         }
         planos={planos.data}
         semPlano={semValores}
-        pedidos={pedidos}
-        minhaInativacaoPedida={minhaInativacaoPedida}
+        ocultoParaMim={ocultos.has(id)}
       />
+      {/* Guias: todos veem o saldo; gerar, renovar e editar ficam com a recepção e o ADM. */}
+      {(guias.length > 0 || !semValores) && <GuiasDoPaciente pacienteId={id} guias={guias} podeEditar={!semValores} planoPadrao={paciente.data.plano_id} />}
       <ResponsaveisDoPaciente pacienteId={id} responsaveis={responsaveis} />
       {arquivos && (
         <section aria-label="Arquivos" className="flex flex-col gap-3 rounded-3xl bg-surface p-5 shadow-sm ring-1 ring-black/5">

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ROTULOS_DOS_STATUS } from "@/lib/agenda/cores";
 import type { AtendimentoAgenda, Lembretes, ProfissionalAgenda, Status } from "@/lib/agenda/dados";
 import { semExpediente, type DiaEspecial } from "@/lib/agenda/feriados";
@@ -11,13 +11,16 @@ import { formatarHora, nomeCurtoDoDia, partesNoFuso } from "@/lib/agenda/tempo";
 import { sufixoDaVisao, type Visao } from "@/lib/agenda/visao";
 import { encontrarDivergencias, textosDasDivergencias, type Divergencia } from "@/lib/agenda/divergencias";
 import { FILTROS_VAZIOS, ajustarAoFiltro, aplicarFiltros, quantosFiltros, type Filtros, type ModoDoFiltro } from "@/lib/agenda/filtros";
+import { ajustarMinuto, moverNaColuna, primeiroMinuto } from "@/lib/agenda/cursor";
 import { conflitosDoPaciente, type OutroDoPaciente } from "@/lib/agenda/pessoal";
 import { lerIdNovo, quando as quandoFormatado, type Operacao } from "@/lib/agenda/planejamento";
 import { ProvedorDeAcoes } from "./acoes-da-agenda";
 import { mover } from "./actions";
+import { criarAtendimentos, duplicarAtendimento } from "./actions-novo-atendimento";
 import { ProvedorDeArraste, type AlvoDoArraste } from "./arraste";
-import { agruparPorColuna, nomeAbreviado, useAlturaDoElemento, useModoFoco } from "./comum";
+import { agruparPorColuna, nomeAbreviado, useAlturaDoElemento, useCorPor, useModoFoco } from "./comum";
 import type { NovoNoHorario } from "./coluna-clicavel";
+import { ProvedorDoCursor, type Cursor } from "./cursor-da-grade";
 import { FiltrosAvancados, type OpcoesDosFiltros } from "./filtros-avancados";
 import { MenuLateral } from "./menu-lateral";
 import { PainelAtendimento } from "./painel-atendimento";
@@ -64,9 +67,11 @@ type Props = {
   meuProfissional?: string;
   /** Perfil profissional: cores por status na legenda, sem plano nos filtros, e os desmarcados à vista. */
   coresDoStatus?: Record<Status, string>;
+  /** Agenda completa: cores por status do usuário, para alternar com as dos planos no menu. */
+  coresParaAlternar?: Record<Status, string>;
 };
 
-export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais, atendimentos, especiais, lembretes, navegacao, navegacaoNoMenu, planejamento, urlDoPlanejamento, pessoal, pacienteFiltrado, alternarCalendario, meuProfissional, coresDoStatus }: Props) {
+export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais, atendimentos, especiais, lembretes, navegacao, navegacaoNoMenu, planejamento, urlDoPlanejamento, pessoal, pacienteFiltrado, alternarCalendario, meuProfissional, coresDoStatus, coresParaAlternar }: Props) {
   // Profissionais sem atendimentos no período começam ocultos (podem ser exibidos no menu).
   const [ocultos, setOcultos] = useState<Set<string>>(
     () => new Set(pessoal ? [] : profissionais.filter((p) => !atendimentos.some((a) => a.profissionalIds.includes(p.id))).map((p) => p.id)),
@@ -83,6 +88,9 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
   const [realizando, setRealizando] = useState<{ qual: "atendimento" | "anamnese"; data: string; hora: string } | null>(null);
   const [editando, setEditando] = useState<DadosEdicao | null>(null);
   const [foco, setFoco] = useModoFoco();
+  const [corPor, setCorPor] = useCorPor();
+  // Cores por status: sempre no calendário do profissional; na agenda completa, se escolhido no menu.
+  const coresPorStatus = coresDoStatus ?? (coresParaAlternar && corPor === "status" ? coresParaAlternar : undefined);
   const [aviso, setAviso] = useState<{ texto: string; desfazer?: () => void } | null>(null);
   // Calendário pessoal: pergunta antes de mover para um horário com impacto em outro profissional.
   const [confirmacao, setConfirmacao] = useState<{ textos: string[]; aoConfirmar: () => void } | null>(null);
@@ -155,12 +163,13 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
         )
         .map((a) => (textos.has(a.id) ? { ...a, divergencia: textos.get(a.id) } : a))
         // Bolo no card: o paciente faz aniversário no dia do atendimento.
-        .map((a) => (aniversariantes.has(`${a.data}|${a.pacienteId}`) ? { ...a, aniversario: true } : a)),
+        .map((a) => (aniversariantes.has(`${a.data}|${a.pacienteId}`) ? { ...a, aniversario: true } : a))
+        // Cores por status escolhidas no menu (o calendário do profissional já chega com elas).
+        .map((a) => (coresPorStatus && !coresDoStatus ? { ...a, corDoStatus: coresPorStatus[a.status] } : a)),
       filtros,
       modoDoFiltro,
-      // Exclusão pedida por um profissional: apagado até a recepção ou um ADM decidir.
-    ).map((a) => (a.exclusaoSolicitada ? { ...a, esmaecido: true } : a));
-  }, [atendimentosAtuais, ocultos, mostrarDesmarcados, divergencias, aniversariantes, filtros, modoDoFiltro]);
+    );
+  }, [atendimentosAtuais, ocultos, mostrarDesmarcados, divergencias, aniversariantes, filtros, modoDoFiltro, coresPorStatus, coresDoStatus]);
   const ajuste = useMemo(
     () =>
       totalDeFiltros > 0 && modoDoFiltro === "esconder" && ajustarAgenda ? ajustarAoFiltro(visiveis, colunasVisiveis.map((p) => p.id)) : null,
@@ -190,7 +199,7 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
   }, [atendimentosAtuais, filtros.planos, filtros.tipos, coresDoStatus]);
 
   const planos = useMemo(() => {
-    if (coresDoStatus) return ROTULOS_DOS_STATUS.map(([status, rotulo]): [string, string] => [rotulo, coresDoStatus[status]]);
+    if (coresPorStatus) return ROTULOS_DOS_STATUS.map(([status, rotulo]): [string, string] => [rotulo, coresPorStatus[status]]);
     const m = new Map<string, string>();
     const tipos = new Map<string, string>();
     for (const a of atendimentos) {
@@ -200,7 +209,7 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
     // Tipos com cor própria (ex.: Temporário) também entram na legenda.
     for (const [tipo, cor] of tipos) m.set(`${tipo} (tipo)`, cor);
     return [...m].sort(([a], [b]) => a.localeCompare(b));
-  }, [atendimentos, coresDoStatus]);
+  }, [atendimentos, coresPorStatus]);
 
   /** No calendário pessoal, avisa antes se o novo horário afeta outro profissional. */
   function soltar(a: AtendimentoAgenda, de: string, alvo: AlvoDoArraste) {
@@ -300,10 +309,112 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Teclado: horário selecionado (setas), N marca, Enter abre, Ctrl+C copia, Ctrl+V cola.
+  const [cursor, setCursor] = useState<Cursor | null>(null);
+  const [copiado, setCopiado] = useState<{ id: string; paciente: string | null } | null>(null);
+  const segmentosDasColunas = useRef(new Map<string, Segmento[]>());
+  const registrarSegmentos = useCallback((chave: string, segmentos: Segmento[] | null) => {
+    if (segmentos) segmentosDasColunas.current.set(chave, segmentos);
+    else segmentosDasColunas.current.delete(chave);
+  }, []);
+  const contextoDoCursor = useMemo(() => ({ cursor, selecionar: setCursor, registrar: registrarSegmentos }), [cursor, registrarSegmentos]);
+  const cardNoCursor = cursor
+    ? exibidos.find((a) => a.data === cursor.dia && a.profissionalIds.includes(cursor.profissionalId) && a.inicio <= cursor.minuto && cursor.minuto < a.fim)
+    : undefined;
+
+  // A seleção acompanha a rolagem.
+  useEffect(() => {
+    if (cursor) document.querySelector("[data-cursor]")?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [cursor]);
+
+  function copiar(id: string) {
+    const a = atendimentosAtuais.find((x) => x.id === id);
+    setCopiado({ id, paciente: a?.paciente ?? null });
+    setAviso({ texto: `Copiado${a?.paciente ? `: ${a.paciente}` : ""}. Selecione um horário vazio e aperte Ctrl+V para colar.` });
+  }
+
+  async function colar(origem: { id: string; paciente: string | null }, destino: Cursor) {
+    const falha = { ok: false as const, erro: "falha de conexão" };
+    const dados = await duplicarAtendimento(origem.id, { data: destino.dia, hora: formatarHora(destino.minuto), profissionalId: destino.profissionalId }).catch(() => falha);
+    if (!dados.ok) return setAviso({ texto: `Não foi possível colar: ${dados.erro}` });
+    const r = await (plano.ativo ? plano.acoes.criar(dados.novo, dados.exibicao) : criarAtendimentos(dados.novo)).catch(() => falha);
+    if (!r.ok) return setAviso({ texto: `Não foi possível colar: ${r.erro}` });
+    const quantos = r.quantidade === 1 ? "1 atendimento" : `${r.quantidade} atendimentos`;
+    setAviso({
+      texto:
+        `Colado${plano.ativo ? " no planejamento" : ""}: ${quantos}${origem.paciente ? ` de ${origem.paciente}` : ""} a partir de ${quandoFormatado(destino.dia, destino.minuto)}` +
+        ` · ${nomeAbreviado(nomePorId.get(destino.profissionalId) ?? "")}`,
+    });
+    if (!plano.ativo) router.refresh();
+  }
+
+  useEffect(() => {
+    function colunasNaTela() {
+      return [...document.querySelectorAll<HTMLElement>("[data-coluna]")].map((el) => el.dataset.coluna!).filter((c) => segmentosDasColunas.current.has(c));
+    }
+    function aoTeclar(e: KeyboardEvent) {
+      const alvo = e.target as HTMLElement | null;
+      if (alvo?.closest("input, textarea, select, [contenteditable='true']")) return;
+      const outroPainel = !!(criando || editando || realizando || confirmacao || menuAberto);
+      const mod = e.ctrlKey || e.metaKey;
+      const tecla = e.key.toLowerCase();
+
+      // Copiar: o card aberto no painel, ou o do horário selecionado (sem texto selecionado na tela).
+      if (mod && tecla === "c") {
+        if (outroPainel || window.getSelection()?.toString()) return;
+        const id = selecionado ?? cardNoCursor?.id;
+        if (!id) return;
+        e.preventDefault();
+        copiar(id);
+        return;
+      }
+      if (outroPainel || selecionado) return;
+      if (mod && tecla === "v") {
+        if (!cursor || !copiado) return;
+        e.preventDefault();
+        void colar(copiado, cursor);
+        return;
+      }
+      if (mod || e.altKey) return;
+
+      if (e.key === "Escape" && cursor) return setCursor(null);
+      if ((tecla === "n" || e.key === "Enter") && cursor) {
+        e.preventDefault();
+        if (e.key === "Enter" && cardNoCursor) return setSelecionado(cardNoCursor.id);
+        return setCriando({ data: cursor.dia, hora: formatarHora(cursor.minuto), profissionalId: cursor.profissionalId });
+      }
+      if (!["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) return;
+      const colunasVisiveisNaTela = colunasNaTela();
+      if (colunasVisiveisNaTela.length === 0) return;
+      e.preventDefault();
+      const segmentosDe = (chave: string) => segmentosDasColunas.current.get(chave) ?? [];
+      if (!cursor) {
+        // Primeira seta: o primeiro horário de hoje (ou do primeiro dia).
+        const chave = colunasVisiveisNaTela.find((c) => c.startsWith(`${hoje}|`)) ?? colunasVisiveisNaTela[0];
+        const [d, p] = chave.split("|");
+        const minuto = ajustarMinuto(8 * 60, segmentosDe(chave)) ?? primeiroMinuto(segmentosDe(chave));
+        if (minuto !== null) setCursor({ dia: d, profissionalId: p, minuto });
+        return;
+      }
+      const atual = `${cursor.dia}|${cursor.profissionalId}`;
+      if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+        return setCursor({ ...cursor, minuto: moverNaColuna(cursor.minuto, segmentosDe(atual), e.key === "ArrowUp" ? -1 : 1) });
+      }
+      const i = colunasVisiveisNaTela.indexOf(atual);
+      const proxima = colunasVisiveisNaTela[i + (e.key === "ArrowLeft" ? -1 : 1)];
+      if (!proxima) return;
+      const [d, p] = proxima.split("|");
+      setCursor({ dia: d, profissionalId: p, minuto: ajustarMinuto(cursor.minuto, segmentosDe(proxima)) ?? cursor.minuto });
+    }
+    window.addEventListener("keydown", aoTeclar);
+    return () => window.removeEventListener("keydown", aoTeclar);
+  });
+
   const propsVisao = { dias, hoje, colunas, visiveis: exibidos, porColuna, compactar: compactar || !!ajuste, expandidos, aoExpandir: expandirSegmento, aoAbrir: setSelecionado, sufixoUrl, alturaVisivel, especiais, aoCriarEm: setCriando, divergencias: divergenciasPorColuna, comemoracoes: comemoracoesPorDia };
 
   const grade = (
     <ProvedorDeArraste aoSoltar={soltar} aoDica={(texto) => setAviso({ texto })} outros={pessoal?.outros}>
+    <ProvedorDoCursor value={contextoDoCursor}>
     <div className="flex min-h-0 flex-1 flex-col gap-3">
       {plano.ativo && planejamento && <FaixaDoPlanejamento planejamento={plano} urlSair={planejamento.urlSair} aoAviso={(texto) => setAviso({ texto })} />}
 
@@ -447,7 +558,9 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
         aoAlternar={alternarProfissional}
         aoMostrarTodos={() => setOcultos(new Set())}
         planos={planos}
-        tituloDaLegenda={coresDoStatus ? "Status" : "Planos"}
+        tituloDaLegenda={coresPorStatus ? "Status" : "Planos"}
+        corPor={corPor}
+        aoMudarCorPor={coresParaAlternar && !coresDoStatus ? setCorPor : undefined}
         compactar={compactar}
         aoCompactar={(v) => {
           setCompactar(v);
@@ -570,6 +683,7 @@ export function AgendaGrade({ modo, visao, urlDaVisao, dias, hoje, profissionais
         </div>
       )}
     </div>
+    </ProvedorDoCursor>
     </ProvedorDeArraste>
   );
   return plano.ativo ? <ProvedorDeAcoes value={plano.acoes}>{grade}</ProvedorDeAcoes> : grade;

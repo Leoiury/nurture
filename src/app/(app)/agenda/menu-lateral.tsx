@@ -4,6 +4,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import type { ProfissionalAgenda } from "@/lib/agenda/dados";
+import type { CorPor } from "./comum";
 
 type MenuProps = {
   aberto: boolean;
@@ -20,6 +21,9 @@ type MenuProps = {
   aoMostrarTodos: () => void;
   planos: [string, string][];
   tituloDaLegenda: string;
+  /** Agenda completa: cor dos cards pelo plano ou pelo status (o calendário pessoal é sempre por status). */
+  corPor?: CorPor;
+  aoMudarCorPor?: (v: CorPor) => void;
   compactar: boolean;
   aoCompactar: (v: boolean) => void;
   mostrarDesmarcados: boolean;
@@ -186,6 +190,31 @@ export function MenuLateral(props: MenuProps) {
         )}
 
         {filtrosPadrao}
+
+        {props.aoMudarCorPor && (
+          <section className="flex flex-col gap-2">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">Cores</h3>
+            <div role="radiogroup" aria-label="Cores dos cards" className="flex gap-0.5 rounded-full bg-black/[0.04] p-1">
+              {(
+                [
+                  ["plano", "Planos"],
+                  ["status", "Status"],
+                ] as const
+              ).map(([valor, rotulo]) => (
+                <button
+                  key={valor}
+                  type="button"
+                  role="radio"
+                  aria-checked={props.corPor === valor}
+                  onClick={() => props.aoMudarCorPor!(valor)}
+                  className={`flex-1 rounded-full px-2 py-1.5 text-[13px] transition ${props.corPor === valor ? "bg-surface font-medium shadow-sm" : "text-muted hover:text-foreground"}`}
+                >
+                  {rotulo}
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
 
         {props.planos.length > 0 && (
           <section className="flex flex-col gap-2">

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AtendimentoAgenda } from "./dados";
-import { esperadoDe, lerErroDeAplicacao, moverNovo, semAlteracoesDe, semNovo, simular, type Operacao } from "./planejamento";
+import { doAlcance, esperadoDe, lerErroDeAplicacao, moverNovo, semAlteracoesDe, semNovo, simular, type Operacao } from "./planejamento";
 import { instanteNoFuso } from "./tempo";
 
 const nomes = new Map([
@@ -200,5 +200,34 @@ describe("ajustes do paciente no planejamento", () => {
     const r = simular(base, [op], nomes, hoje);
     expect(r.filter((a) => a.rascunho).map((a) => a.id)).toEqual(["futuroPsi"]);
     expect(r.find((a) => a.id === "futuroPsi")?.plano?.nome).toBe("Unimed");
+  });
+});
+
+describe("alcance por paciente (desmarcar e excluir)", () => {
+  // Segundas 2026-12-07 e 14, quarta 2026-12-09; "agora" é 2026-12-01 08:00.
+  const p = { pacienteId: "joao" };
+  const lista = [
+    atendimento("passado", "2026-11-30", "14:00", p),
+    atendimento("base", "2026-12-07", "14:00", p),
+    atendimento("seg14", "2026-12-14", "14:00", p),
+    atendimento("seg10", "2026-12-14", "10:00", p),
+    atendimento("qua", "2026-12-09", "14:00", p),
+    atendimento("desmarcado", "2026-12-21", "14:00", { ...p, status: "desmarcado" }),
+    atendimento("colega", "2026-12-21", "14:00", { ...p, profissionalIds: ["bia"] }),
+    atendimento("outro", "2026-12-21", "14:00"),
+  ];
+  const base = lista[1];
+  const ids = (alcance: string) => doAlcance(lista, base, alcance, "2026-12-01 08:00").map((a) => a.id);
+
+  it("mesmo horário: o mesmo dia da semana e hora, de agora em diante, com o mesmo profissional", () => {
+    expect(ids("mesmo_horario")).toEqual(["base", "seg14"]);
+  });
+
+  it("este e os próximos: qualquer horário a partir deste, com o mesmo profissional", () => {
+    expect(ids("proximos_do_paciente")).toEqual(["base", "seg14", "seg10", "qua"]);
+  });
+
+  it("só este", () => {
+    expect(ids("este")).toEqual(["base"]);
   });
 });

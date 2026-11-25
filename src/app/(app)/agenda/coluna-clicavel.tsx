@@ -4,7 +4,8 @@
 // atendimento já preenchido (profissional, dia, horário). Para evitar marcações
 // acidentais: com o mouse, Shift + clique (a prévia aparece com a tecla
 // pressionada); no toque, segurar o dedo sobre o horário. Clicar numa faixa
-// compactada a expande.
+// compactada a expande. Um clique simples só seleciona o horário (para o teclado:
+// N marca, Ctrl+V cola, setas mudam o horário).
 
 import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import { encaixar, minutosNaPosicao, posicaoY, type Segmento } from "@/lib/agenda/layout";
@@ -12,6 +13,7 @@ import { formatarHora } from "@/lib/agenda/tempo";
 import type { Divergencia } from "@/lib/agenda/divergencias";
 import { TEMPO_DE_TOQUE_LONGO, TOLERANCIA_DO_TOQUE, comModificador, useArraste } from "./arraste";
 import { LinhasDeDivergencia } from "./linhas-de-divergencia";
+import { DICA_DO_CURSOR, useCursorDaGrade } from "./cursor-da-grade";
 
 export type NovoNoHorario = { data: string; hora: string; profissionalId: string };
 
@@ -31,11 +33,11 @@ type Props = {
 };
 
 const DURACAO_DA_PREVIA = 45;
-export const DICA_MARCAR = "Para marcar neste horário, segure Shift e clique.";
 
 export function ColunaClicavel({ dia, profissionalId, segmentos, px, aoExpandir, aoCriar, compacta, divergencias, className = "", children }: Props) {
   const [previa, setPrevia] = useState<number | null>(null);
   const { estado: arraste, registrarColuna, modificador, dica, cliqueSuprimido, outros } = useArraste();
+  const { cursor, selecionar, registrar } = useCursorDaGrade();
   const chave = `${dia}|${profissionalId}`;
   // Toque em andamento sobre um horário vazio (segurando para marcar).
   const [segurando, setSegurando] = useState(false);
@@ -47,6 +49,13 @@ export function ColunaClicavel({ dia, profissionalId, segmentos, px, aoExpandir,
     registrarColuna(chave, { segmentos, px });
     return () => registrarColuna(chave, null);
   }, [chave, segmentos, px, registrarColuna]);
+
+  // Os trechos de horário, para as setas do teclado pularem as faixas compactadas.
+  useEffect(() => {
+    registrar(chave, segmentos);
+    return () => registrar(chave, null);
+  }, [chave, segmentos, registrar]);
+  const selecionado = cursor && cursor.dia === dia && cursor.profissionalId === profissionalId ? cursor.minuto : null;
 
   useEffect(() => () => clearTimeout(toque.current?.timer), []);
 
@@ -120,7 +129,10 @@ export function ColunaClicavel({ dia, profissionalId, segmentos, px, aoExpandir,
         if (!p) return;
         if (p.segmento.compacto) return aoExpandir(p.segmento);
         if (ultimoPonteiro.current !== "mouse") return; // no toque, marca segurando o dedo
-        if (!comModificador(e)) return dica(DICA_MARCAR);
+        if (!comModificador(e)) {
+          selecionar({ dia, profissionalId, minuto: encaixar(p.minutos) });
+          return dica(DICA_DO_CURSOR);
+        }
         aoCriar({ data: dia, hora: formatarHora(encaixar(p.minutos)), profissionalId });
       }}
     >
@@ -160,6 +172,15 @@ export function ColunaClicavel({ dia, profissionalId, segmentos, px, aoExpandir,
         </div>
       )}
       {children}
+      {/* Horário selecionado (teclado): moldura por cima dos cards, sem bloquear cliques. */}
+      {selecionado !== null && (
+        <div
+          aria-hidden
+          data-cursor={`${chave}|${formatarHora(selecionado)}`}
+          className="pointer-events-none absolute inset-x-0.5 z-20 rounded-md ring-2 ring-accent"
+          style={{ top: posicaoY(selecionado, segmentos, px), height: Math.max(posicaoY(selecionado + 15, segmentos, px) - posicaoY(selecionado, segmentos, px), 6) }}
+        />
+      )}
       {divergencias && divergencias.length > 0 && <LinhasDeDivergencia divergencias={divergencias} />}
     </div>
   );
